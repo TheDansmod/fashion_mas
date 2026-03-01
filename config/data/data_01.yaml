@@ -1,0 +1,2 @@
+fashion_gen_hdf5_path: /mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/fashiongen_256_256_train.h5
+string_attributes: ['input_brand', 'input_category', 'input_composition', 'input_concat_description', 'input_department', 'input_description', 'input_gender', 'input_name', 'input_pose', 'input_season', 'input_subcategory']
