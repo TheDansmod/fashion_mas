@@ -1,0 +1,20 @@
+line-length = 88
+
+[lint]
+extend-select = [
+    "D",  # pydocstyle (docstring formatting)
+    "E",  # pydocstyle (standard errors) - subset in default
+    "F",  # pyflakes (logical errors) - present in default
+    "W",  # pycodestyle warning
+    "I",  # isort (for sorting imports)
+]
+ignore = [
+    "D203",   # One-blank-line-before-class is mutually exclusive.
+    "D213",   # Multi-line-summary-first-line is mutually exclusive.
+]
+
+[lint.pydocstyle]
+convention = "google"
+
+[format]
+docstring-code-format = true

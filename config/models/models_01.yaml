@@ -1,0 +1,5 @@
+# VLM agent for generating sample images or converting provided ones to descriptions
+vlm_agent:
+  _target_: src.utils.model_factory.get_llm_provider
+  name: qwen3-vl:8b-thinking
+  temp: 0.6

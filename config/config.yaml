@@ -1,0 +1,12 @@
+defaults:
+  - models: models_01
+  - misc: misc_01
+  - _self_
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+
+
+hydra:
+  verbose:
+    - __main__
+    - src.exploration.exploration
