@@ -38,5 +38,9 @@ data_processing:
   embedding_size: 768
   # this is the number of images / texts that are taken in a single batch to generate their embeddings using the embedding model. 512 worked fine.
   embedding_batch_size: 512
-  # this is the number of datapoints we fetch at one time from the fashion-gen dataset. Best for it to be some integer multiple of the batch size. Not so large that it does not fit in RAM. 1024 is too large - it exhausted my RAM without a single batch going through. 128 works, but is a little small.
-  data_fetch_batch_size: 512
+  # this is the number of datapoints we fetch at one time from the fashion-gen dataset. Best for it to be some integer multiple of the batch size. Not so large that it does not fit in RAM. Without writing image to payload, the process is really fast.
+  data_fetch_batch_size: 1024
+  # inserting the entire data into the collection all together seems like it will take time. So I am doing it a few datapoints at a time. This value controls where (the index) we want to start inserting data into the collection from. If this is not 0, please ensure that recreate is false - otherwise the existing collection will get deleted.
+  insert_start_index: 0
+  # inserting the entire data into the collection all together seems like it will take time. So I am doing it a few datapoints at a time. This value controls where (the index - excluded) we want to stop inserting data into the collection. Ensure that this value is larger than the start index
+  insert_stop_index: 100000

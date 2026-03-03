@@ -178,18 +178,24 @@ def get_fashion_gen_data(cfg, from_idx, to_idx):
     data = dict()
     images_key = cfg.data.fashion_gen.images_key
     prices_key = cfg.data.fashion_gen.prices_key
+    stop_index = cfg.data.data_processing.insert_stop_index
     vec_decode = np.vectorize(
         pyfunc=lambda x: x.decode(cfg.data.fashion_gen.string_codec)
     )
     with h5py.File(cfg.data.fashion_gen.hdf5_path, "r") as file:
         num_datapoints = file["index"].shape[0]
-        if from_idx >= num_datapoints:
+        stop_index = min(num_datapoints, stop_index)
+        if from_idx >= stop_index:
             return None, True
-        data[images_key] = file[images_key][from_idx:to_idx].astype("uint8")
-        data[prices_key] = file[prices_key][from_idx:to_idx].tolist()
+        data[images_key] = file[images_key][from_idx : min(to_idx, stop_index)].astype(
+            "uint8"
+        )
+        data[prices_key] = file[prices_key][from_idx : min(to_idx, stop_index)].tolist()
         for key in cfg.data.fashion_gen.string_attributes:
-            data[key] = vec_decode(np.ravel(file[key][from_idx:to_idx])).tolist()
-    return data, to_idx >= num_datapoints
+            data[key] = vec_decode(
+                np.ravel(file[key][from_idx : min(to_idx, stop_index)])
+            ).tolist()
+    return data, to_idx >= stop_index
 
 
 def populate_vector_db(cfg):
@@ -207,7 +213,7 @@ def populate_vector_db(cfg):
     descriptions_key = cfg.data.fashion_gen.descriptions_key
     prices_key = cfg.data.fashion_gen.prices_key
 
-    from_idx, done = 0, False
+    from_idx, done = cfg.data.data_processing.insert_start_index, False
     while not done:
         # fetch the data
         to_idx = from_idx + cfg.data.data_processing.data_fetch_batch_size
@@ -223,12 +229,7 @@ def populate_vector_db(cfg):
             string_payload = {
                 key: data[key][idx] for key in cfg.data.fashion_gen.string_attributes
             }
-            # need to convert to list since Qdrant can't handle numpy ndarray payload
-            payload = {
-                images_key: data[images_key][idx].tolist(),
-                prices_key: data[prices_key],
-                **string_payload,
-            }
+            payload = {prices_key: data[prices_key], **string_payload}
             # construct the named vectors
             named_vectors = {
                 cfg.data.vector_db.image_vectors_name: img_vec,

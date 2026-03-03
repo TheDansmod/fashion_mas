@@ -42,6 +42,7 @@
 5. 2026-03-03 16:59 Have written code to populate the vector db. Was able to figure out how to insert stuff into the qdrant db - for both images and text. For now, have discarded the use llama index since it just seems like it tries to do both of what qdrant and langgraph do, but worse than either. Will now be running the code to populate the vector db, which might be a little slow - but is only a one-time task - hopefully. Except I haven't added code for msrp inclusion which I wanted. I will have to re-create the DB if I really want it, so I'll add it now.
 6. 2026-03-03 17:24 Added msrp. Doing generation of qdrant collection now. Having to work with the hyperparameters a little since it is a really large dataset.
 7. 2026-03-03 17:31 It seems insertion (upsert specifically) is really slow. Based on current estimates, it is going to take around 12 hours to insert everything into the collection. I was inserting the description text and the image itself into the payload since I did not want to fetch them from the hdf5 file. But given how long it seems to be taking, it might be prudent to do the fetch (for image and description if needed), in real time, from the hdf5 database since it allows reading arbitrary indices without loading the whole thing into memory.
+8. 2026-03-03 18:26 Just by removing the image from the payload - the description and everything else remains, and by decreasing the `data_fetch_batch_size` from 1024 to 512 (might not even be needed), I was able to decrease the time neeeded to create the whole collection to 52 minutes (from 11 / 12 hours). I will try larger `data_fetch_batch_size`.
 
 # Library Dependency and their purpose
 1. `langgraph` - agent orchestration. needed for the multi-agent system
@@ -57,6 +58,8 @@
 11. `python-dotenv` - this is required to load dotenv files (like for `HYDRA_FULL_ERROR=1` to get a full stack trace)
 
 # TODOs
-1. Figure out all the categories, sub-cat, brands, etc etc
-2. Include msrp in some way - it is not string so isn't included in the `string_attributes` in `config/data/data_01.yaml`.
-3. For batch size of marqo-fashionSigLIP model (256, 512, 1024 etc etc) in `config/data/data_01.yaml`.
+1. Figure out all the categories, sub-cat, brands, etc etc - what all elements they have
+2. Set batch size of marqo-fashionSigLIP model (256, 512, 1024 etc etc) in `config/data/data_01.yaml`.
+
+Inserted first 5k points
+Insert first 15k points
