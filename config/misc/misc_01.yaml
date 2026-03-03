@@ -1,1 +1,5 @@
+# this is used to test how qwen model is working
 test_image_path: /mnt/windows/Users/lordh/Documents/LibraryOfBabel/Images/Wallpaper/cloudy_aenami.png
+
+# this is used when trying to explore the hdf5 fashion-gen file, and checkout random datapoints (images + metadata) in it
+random_image_save_path: src/exploration/random_image.png

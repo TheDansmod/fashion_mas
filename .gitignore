@@ -12,3 +12,7 @@ wheels/
 *.log
 # hydra output folders
 outputs/
+# don't need to track this since it will only store the qdrant collection
+data/
+# the .env file might contain sensitive data, so all its keys (that are required) are enumerated in the main.py file
+.env

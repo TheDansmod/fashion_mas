@@ -1,5 +1,8 @@
 line-length = 88
 
+extend-exclude = [
+    "src/exploration/exploration.py",
+]
 [lint]
 extend-select = [
     "D",  # pydocstyle (docstring formatting)
@@ -18,3 +21,8 @@ convention = "google"
 
 [format]
 docstring-code-format = true
+
+#     "D100",   # Reverse; Missing docstring in public module
+#     "D102",   # Reverse; Missing docstring in public method
+#     "D103",   # Reverse; Missing docstring in public function
+#     "D107",   # Reverse; Missing docstring in `__init__`

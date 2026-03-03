@@ -11,3 +11,4 @@ hydra:
   verbose:
     - __main__
     - src.exploration.exploration
+    - src.data_manager.vector_db_writer
