@@ -6,7 +6,6 @@ import hydra
 from dotenv import load_dotenv
 from omegaconf import DictConfig
 
-# from src.exploration.exploration import test_qdrant, test_fashion_gen
 from src.data_manager.vector_db_writer import populate_vector_db
 
 # The .env file should contain `HYDRA_FULL_ERROR=1` to see a full stacktrace in case

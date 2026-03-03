@@ -5,28 +5,14 @@
 """
 
 import logging
-import random
-
-import numpy as np
-import h5py
-import torch
-import hydra
-from langchain_core.messages import HumanMessage
-import open_clip
-from qdrant_client import QdrantClient
-from PIL import Image
-from qdrant_client.http.models import (
-    Distance,
-    PointStruct,
-    VectorParams,
-)
-
-from src.utils.common_utils import encode_image
 
 log = logging.getLogger(__name__)
 
 
 def test_qwen(cfg):
+    import hydra
+    from langchain_core.messages import HumanMessage
+    from src.utils.common_utils import encode_image
     """See how qwen local model describes an image."""
     provider = hydra.utils.instantiate(cfg.models.vlm_agent)
     model = provider(
@@ -53,6 +39,9 @@ def test_qwen(cfg):
 
 
 def test_fashion_gen(cfg):
+    import h5py
+    import random
+    from PIL import Image
     """Explore the fashion-gen dataset.
 
     See how it is setup, how to navigate it, and what content it has.
@@ -60,17 +49,21 @@ def test_fashion_gen(cfg):
     with h5py.File(cfg.data.fashion_gen.hdf5_path, "r") as file:
         num_images = file["index"].shape[0]
         idx = random.randint(0, num_images - 1)
-        img = Image.fromarray(file["input_image"][idx].astype("uint8"))
-        img.save(cfg.misc.random_image_save_path)
+        # img = Image.fromarray(file["input_image"][idx].astype("uint8"))
+        # img.save(cfg.misc.random_image_save_path)
+        price = file["input_msrpUSD"][idx].item()
         log.info(f"Number of images: {num_images}")
+        log.info(f"input_msrpUSD {price}")
         for key in cfg.data.fashion_gen.string_attributes:
             value = file[key][idx][0].decode(cfg.data.fashion_gen.string_codec)
             log.info(f"{key} {value}")
-        # for key in file.keys():
-        #     log.info(f"{key}\t{file[key].dtype}")
+        for key in file.keys():
+            log.info(f"{key}\t{file[key].dtype}")
 
 
 class FashionSigLIPEmbedding():
+    import torch
+    import open_clip
     def __init__(self, cfg):
         self._device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self._model, _, self._preprocess_val = open_clip.create_model_and_transforms(cfg.data.vector_db.embedding_model)
@@ -119,6 +112,15 @@ class FashionSigLIPEmbedding():
 
 
 def test_qdrant(cfg):
+    from qdrant_client import QdrantClient
+    from qdrant_client.http.models import (
+        Distance,
+        PointStruct,
+        VectorParams,
+    )
+    import numpy as np
+    import h5py
+    import random
     """Explore how I can insert the data from the HDF5 file into Qdrant Vector DB.
 
     First we load the embedding model from hugging face transformers (the demo

@@ -177,6 +177,7 @@ def get_fashion_gen_data(cfg, from_idx, to_idx):
     """
     data = dict()
     images_key = cfg.data.fashion_gen.images_key
+    prices_key = cfg.data.fashion_gen.prices_key
     vec_decode = np.vectorize(
         pyfunc=lambda x: x.decode(cfg.data.fashion_gen.string_codec)
     )
@@ -185,6 +186,7 @@ def get_fashion_gen_data(cfg, from_idx, to_idx):
         if from_idx >= num_datapoints:
             return None, True
         data[images_key] = file[images_key][from_idx:to_idx].astype("uint8")
+        data[prices_key] = file[prices_key][from_idx:to_idx].tolist()
         for key in cfg.data.fashion_gen.string_attributes:
             data[key] = vec_decode(np.ravel(file[key][from_idx:to_idx])).tolist()
     return data, to_idx >= num_datapoints
@@ -203,6 +205,7 @@ def populate_vector_db(cfg):
     client = create_collection(cfg)
     images_key = cfg.data.fashion_gen.images_key
     descriptions_key = cfg.data.fashion_gen.descriptions_key
+    prices_key = cfg.data.fashion_gen.prices_key
 
     from_idx, done = 0, False
     while not done:
@@ -217,11 +220,15 @@ def populate_vector_db(cfg):
         log.debug("Creating a batch of points")
         for idx, (img_vec, text_vec) in enumerate(img_descr_pairs):
             # construct the payload
-            non_image_payload = {
+            string_payload = {
                 key: data[key][idx] for key in cfg.data.fashion_gen.string_attributes
             }
             # need to convert to list since Qdrant can't handle numpy ndarray payload
-            payload = {images_key: data[images_key][idx].tolist(), **non_image_payload}
+            payload = {
+                images_key: data[images_key][idx].tolist(),
+                prices_key: data[prices_key],
+                **string_payload,
+            }
             # construct the named vectors
             named_vectors = {
                 cfg.data.vector_db.image_vectors_name: img_vec,
