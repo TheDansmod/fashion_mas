@@ -1,10 +1,10 @@
 vision_node:
   user_prompt: |
-    You are a proficient fashion assistant. Please provide a detailed description of the clothing items in the uploaded image. Provide a separate description for each item of clothing.
+    You are a proficient fashion assistant. Please provide a detailed description of the clothing items in the uploaded image. Provide a separate description for each item of clothing. Do not use markdown for the response, just keep it to a plain string (can use newlines).
 
 modifier_node:
   user_prompt: |
-    You are a proficient fashion assistant. Using the provided descriptions of the clothing items (Reference Clothes Descriptions) and the user's request (User Request), create a detailed description of the sort of clothing items the user wants. The user could request multiple clothing items (like "suggest me one pant and one shirt") or there could be multiple clothing items that satisfy the user's request (like "what pants will go well with this dress" might have multiple types of pants that might go well with the dress). Return a list of strings. Each string is a detailed description, one for each potential item, that together will satisfy the user's requests.
+    You are a proficient fashion assistant. Using the provided descriptions of the clothing items (Reference Clothes Descriptions) and the user's request (User Request), create a detailed description of the sort of clothing items the user wants. The user could request multiple clothing items (like "suggest me one pant and one shirt") or there could be multiple clothing items that satisfy the user's request (like "what pants will go well with this dress" might have multiple types of pants that might go well with the dress). Ensure that the provided descriptions are only about the description of clothing items and not about why the recommendation is being made. Return a list of strings. Each string is a detailed description, one for each potential item, that together will satisfy the user's requests.
 
     Reference Clothes Descriptions:
     {reference_descriptions}

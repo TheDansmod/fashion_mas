@@ -22,7 +22,7 @@ class VectorDbReader:
                 is num_matches.
         """
         ids = []
-        query_response = client.query_points(collection_name=self._collection_name, query=embedding, using=self._image_vectors_name, limit=num_matches)
+        query_response = self._client.query_points(collection_name=self._collection_name, query=embedding, using=self._image_vectors_name, limit=num_matches)
         for scored_points in query_response.points:
             ids.append(scored_points.id)
         return ids

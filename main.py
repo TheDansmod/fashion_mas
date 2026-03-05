@@ -21,8 +21,8 @@ log = logging.getLogger(__name__)
 def main(cfg: DictConfig):
     """Launch the current main task for the project."""
     validate_hydra_config(cfg)
-    # run_fashion_agent(cfg)
-    populate_vector_db(cfg)
+    run_fashion_agent(cfg)
+    # populate_vector_db(cfg)
 
 
 if __name__ == "__main__":

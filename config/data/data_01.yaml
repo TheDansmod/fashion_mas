@@ -20,7 +20,7 @@ vector_db:
   # this is the model used to generated embeddings (multi-modal)
   embedding_model: hf-hub:Marqo/marqo-fashionSigLIP
   # this flag controls if the collection is recreated if it already exists. This will remain true while I have not generated the full collection.
-  recreate: true
+  recreate: false
   # when inserting the embeddings in to qdrant, since they are multi-modal, I am inserting them as named vectors. Below 2 are the names.
   image_vectors_name: images
   text_vectors_name: texts

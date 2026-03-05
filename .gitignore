@@ -16,3 +16,5 @@ outputs/
 data/
 # the .env file might contain sensitive data, so all its keys (that are required) are enumerated in the main.py file
 .env
+# every time I am running the code for the agent, I am generating a diagram of the agent orchestration (as a sort of sanity check)
+src/exploration/fashion_agent_diagram.png

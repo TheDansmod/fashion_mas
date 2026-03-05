@@ -1,0 +1,5 @@
+persistence:
+  # this is the sqlite db used for checkpoint persistence
+  db_path: data/pipeline_checkpoints.db
+  # this is the name / id of the thread used for persistence (if you change the thread name, it becomes a new session
+  thread_id: dev_run_001

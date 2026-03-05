@@ -73,6 +73,7 @@ This is just a first pass version of the agentic system.
 9. `torch` - also needed to run the marqo-fashionSigLIP model
 10. `open-clip-torch` - when I just ran with the above two imports, I got an error saying they wanted `open_clip` and `ftfy`. So, apparently this is also needed.
 11. `python-dotenv` - this is required to load dotenv files (like for `HYDRA_FULL_ERROR=1` to get a full stack trace)
+12. `langgraph-checkpoint-sqlite` - this is used in creating sqlite checkpoints for re-run persistence of the agent.
 
 # TODOs
 1. Figure out all the categories, sub-cat, brands, etc etc - what all elements they have
