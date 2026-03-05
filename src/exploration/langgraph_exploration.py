@@ -79,7 +79,7 @@ class FashionAgent:
         for embedding in embeddings:
             match_ids.extend(self._reader.get_image_matches(embedding, num_matches=1))
         log.debug(f"Image IDs obtained from recommender_node:\n{match_ids}")
-        return {"recommended_clothes_images": match_ids}
+        return {"recommended_clothes_images": set(list(match_ids))}
 
     def explanation_node(self, state: AgentState) -> AgentState:
         log.debug("Entered explanation node.")

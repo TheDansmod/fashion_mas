@@ -66,6 +66,8 @@ This is just a first pass version of the agentic system.
     3. Another approach is to force all layers to the GPU but this might lead to OOM issues. Again have to do this before serving: `OLLAMA_NUM_GPU_LAYERS=9999 ollama serve`. Or through the model file `num_gpu` parameter (but this is not mentioned in the docs).
     4. Another approach is to reduce the quantization of the model weights. If I am running `Q8_0` or `Q6_K`, I can switch to `Q4_K_M`. But it is very likely I am already using `Q4_K_M` since that is what is mentioned for the default (without thinking) model on ollama.
     5. When I checked again with Gemini, it now says that the issue is due to a bug in ollama where the ViT model remains on CPU despite there being space. But I was not sure if it was saying the truth so I have served ollama with `q8_0` KV Cache quantization and will check what happens.
+13. 2026-03-05 18:08 I am frustrated with the fan not starting on linux on my laptop. I need to wait till April to (maybe) get fan control support on linux for my laptop. I am going to try and put the fan on full force from windows, restart the PC, switch to linux, and run the code then. Or maybe I will try running the code on windows itself.
+14. 2026-03-05 19:17 The restarting trick did not work. The fan switched off in a few minutes after startup.
 
 # Library Dependency and their purpose
 1. `langgraph` - agent orchestration. needed for the multi-agent system
@@ -91,3 +93,17 @@ This is just a first pass version of the agentic system.
 7. Handle the case when the user asks for k clothing items matching one description
 8. Apply filters to match requests (also see how to incorporate filters throughout the pipeline).
 9. Remove start and stop indices from the config and the vector db writer code
+
+# Google Colab Instructions:
+1. Ensure t4 runtime
+2. `git clone https://github.com/TheDansmod/fashion_mas.git`
+3. Move into `fashion_mas` folder and run `uv sync`
+4. Need to upload qdrant collection (zip first) `zip qdrant.zip -r qdrant_multimodal_db`
+5. Neeed to upload my shirt
+6. Unzip (`unzip qdrant.zip`)
+6. Need to ensure recreate is false (`config/data/data_01.yaml`) and ensure resume from checkpoint is false (`config/rag_pipeline/rag_pipeline_01.yaml`)
+7. Install ollama `curl -fsSL https://ollama.com/install.sh | sh` after installing zstd (`sudo apt-get install zstd`)
+8. Pull model: `ollama pull qwen3-vl:4b-thinking`
+9. Upload .env file or create it there
+10. Upload kaggle.json (legacy api key) to .kaggle/ folder
+11. Run `kaggle datasets download -d bothin/fashiongen-validation`

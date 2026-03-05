@@ -14,6 +14,8 @@ from src.exploration.langgraph_exploration import run_fashion_agent
 
 # The .env file should contain `HYDRA_FULL_ERROR=1` to see a full stacktrace in case
 # of error.
+# The .env file should also have the HF_TOKEN value from huggingface for vision model
+# access.
 load_dotenv()
 log = logging.getLogger(__name__)
 

@@ -18,3 +18,5 @@ data/
 .env
 # every time I am running the code for the agent, I am generating a diagram of the agent orchestration (as a sort of sanity check)
 src/exploration/fashion_agent_diagram.png
+# there is a kaggle.json file which is not needed (was just to download the dataset on google colab)
+config/kaggle.json
