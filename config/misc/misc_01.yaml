@@ -1,5 +1,13 @@
 # this is used to test how qwen model is working
-test_image_path: /mnt/windows/Users/lordh/Documents/LibraryOfBabel/Images/Wallpaper/cloudy_aenami.png
+test_image_path_01: src/exploration/random_image_0.png
+test_image_path_02: src/exploration/random_image_1.png
+test_image_path_03: src/exploration/random_image_2.png
 
 # this is used when trying to explore the hdf5 fashion-gen file, and checkout random datapoints (images + metadata) in it
-random_image_save_path: src/exploration/random_image.png
+random_image_save_path: src/exploration/random_image_{}.png
+
+# this is the path where the langgraph graph image drawing is saved
+node_diagram_path: src/exploration/fashion_agent_diagram.png
+
+# sample shirt - for use in checking how the model is doing
+input_image_path_01: data/my_shirt_01.jpg

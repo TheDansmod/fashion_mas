@@ -5,9 +5,12 @@
 """
 
 import logging
+from pydantic import BaseModel, Field
 
 log = logging.getLogger(__name__)
 
+class ImageDescriptions(BaseModel):
+    descriptions: list[str] = Field(description="List of descriptions of images with the index of the description corresponding to the index of the image.")
 
 def test_qwen(cfg):
     import hydra
@@ -18,24 +21,48 @@ def test_qwen(cfg):
     model = provider(
         model=cfg.models.vlm_agent.name, temperature=cfg.models.vlm_agent.temp
     )
-    image_data = encode_image(cfg.misc.test_image_path)
+    structured_model = model.with_structured_output(ImageDescriptions)
+    image_data_01 = encode_image(image_path=cfg.misc.test_image_path_01)
+    image_data_02 = encode_image(image_path=cfg.misc.test_image_path_02)
+    image_data_03 = encode_image(image_path=cfg.misc.test_image_path_03)
     messages = [
         HumanMessage(
             content=[
                 {
                     "type": "image_url",
-                    "image_url": f"data:image/jpeg;base64,{image_data}",
+                    "image_url": f"data:image/jpeg;base64,{image_data_01}",
                 },
                 {
                     "type": "text",
-                    "text": "Describe what you see in the image in great detail",
+                    "text": "Index 0",
+                },
+                {
+                    "type": "image_url",
+                    "image_url": f"data:image/jpeg;base64,{image_data_02}",
+                },
+                {
+                    "type": "text",
+                    "text": "Index 1",
+                },
+                {
+                    "type": "image_url",
+                    "image_url": f"data:image/jpeg;base64,{image_data_03}",
+                },
+                {
+                    "type": "text",
+                    "text": "Index 2",
+                },
+                {
+                    "type": "text",
+                    "text": "Describe what you see in each image in great detail. Return a list of descriptions such that the index of the description is the same as the index of the image.",
                 },
             ]
         )
     ]
-    result = model.invoke(messages)
+    result = structured_model.invoke(messages)
     log.info(type(result))
-    log.info(result.content)
+    for descr in result.descriptions:
+        log.info(descr)
 
 
 def test_fashion_gen(cfg):
@@ -50,7 +77,7 @@ def test_fashion_gen(cfg):
         num_images = file["index"].shape[0]
         idx = random.randint(0, num_images - 1)
         # img = Image.fromarray(file["input_image"][idx].astype("uint8"))
-        # img.save(cfg.misc.random_image_save_path)
+        # img.save(cfg.misc.random_image_save_path.format(0))
         price = file["input_msrpUSD"][idx].item()
         log.info(f"Number of images: {num_images}")
         log.info(f"input_msrpUSD {price}")

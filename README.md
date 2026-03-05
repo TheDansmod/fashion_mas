@@ -33,6 +33,20 @@
 	15. `input_season` - This is also a little weird, but somewhat understandable - like SS2017. I don't know what SS is but 2017 is very likely to be the year. We'll still ignore for now.
 	16. `input_subcategory` - str, want
 
+# Multi-agent Architecture
+This is just a first pass version of the agentic system.
+1. Vision Agent: Receives image(s) and modifier text. Generates detailed description of the image.
+2. Modifier Agent: Uses the description of the image and the modifier text to generate the description of the clothing that the user wants.
+3. Recommendation Agent: Uses the description of the clothing to fetch images of clothing from the vector database that are a close match.
+4. Explanation Agent: Explains how the recommended clothing items successfully fulfil the request.
+5. State needs to contain:
+    1. Modifier text received as input
+    2. Image description
+    3. Required clothes description
+    4. Recommended clothing image 
+    5. Recommended clothing description
+    6. Input image(s)
+
 # Timestamped Updates
 1. 2026-03-01 12:43 First commit to github. Just added some exploration files to see how to work with qwen. Have downloaded the fashion-gen dataset, but it is using an h5 file format. Will next be trying to figure out how to work with it.
 2. 2026-03-01 13:27 Explored a bit on how to work with the dataset. Checked what values are available for metadata. Will now be trying to build the vector datastore with llama index and qdrant.
@@ -43,6 +57,9 @@
 6. 2026-03-03 17:24 Added msrp. Doing generation of qdrant collection now. Having to work with the hyperparameters a little since it is a really large dataset.
 7. 2026-03-03 17:31 It seems insertion (upsert specifically) is really slow. Based on current estimates, it is going to take around 12 hours to insert everything into the collection. I was inserting the description text and the image itself into the payload since I did not want to fetch them from the hdf5 file. But given how long it seems to be taking, it might be prudent to do the fetch (for image and description if needed), in real time, from the hdf5 database since it allows reading arbitrary indices without loading the whole thing into memory.
 8. 2026-03-03 18:26 Just by removing the image from the payload - the description and everything else remains, and by decreasing the `data_fetch_batch_size` from 1024 to 512 (might not even be needed), I was able to decrease the time neeeded to create the whole collection to 52 minutes (from 11 / 12 hours). I will try larger `data_fetch_batch_size`.
+9. 2026-03-03 20:30 Completed inserting points into the collection. Not inserting the images made all the difference.
+10. 2026-03-05 09:34 I have written most of hte code for a first pass agentic system. I am testing it and working out the bugs. I have also created a HuggingFace Token since they were saying that 
+11. 2026-03-05 10:53 I accidentally deleted the existing collection. I will have to recreate it and it will take at least an hour to do it. Should have created a copy so that this would have been avoided - it was only 20 something MB.
 
 # Library Dependency and their purpose
 1. `langgraph` - agent orchestration. needed for the multi-agent system
@@ -60,6 +77,10 @@
 # TODOs
 1. Figure out all the categories, sub-cat, brands, etc etc - what all elements they have
 2. Set batch size of marqo-fashionSigLIP model (256, 512, 1024 etc etc) in `config/data/data_01.yaml`.
-
-Inserted first 5k points
-Insert first 15k points
+3. Handle the case when there are no input images.
+4. Handle the case when the uploaded images are not that of clothes.
+5. The prompts might not really count as system prompts.
+6. Generate more than one match for each requirement, then ask the llm to check which of them matches
+7. Handle the case when the user asks for k clothing items matching one description
+8. Apply filters to match requests (also see how to incorporate filters throughout the pipeline).
+9. Remove start and stop indices from the config and the vector db writer code

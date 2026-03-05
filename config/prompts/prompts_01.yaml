@@ -1,0 +1,26 @@
+vision_node:
+  user_prompt: |
+    You are a proficient fashion assistant. Please provide a detailed description of the clothing items in the uploaded image. Provide a separate description for each item of clothing.
+
+modifier_node:
+  user_prompt: |
+    You are a proficient fashion assistant. Using the provided descriptions of the clothing items (Reference Clothes Descriptions) and the user's request (User Request), create a detailed description of the sort of clothing items the user wants. The user could request multiple clothing items (like "suggest me one pant and one shirt") or there could be multiple clothing items that satisfy the user's request (like "what pants will go well with this dress" might have multiple types of pants that might go well with the dress). Return a list of strings. Each string is a detailed description, one for each potential item, that together will satisfy the user's requests.
+
+    Reference Clothes Descriptions:
+    {reference_descriptions}
+
+    User Request:
+    {user_request}
+
+explanation_node:
+  user_prompt: |
+    You are a proficient fashion assistant. Use the uploaded recommended image, the recommended image description, the reference clothes descriptions, and the user request (which could have multiple parts), to explain how the recommended image successfully satisfies a concrete part or all of the user's request.
+
+    Recommended Image Description:
+    {recommended_image_description}
+
+    Reference Clothes Descriptions:
+    {reference_descriptions}
+
+    User Request:
+    {user_request}

@@ -1,7 +1,8 @@
 defaults:
   - models: models_01
-  - misc: misc_01
   - data: data_01
+  - prompts: prompts_01
+  - misc: misc_01
   - _self_
   - override hydra/job_logging: colorlog
   - override hydra/hydra_logging: colorlog
@@ -10,5 +11,6 @@ defaults:
 hydra:
   verbose:
     - __main__
-    - src.exploration.exploration
     - src.data_manager.vector_db_writer
+    - src.exploration.langgraph_exploration
+    - src.exploration.data_exploration

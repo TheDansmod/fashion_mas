@@ -106,7 +106,7 @@ class FashionSigLIPEmbedding:
         return list(zip(img_results, text_results))
 
 
-def create_collection(cfg):
+def get_vector_db_client(cfg):
     """Create the vector db client,and collection, and returns the client.
 
     Depending on the setup the existing collection might be deleted and a new
@@ -208,7 +208,7 @@ def populate_vector_db(cfg):
     """
     # preliminaries
     embedder = FashionSigLIPEmbedding(cfg)
-    client = create_collection(cfg)
+    client = get_vector_db_client(cfg)
     images_key = cfg.data.fashion_gen.images_key
     descriptions_key = cfg.data.fashion_gen.descriptions_key
     prices_key = cfg.data.fashion_gen.prices_key
