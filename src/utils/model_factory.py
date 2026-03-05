@@ -9,7 +9,7 @@ log = logging.getLogger(__name__)
 
 def get_llm_provider(name, *args, **kwargs):
     """Get the right LLM provider based on the model name."""
-    if name in ["qwen3-vl:8b-thinking"]:
+    if name in ["qwen3-vl:8b-thinking", "qwen3-vl:4b-thinking"]:
         return ChatOllama
     else:
         raise ValueError("Unable to map name to LLM Provider")

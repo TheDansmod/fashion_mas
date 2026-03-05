@@ -2,6 +2,7 @@ defaults:
   - models: models_01
   - data: data_01
   - prompts: prompts_01
+  - rag_pipeline: rag_pipeline_01
   - misc: misc_01
   - _self_
   - override hydra/job_logging: colorlog
@@ -12,5 +13,6 @@ hydra:
   verbose:
     - __main__
     - src.data_manager.vector_db_writer
+    - src.data_manager.vector_db_reader
     - src.exploration.langgraph_exploration
     - src.exploration.data_exploration

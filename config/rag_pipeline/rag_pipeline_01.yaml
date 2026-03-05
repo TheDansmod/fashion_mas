@@ -3,3 +3,5 @@ persistence:
   db_path: data/pipeline_checkpoints.db
   # this is the name / id of the thread used for persistence (if you change the thread name, it becomes a new session
   thread_id: dev_run_001
+  # this flag controls if we are resuming from a previous checkpoint or if we are starting a new thread
+  resume_from_checkpoint: true

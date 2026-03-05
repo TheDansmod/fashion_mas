@@ -12,16 +12,16 @@ log = logging.getLogger(__name__)
 
 def encode_image(image_path = None, numpy_image = None):
     """Encode an image to base64 from file path or numpy ndarray."""
-    if ((not image_path) and (not numpy_image)) or (image_path and numpy_image):
+    if (image_path is None) == (numpy_image is None):
         raise ValueError("Exactly 1 of image_path or numpy_image must be provided.")
     if image_path:
         with open(image_path, "rb") as f:
             return base64.b64encode(f.read()).decode("utf-8")
-    if numpy_image:
-        img = Image.fromarray(image)
+    if not (numpy_image is None):
+        img = Image.fromarray(numpy_image)
         buffer = BytesIO()
-        img.save(buffer, fmt="png")
-        return base64.b64encode(buffer.get_value()).decode("utf-8")
+        img.save(buffer, format="png")
+        return base64.b64encode(buffer.getvalue()).decode("utf-8")
 
 def validate_hydra_config(cfg):
     """Runs some checks to ensure validity of hydra config."""
