@@ -136,8 +136,14 @@ This is just a first pass version of the agentic system.
 11. Ensure re-create (data_01.yaml) is false, resume from checkpoint (rag_pipeline_01.yaml) is false, set main.py to run fashion agent.
 12. I added some .env variables to the file in original fashion_mas (I am getting frustrated jumping between linux and windows - for now I am going to stay on windows), so I copied over the file to this project.
 13. The Langsmith thing was not working. I have created new key.
-14. Still not working. Now giving errors about internet connection 10053 Connection Aborted Error. I have added a new key for the endpoint in the EU. Let' try this way.
+14. Still not working. Now giving errors about internet connection 10053 Connection Aborted Error. I have added a new key for the endpoint in the EU. Let' try this way. Works.
 
+# Windows Changes (except setup parts - after git clone - after initial qdrant creation):
+This is after I have already run the code on windows, but have done some development on linux after that, and am switching back to windows to run the code.
+1. Change the hdf5 file path to be linux sensitive
+2. Create data folder and put the shirt image in it
+3. Copy the .env file over
+4. Copy the qdrant folder over from the previous windows setup
 
 # Compare files in two folders:
 ```
