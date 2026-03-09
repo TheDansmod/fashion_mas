@@ -16,3 +16,4 @@ hydra:
     - src.data_manager.vector_db_reader
     - src.exploration.langgraph_exploration
     - src.exploration.data_exploration
+    - src.utils.common_utils

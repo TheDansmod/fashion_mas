@@ -3,6 +3,7 @@
 import logging
 
 from langchain_ollama import ChatOllama
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 log = logging.getLogger(__name__)
 
@@ -11,5 +12,7 @@ def get_llm_provider(name, *args, **kwargs):
     """Get the right LLM provider based on the model name."""
     if name in ["qwen3-vl:8b-thinking", "qwen3-vl:4b-thinking"]:
         return ChatOllama
+    elif "gemma" in name:
+        return ChatGoogleGenerativeAI
     else:
         raise ValueError("Unable to map name to LLM Provider")

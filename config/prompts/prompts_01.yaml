@@ -1,10 +1,31 @@
+quantifier_node:
+  # this is to obtain the number of recommendations the user has asked for (if any)
+  num_recommendations_prompt: |
+    You are a expert fashion assistant. Please carefully go through the user request and determine if they have specified how many clothing item / accessory recommendations they want. If they have specified how many recommendations they want, please return a single integer denoting the number of required recommendations. If they have not specified how many recommendations they want, please return 0.
+
+    User Request:
+    {user_request}
+
+intent_node:
+  # this is essentially guidance for the vision node - to determine what aspect of the image it should focus on
+  # TODO: figure out if you should feed this model the input images as well - come up with a scenario where that might be required
+  request_focus_prompt: |
+    You are an expert fashion assistant. I am providing you with a user request associated with some images. The input images are going to be fed into a vision language model (VLM) with some instructions. Your goal is to analyse the user request and determine what the focus of the VLM should be. For example, if the user asks for "clothing items that look like this", then the focus of the vision model should be to extract detailed descriptions of the clothes in the images. Another example is that the user asks for clothes that have the same colour palette as the image, then the focus of the vision model should be to extract the colour palette from the image. Please provide detailed instructions, suitable for a vision language model, on what it should focus on when looking at the image.
+
+    User Request:
+    {user_request}
+
 vision_node:
   user_prompt: |
-    You are a proficient fashion assistant. Please provide a detailed description of the clothing items in the uploaded image. Provide a separate description for each item of clothing. Do not use markdown for the response, just keep it to a plain string (can use newlines).
+    You are a proficient fashion assistant. Please analyse the uploaded images closely and extract the features mentioned in the instructions below. Do not use markdown for the response, just keep it to a plain string (can use newlines).
+
+    Image Focus Instructions:
+    {image_focus_instructions}
 
 modifier_node:
-  user_prompt: |
-    You are a proficient fashion assistant. Using the provided descriptions of the clothing items (Reference Clothes Descriptions) and the user's request (User Request), create a detailed description of the sort of clothing items the user wants. The user could request multiple clothing items (like "suggest me one pant and one shirt") or there could be multiple clothing items that satisfy the user's request (like "what pants will go well with this dress" might have multiple types of pants that might go well with the dress). Ensure that the provided descriptions are only about the description of clothing items and not about why the recommendation is being made. Return a list of strings. Each string is a detailed description, one for each potential item, that together will satisfy the user's requests.
+  # this prompt is for obtained clothing item descriptions when input images are present
+  images_present_prompt: |
+    You are a proficient fashion assistant. Using the provided descriptions of the clothing items (Reference Clothes Descriptions) and the user's request (User Request), create a detailed description of the sort of clothing items the user wants. The number of recommendations you should generate is {num_recommendations}. The user could request multiple clothing items (like "suggest me one pant and one shirt") or there could be multiple clothing items that satisfy the user's request (like "what pants will go well with this dress" might have multiple types of pants that might go well with the dress). Ensure that the provided descriptions are only about the description of clothing items and not about why the recommendation is being made. Return a list of strings of length {num_recommendations}. Each string is a detailed description, one for each potential item, that together will satisfy the user's requests. Please ensure that each description is distinct from the others, there should be no repetition of descriptions.
 
     Reference Clothes Descriptions:
     {reference_descriptions}
@@ -12,8 +33,16 @@ modifier_node:
     User Request:
     {user_request}
 
+  # this prompt is for obtaining clothing item descriptions when input images are absent
+  images_absent_prompt: |
+    You are an expert fashion assistant. Using the provided user request, please generate detailed descriptions of the sort of clothing items / accessories the user wants. The number of recommendations you should generate is {num_recommendations}. The user could request multiple clothing items (like "suggest me one pant and one shirt") or there could be multiple clothing items that satisfy the user's request (like "what pants will go well with this dress" might have multiple types of pants that might go well with the dress). Ensure that the provided descriptions are only about the description of clothing items and not about why the recommendation is being made. Return a list of strings of length {num_recommendations}. Each string is a detailed description, one for each potential item, that together will satisfy the user's requests. Please ensure that each description is distinct from the others, there should be no repetition of descriptions.
+
+    User Request:
+    {user_request}
+
 explanation_node:
-  user_prompt: |
+  # this prompt is to explain the recommended items when input images are present
+  images_present_prompt: |
     You are a proficient fashion assistant. Use the uploaded recommended image, the recommended image description, the reference clothes descriptions, and the user request (which could have multiple parts), to explain how the recommended image successfully satisfies a concrete part or all of the user's request.
 
     Recommended Image Description:
@@ -21,6 +50,16 @@ explanation_node:
 
     Reference Clothes Descriptions:
     {reference_descriptions}
+
+    User Request:
+    {user_request}
+
+  # this prompt is to explain the recommended items when input images are absent
+  images_absent_prompt: |
+    You are an expert fashion assistant. Use the uploaded recommended image, the recommended image description, and the user request (which could have multiple parts), to explain how the recommended image successfully satisfies a concrete part or all of the user's request.
+
+    Recommended Image Description:
+    {recommended_image_description}
 
     User Request:
     {user_request}

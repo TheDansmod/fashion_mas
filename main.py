@@ -16,6 +16,9 @@ from src.exploration.langgraph_exploration import run_fashion_agent
 # of error.
 # The .env file should also have the HF_TOKEN value from huggingface for vision model
 # access.
+# The .env file should populate langsmith endpoints like `LANGSMITH_TRACING=true`,
+# `LANGSMITH_PROJECT=<project_name>`, `LANGSMITH_API_KEY`, `LANGSMITH_ENDPOINT=<eu/us>`.
+# The .env file should have a key for google AI api calls: `GOOGLE_API_KEY=<key>`
 load_dotenv()
 log = logging.getLogger(__name__)
 

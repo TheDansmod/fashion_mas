@@ -68,6 +68,7 @@ This is just a first pass version of the agentic system.
     5. When I checked again with Gemini, it now says that the issue is due to a bug in ollama where the ViT model remains on CPU despite there being space. But I was not sure if it was saying the truth so I have served ollama with `q8_0` KV Cache quantization and will check what happens.
 13. 2026-03-05 18:08 I am frustrated with the fan not starting on linux on my laptop. I need to wait till April to (maybe) get fan control support on linux for my laptop. I am going to try and put the fan on full force from windows, restart the PC, switch to linux, and run the code then. Or maybe I will try running the code on windows itself.
 14. 2026-03-05 19:17 The restarting trick did not work. The fan switched off in a few minutes after startup.
+15. 2026-03-09 09:20 I have been able to successfully run the code on Windows and have added langsmith observability. I will now be modifying the code to incorporate some of the identified drawbacks (no image) and have some self-corrective setup.
 
 # Library Dependency and their purpose
 1. `langgraph` - agent orchestration. needed for the multi-agent system
@@ -82,6 +83,7 @@ This is just a first pass version of the agentic system.
 10. `open-clip-torch` - when I just ran with the above two imports, I got an error saying they wanted `open_clip` and `ftfy`. So, apparently this is also needed.
 11. `python-dotenv` - this is required to load dotenv files (like for `HYDRA_FULL_ERROR=1` to get a full stack trace)
 12. `langgraph-checkpoint-sqlite` - this is used in creating sqlite checkpoints for re-run persistence of the agent.
+13. `langchain-google-genai` - this is required to invoke Google AI APIs (I am trying with Gemma model)
 
 # TODOs
 1. Figure out all the categories, sub-cat, brands, etc etc - what all elements they have

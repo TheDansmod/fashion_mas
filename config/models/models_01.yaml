@@ -1,5 +1,9 @@
 # VLM agent for generating sample images or converting provided ones to descriptions
+# Possible names:
+# 1. qwen3-vl:4b-thinking
+# 2. qwen3-vl:8b-thinking
+# 3. gemma-3-27b-it
 vlm_agent:
   _target_: src.utils.model_factory.get_llm_provider
-  name: qwen3-vl:4b-thinking
+  name: gemma-3-27b-it
   temp: 0.6

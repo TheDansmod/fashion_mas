@@ -25,10 +25,16 @@ def encode_image(image_path = None, numpy_image = None):
 
 def validate_hydra_config(cfg):
     """Runs some checks to ensure validity of hydra config."""
+    log.debug(f"Recreating the vector db: {cfg.data.vector_db.recreate}")
+    log.debug(f"Resuming from previous checkpoint: {cfg.rag_pipeline.persistence.resume_from_checkpoint}")
     if cfg.data.vector_db.recreate:
         confirmation = input("Please enter `YES` if you want to re-create the vector db: ")
         if confirmation != "YES":
             raise ValueError("Cannot recreate vector db without confirmation.")
+    if cfg.rag_pipeline.persistence.resume_from_checkpoint:
+        confirmation = input("Please enter `YES` if you wish to resume from previous checkpoint: ")
+        if confirmation != "YES":
+            raise ValueError("Cannot resume from checkpoint without confirmation.")
     if cfg.data.vector_db.recreate and cfg.data.data_processing.insert_start_index > 0:
         raise ValueError(
             "When the insert_start_index > 0, we should have recreate be False."
