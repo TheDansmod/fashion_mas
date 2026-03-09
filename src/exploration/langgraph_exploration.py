@@ -27,12 +27,12 @@ def langgraph_hello_world(cfg):
     log.info(response)
 
 class AgentState(BaseModel):
-    input_images_path: list[str]
+    input_images_path: list[str] = Field(default_factory=list)
     input_text: str
-    input_images_descriptions: Optional[list[str]] = None
-    required_clothes_descriptions: Optional[list[str]] = None
-    recommended_clothes_images: Optional[list[int]] = None
-    recommended_clothes_explanation: Optional[list[str]] = None
+    input_images_descriptions: Optional[list[str]] = Field(default_factory=list)
+    required_clothes_descriptions: Optional[list[str]] = Field(default_factory=list)
+    recommended_clothes_images: Optional[list[int]] = Field(default_factory=list)
+    recommended_clothes_explanation: Optional[list[str]] = Field(default_factory=list)
 
 class RequiredClothes(BaseModel):
     required_clothes_descriptions: list[str] = Field(min_length=1, description="List of descriptions of clothing items that satisfy the user's requests. One description per index.")
@@ -124,7 +124,7 @@ def run_fashion_agent(cfg):
     # check_same_thread=False since SqliteSaver manages its own locking
     # conn = sqlite3.connect(cfg.rag_pipeline.persistence.db_path, check_same_thread=False)
     agent = FashionAgent(cfg)
-    initial_state = {"input_images_path": [cfg.misc.input_image_path_01], "input_text": "Please provide jeans pants that will go will with the uploaded shirt."}
+    initial_state = {"input_images_path": [cfg.misc.input_image_path_01], "input_text": "Please provide jeans pants that will go well with the uploaded shirt."}
     config = {"configurable": {"thread_id": cfg.rag_pipeline.persistence.thread_id}}
     result = agent.invoke(initial_state, config, cfg.rag_pipeline.persistence.db_path)
     log.debug(f"Result: {result}")

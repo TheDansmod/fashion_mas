@@ -93,6 +93,10 @@ This is just a first pass version of the agentic system.
 7. Handle the case when the user asks for k clothing items matching one description
 8. Apply filters to match requests (also see how to incorporate filters throughout the pipeline).
 9. Remove start and stop indices from the config and the vector db writer code
+10. Finalised improvement plan:
+    1. LLM Observability - langsmith
+    2. Self-Correcting Agent (CRag / SelfRAG) papers
+    3. Qdrant as MCP server
 
 # Google Colab Instructions:
 1. Ensure t4 runtime
@@ -107,3 +111,33 @@ This is just a first pass version of the agentic system.
 9. Upload .env file or create it there
 10. Upload kaggle.json (legacy api key) to .kaggle/ folder
 11. Run `kaggle datasets download -d bothin/fashiongen-validation`
+
+# Windows Changes:
+1. Create folder `fashion_mas_windows` and clone the repository into it
+2. Install uv: `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`
+	1. To uninstall, run the below commands
+		uv cache clean
+		rm -r "$(uv python dir)"
+		rm -r "$(uv tool dir)"
+	2. Then run the below commands
+		rm $HOME\.local\bin\uv.exe
+		rm $HOME\.local\bin\uvx.exe
+		rm $HOME\.local\bin\uvw.exe
+3. To install Ollama: `irm https://ollama.com/install.ps1 | iex` (to uninstall it go to installed apps and choose ollama from there) - ollama is automatically setup as a run-on-starup app.
+4. Run the `uv sync` command from the fashion_mas folder.
+5. Changed the path of the hdf5 dataset to be a windows path rather than a linux path - ensure you use single quotes rather than double quotes - single quotes means characters are literals, else they might be interpreted as escape sequences.
+6. Created the data folder and put the my shirt in that folder from the original fashion_mas folder.
+7. Install the model: `ollama pull qwen3-vl:4b-thinking`
+8. Apparently there is an issue with trying to migrate qdrant folder directly from linux to windows, so we will have to re-create the collection.
+9. Copy the .env file from fashion_mas folder (original)
+10. Ensure recreate (data_01.yaml) is true, resume from checkpoint (rag_pipeline_01.yaml) is false, set main.py to run the populate vector db command - have re-created the db.
+11. Ensure re-create (data_01.yaml) is false, resume from checkpoint (rag_pipeline_01.yaml) is false, set main.py to run fashion agent.
+12. I added some .env variables to the file in original fashion_mas (I am getting frustrated jumping between linux and windows - for now I am going to stay on windows), so I copied over the file to this project.
+13. The Langsmith thing was not working. I have created new key.
+14. Still not working. Now giving errors about internet connection 10053 Connection Aborted Error. I have added a new key for the endpoint in the EU. Let' try this way.
+
+
+# Compare files in two folders:
+```
+diff -yr /mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas_windows/fashion_mas /mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas -X /mnt/windows/Users/lordh/Documents/LibraryOfBabel/Miscellany/Danish/linux_temp/temp_files/0427_fashion_mas_compare_exclude.txt --strip-trailing-cr --suppress-common-lines
+```
