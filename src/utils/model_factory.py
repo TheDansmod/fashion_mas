@@ -2,8 +2,10 @@
 
 import logging
 
-from langchain_ollama import ChatOllama
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_ollama import ChatOllama
+
+from src.utils.mock_llm_agent import ChatMockLLM
 
 log = logging.getLogger(__name__)
 
@@ -14,5 +16,7 @@ def get_llm_provider(name, *args, **kwargs):
         return ChatOllama
     elif "gemma" in name:
         return ChatGoogleGenerativeAI
+    elif "mock" in name.lower():
+        return ChatMockLLM
     else:
         raise ValueError("Unable to map name to LLM Provider")

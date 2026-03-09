@@ -199,3 +199,31 @@ def test_qdrant(cfg):
     log.info("Matched values:")
     for scored_points in query_response.points:
         log.info(scored_points.payload['description'])
+
+
+def get_data_distribution(cfg):
+    from src.data_manager.vector_db_writer import get_fashion_gen_data
+    
+    # categories = set()
+    batch_size = 5000
+    num_pts = cfg.data.fashion_gen.num_datapoints
+    with open(r"src/exploration/prices.txt", "w") as f:
+        for start in range(0, num_pts, batch_size):
+            end = min(start + batch_size, num_pts)
+            data, done = get_fashion_gen_data(cfg, start, end)
+            # categories.update(set(data['input_category']))
+            for price in data['input_msrpUSD']:
+                f.write(f"{price}\n")
+            log.info(f"done till {end} of {num_pts}")
+
+def plot_prices(cfg):
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+    prices = []
+    with open(r"src/exploration/prices.txt", "r") as f:
+        for line in f:
+            prices.append(float(line.strip()))
+    counts, bins = np.histogram(prices, bins=100)
+    plt.hist(bins[:-1], bins, weights=counts)
+    plt.show()

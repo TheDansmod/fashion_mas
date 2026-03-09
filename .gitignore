@@ -20,3 +20,5 @@ data/
 src/exploration/fashion_agent_diagram.png
 # there is a kaggle.json file which is not needed (was just to download the dataset on google colab)
 config/kaggle.json
+# I created a file with all the prices from the dataset just to see what their histogram looked like to see how I might implement price based filtering. It is not part of the code.
+src/exploration/prices.txt

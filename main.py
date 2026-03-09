@@ -6,11 +6,8 @@ import hydra
 from dotenv import load_dotenv
 from omegaconf import DictConfig
 
-from src.data_manager.vector_db_writer import populate_vector_db
+from src.rag_pipeline.rag_agent import run_fashion_agent
 from src.utils.common_utils import validate_hydra_config
-from src.exploration.langgraph_exploration import langgraph_hello_world
-from src.exploration.data_exploration import test_qwen
-from src.exploration.langgraph_exploration import run_fashion_agent
 
 # The .env file should contain `HYDRA_FULL_ERROR=1` to see a full stacktrace in case
 # of error.
@@ -21,6 +18,7 @@ from src.exploration.langgraph_exploration import run_fashion_agent
 # The .env file should have a key for google AI api calls: `GOOGLE_API_KEY=<key>`
 load_dotenv()
 log = logging.getLogger(__name__)
+
 
 @hydra.main(version_base=None, config_path="config", config_name="config")
 def main(cfg: DictConfig):

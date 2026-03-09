@@ -10,7 +10,7 @@ intent_node:
   # this is essentially guidance for the vision node - to determine what aspect of the image it should focus on
   # TODO: figure out if you should feed this model the input images as well - come up with a scenario where that might be required
   request_focus_prompt: |
-    You are an expert fashion assistant. I am providing you with a user request associated with some images. The input images are going to be fed into a vision language model (VLM) with some instructions. Your goal is to analyse the user request and determine what the focus of the VLM should be. For example, if the user asks for "clothing items that look like this", then the focus of the vision model should be to extract detailed descriptions of the clothes in the images. Another example is that the user asks for clothes that have the same colour palette as the image, then the focus of the vision model should be to extract the colour palette from the image. Please provide detailed instructions, suitable for a vision language model, on what it should focus on when looking at the image.
+    You are an expert fashion assistant. I am providing you with a user request associated with some images. The input images are going to be fed into a vision language model (VLM) with some instructions. The goal of the vision language model (not your goal) is to generate a description of the image (not to fulfil the user request) based on the instructions you generate. Your goal is to analyse the user request (provided below) and determine what the focus of the VLM should be. For example, if the user asks for "clothing items that look like this", then the focus of the vision model should be to extract detailed descriptions of the clothes in the images. Another example: if the user asks for "clothes that have the same colour palette as the image", then the focus of the vision model should be to extract the colour palette from the image. Please provide detailed instructions, suitable for a vision language model, on what it should focus on when looking at the image. Ensure the instructions are concise (No more than 5 sentences) and only relate to what aspect of the image should be described / extracted. In the instructions you provide, do not explain why these are the instructions you are providing. Your output should only contain the actual instructions which can directly be fed to the vision language model.
 
     User Request:
     {user_request}
@@ -40,10 +40,17 @@ modifier_node:
     User Request:
     {user_request}
 
+filtration_node:
+  category_choice_prompt: |
+    You are an expert fashion assistant. Analyse the description of the clothing item provided below and assign it to one or more of following categories: {valid_categories}. Return a list of strings (of length 1 or more) where each string is a valid category from the provided list. If the product belongs to only 1 category, the returned list of categories should only have 1 item in it.
+
+    Clothing Item Description:
+    {item_description}
+
 explanation_node:
   # this prompt is to explain the recommended items when input images are present
   images_present_prompt: |
-    You are a proficient fashion assistant. Use the uploaded recommended image, the recommended image description, the reference clothes descriptions, and the user request (which could have multiple parts), to explain how the recommended image successfully satisfies a concrete part or all of the user's request.
+    You are a proficient fashion assistant. Use the uploaded recommended image, the recommended image description, the reference clothes descriptions, and the user request (which could have multiple parts), to explain how the recommended image successfully satisfies a concrete part or all of the user's request. The reference clothes descriptions and the user requests were obtained from the user. If the recommended image description does not satisfy the user request appropriately, please mention that it does not satisfy the user request and give a rating from 1 to 10, on how well it satisfies the user request. For example, if the user asked for a shirt, but the recommendation image describes a cap, then give the lowest possible of 1 point.
 
     Recommended Image Description:
     {recommended_image_description}
@@ -56,7 +63,7 @@ explanation_node:
 
   # this prompt is to explain the recommended items when input images are absent
   images_absent_prompt: |
-    You are an expert fashion assistant. Use the uploaded recommended image, the recommended image description, and the user request (which could have multiple parts), to explain how the recommended image successfully satisfies a concrete part or all of the user's request.
+    You are an expert fashion assistant. Use the uploaded recommended image, the recommended image description, and the user request (which could have multiple parts), to explain how the recommended image successfully satisfies a concrete part or all of the user's request. The reference clothes descriptions and the user requests were obtained from the user. If the recommended image description does not satisfy the user request appropriately, please mention that it does not satisfy the user request and give a rating from 1 to 10, on how well it satisfies the user request. For example, if the user asked for a shirt, but the recommendation image describes a cap, then give the lowest possible of 1 point.
 
     Recommended Image Description:
     {recommended_image_description}

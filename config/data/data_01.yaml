@@ -11,6 +11,12 @@ fashion_gen:
   descriptions_key: input_description
   # The HDF5 file is a sort of dictionary where each key is a separate dataset. Below is the name of the price (MSRP) dataset.
   prices_key: input_msrpUSD
+  # The HDF5 file is a sort of dictionary where each key is a separate dataset. Below is the name of the category dataset.
+  categories_key: input_category
+  # this is the total number of datapoints present in the fashion-gen dataset
+  num_datapoints: 260_490
+  # these are the categories to which the items in the database belong
+  product_categories: ["CLUTCHES & POUCHES", "POUCHES & DOCUMENT HOLDERS", "BOOTS", "BACKPACKS", "SWEATERS", "SWIMWEAR", "MONKSTRAPS", "JEWELRY", "DUFFLE & TOP HANDLE BAGS", "JEANS", "LACE UPS", "SKIRTS", "DUFFLE BAGS", "TOPS", "DRESSES", "MESSENGER BAGS & SATCHELS", "SOCKS", "LOAFERS", "ESPADRILLES", "UNDERWEAR & LOUNGEWEAR", "BAG ACCESSORIES", "HATS", "SANDALS", "JACKETS & COATS", "MESSENGER BAGS", "GLOVES", "TRAVEL BAGS", "LINGERIE", "SCARVES", "KEYCHAINS", "BLANKETS", "TIES", "FLATS", "SHORTS", "PANTS", "SUITS & BLAZERS", "TOTE BAGS", "HEELS", "EYEWEAR", "BRIEFCASES", "JUMPSUITS", "FINE JEWELRY", "BELTS & SUSPENDERS", "SHIRTS", "BOAT SHOES & MOCCASINS", "SNEAKERS", "POCKET SQUARES & TIE BARS", "SHOULDER BAGS"]
 
 vector_db:
   # this is where the vector database is stored (qdrant)

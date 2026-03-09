@@ -44,6 +44,9 @@ class RequiredClothes(BaseModel):
 class NumRecommendations(BaseModel):
     num_recommendations: int = Field(ge=1, le=10, description="Number of recommendations specified by the user, 0 if no specification made by the user.")
 
+class SingleImageDescription(BaseModel):
+    image_description: str = Field(min_length=20, description="Description of the image as mentioned in the instructions.")
+
 class FashionAgent:
     def __init__(self, cfg):
         provider = hydra.utils.instantiate(cfg.models.vlm_agent)
@@ -74,13 +77,14 @@ class FashionAgent:
 
     def vision_node(self, state: AgentState) -> AgentState:
         log.debug("Entered vision node.")
+        structured_model = self._model.with_structured_output(SingleImageDescription)
         descr = []
         for image_path in state.input_images_path:
             msg = get_image_prompt_message(image_path=image_path, text_prompt=self._cfg.prompts.vision_node.user_prompt.format(image_focus_instructions=state.vlm_instructions))
             log.debug("Invoking model.")
-            response = self._model.invoke(msg)  # vision prompt
+            response = structured_model.invoke(msg)  # vision prompt
             log.debug("Received response from model.")
-            descr.append(response.content)
+            descr.append(response.image_description)
         log.debug(f"Descriptions obtained from vision node:\n{descr}")
         return {"input_images_descriptions": descr}
 

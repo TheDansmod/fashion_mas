@@ -69,6 +69,19 @@ This is just a first pass version of the agentic system.
 13. 2026-03-05 18:08 I am frustrated with the fan not starting on linux on my laptop. I need to wait till April to (maybe) get fan control support on linux for my laptop. I am going to try and put the fan on full force from windows, restart the PC, switch to linux, and run the code then. Or maybe I will try running the code on windows itself.
 14. 2026-03-05 19:17 The restarting trick did not work. The fan switched off in a few minutes after startup.
 15. 2026-03-09 09:20 I have been able to successfully run the code on Windows and have added langsmith observability. I will now be modifying the code to incorporate some of the identified drawbacks (no image) and have some self-corrective setup.
+16. 2026-03-09 13:28 I have got the new agentic workflow to run end-to-end, but there were several issues:
+	1. The modifier node output the following requests:
+		1.  (1512) A pair of slim-fit, dark indigo denim jeans with a high-rise waistband and a straight leg silhouette that accentuates the shirt's tailored fit, ideal for a professional or semi-formal setting.
+		2. (379) A classic straight-leg, medium-wash denim jean with a comfortable stretch and a slightly tapered ankle, providing a versatile option that works well with a variety of shirt styles.
+		3. (870) A bootcut denim jean in a black wash with a modern, wide leg and a subtle fade, designed to add a touch of casual elegance to the shirt's overall look.
+	which successfully satisfies the requirements, but the recommender node matched clothes with the following descriptions:
+		1. Relaxed-fit silk blouse in black. Scoopneck collar. Dot print at front in white. Tonal lace panels at front. Vented at sides. Lined front panel. Tonal stitching.
+		2. Cotton denim biker jacket in robin-egg blue, beige, off-white and khaki. Band collar with concealed snap closure. Convertible double zip closure at front with snap-down lapel. Concealed zip pockets at front. Snap closures at waist. Two pull-loop cinch straps at sides. Ribbed upper sleeve. Contoured hem at back. Fully lined. Contrast stitching in khaki.
+		3. Short sleeve t-shirt in black. Crewneck collar. Dolman sleeves. Contrast panel at interior arms in white. Tonal stitching.
+	These matches are completely different from the requirements.
+	2. The explanation model tried to make its own suggestions. I have now instructed it to give only explanations and if not then a rating of how well it matches - rating is not needed but will help me see how well the verifyer might work.
+	3. The intent node was giving too many suggestions (not just what to extract from the image, but also what jeans to select) and it was too long. I have asked it to be concise (5 sentences or less) and have asked it to restrict itself to image extraction requirements.
+17. 2026-03-09 18:40 I have tried to solve all of these above issues - 2 and 3 through prompt engineering - and 1 through added a filtration node based on the category of the item. Will be testing it out in windows.
 
 # Library Dependency and their purpose
 1. `langgraph` - agent orchestration. needed for the multi-agent system
@@ -137,13 +150,14 @@ This is just a first pass version of the agentic system.
 12. I added some .env variables to the file in original fashion_mas (I am getting frustrated jumping between linux and windows - for now I am going to stay on windows), so I copied over the file to this project.
 13. The Langsmith thing was not working. I have created new key.
 14. Still not working. Now giving errors about internet connection 10053 Connection Aborted Error. I have added a new key for the endpoint in the EU. Let' try this way. Works.
+15. I only have 5k traces per month, so I will not log most development traces.
+16. Set `$env:PYTHONUTF8=1` to ensure that the console can handle emoji outputs.
 
-# Windows Changes (except setup parts - after git clone - after initial qdrant creation):
+# Windows Changes (except setup parts - after git pull - after initial qdrant creation):
 This is after I have already run the code on windows, but have done some development on linux after that, and am switching back to windows to run the code.
-1. Change the hdf5 file path to be linux sensitive
+1. Change the hdf5 file path to be windows sensitive: `'C:\Users\lordh\Documents\Svalbard\Data\fashion-gen\fashiongen_256_256_train.h5` - single quotes are mandatory
 2. Create data folder and put the shirt image in it
 3. Copy the .env file over
-4. Copy the qdrant folder over from the previous windows setup
 
 # Compare files in two folders:
 ```

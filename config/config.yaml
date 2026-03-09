@@ -17,3 +17,4 @@ hydra:
     - src.exploration.langgraph_exploration
     - src.exploration.data_exploration
     - src.utils.common_utils
+    - src.rag_pipeline.rag_agent
