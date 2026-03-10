@@ -45,15 +45,6 @@ def validate_hydra_config(cfg):
         )
         if confirmation != "YES":
             raise ValueError("Cannot resume from checkpoint without confirmation.")
-    if cfg.data.vector_db.recreate and cfg.data.data_processing.insert_start_index > 0:
-        raise ValueError(
-            "When the insert_start_index > 0, we should have recreate be False."
-        )
-    if (
-        cfg.data.data_processing.insert_start_index
-        >= cfg.data.data_processing.insert_stop_index
-    ):
-        raise ValueError("The insert_start_index should be < insert_stop_index.")
     if (
         cfg.data.data_processing.embedding_batch_size
         > cfg.data.data_processing.data_fetch_batch_size
@@ -88,6 +79,9 @@ def fetch_fashion_gen_images(cfg, image_ids=None):
     The primary use of this is to use those images as input for the agentic system.
     The images are saved in the path given by cfg.misc.random_image_save_path with the
     index of the image inserted into the name.
+    
+    Another big use of this is for debugging, since it lets me figure out why the
+    recommendation was made in the first place, and diagnose if there is any error.
     """
     import h5py
     from PIL import Image
@@ -143,3 +137,18 @@ def get_categories_from_string(cfg, search_string):
         if cat in search_string:
             matched_categories.append(cat.upper())
     return matched_categories
+
+
+def get_qdrant_points_by_id(cfg, ids=None):
+    from qdrant_client import QdrantClient
+    
+    if len(ids) < 1:
+        raise ValueError("ids should be a list of ids of length at least 1")
+    collection_name = cfg.data.vector_db.collection_name
+    client = QdrantClient(path=cfg.data.vector_db.vector_store_path)
+    # returned values are list of Records, it has an attribute called payload
+    points = client.retrieve(collection_name=collection_name, ids=ids, with_payload=True, with_vectors=False)
+    for point in points:
+        log.debug(point.payload['input_category'])
+        log.debug(point.payload['input_description'])
+        log.debug(point.payload.keys())

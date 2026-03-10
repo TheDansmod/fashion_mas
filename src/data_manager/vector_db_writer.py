@@ -1,6 +1,7 @@
 """Read the fashion-gen dataset, generate embeddings, and write them to vector db."""
 
 import logging
+from uuid import uuid4
 
 import h5py
 import numpy as np
@@ -157,10 +158,10 @@ def get_vector_db_client(cfg):
 def get_fashion_gen_data(cfg, from_idx, to_idx):
     """Get data from the fashion-gen dataset in dictionary format.
 
-    We will be extracting all the attributes in the dataset in a dictionary. Which
+    We will be extracting all the attributes in the dataset in a dictionary. What
     data to fetch is determined by the from_idx (included) and to_idx (excluded)
-    values. We also return a done flag to indicate that we are all out of more data
-    to return.
+    values. If there is no data within the provided bounds then we return empty
+    dictionary.
 
     Returns:
         data (dict): This dictionary contains the datapoints from the requested
@@ -170,32 +171,27 @@ def get_fashion_gen_data(cfg, from_idx, to_idx):
             If we are sending back images, they are send back as numpy ndarrays. If
             we are sending back string values, they are lists of strings. If we are
             sending back floats, they are lists of floats.
-        done (bool): The intention behind the use of the function is that the
-            fashion-gen dataset is going to be interated through using start and end
-            indices. Thus, the done flag is used to indicate if we have reached the
-            end of the iterations (we have fetched all the data).
     """
     data = dict()
     images_key = cfg.data.fashion_gen.images_key
     prices_key = cfg.data.fashion_gen.prices_key
-    stop_index = cfg.data.data_processing.insert_stop_index
-    vec_decode = np.vectorize(
-        pyfunc=lambda x: x.decode(cfg.data.fashion_gen.string_codec)
-    )
+    index_key = cfg.data.fashion_gen.index_key
+    num_datapoints = cfg.data.fashion_gen.num_datapoints
+    codec = cfg.data.fashion_gen.string_codec
+    if from_idx >= num_datapoints or from_idx >= to_idx:
+        return data
+    else:
+        from_idx = max(0, from_idx)
+    if to_idx >= num_datapoints:
+        to_idx = num_datapoints
+    vec_decode = np.vectorize(pyfunc=lambda x: x.decode(codec))
     with h5py.File(cfg.data.fashion_gen.hdf5_path, "r") as file:
-        num_datapoints = file["index"].shape[0]
-        stop_index = min(num_datapoints, stop_index)
-        if from_idx >= stop_index:
-            return None, True
-        data[images_key] = file[images_key][from_idx : min(to_idx, stop_index)].astype(
-            "uint8"
-        )
-        data[prices_key] = file[prices_key][from_idx : min(to_idx, stop_index)].tolist()
+        data[images_key] = file[images_key][from_idx: to_idx].astype("uint8")
+        data[prices_key] = np.ravel(file[prices_key][from_idx: to_idx]).tolist()
+        data[index_key] = np.ravel(file[index_key][from_idx: to_idx]).tolist()
         for key in cfg.data.fashion_gen.string_attributes:
-            data[key] = vec_decode(
-                np.ravel(file[key][from_idx : min(to_idx, stop_index)])
-            ).tolist()
-    return data, to_idx >= stop_index
+            data[key] = vec_decode(np.ravel(file[key][from_idx : to_idx])).tolist()
+    return data
 
 
 def populate_vector_db(cfg):
@@ -209,15 +205,17 @@ def populate_vector_db(cfg):
     # preliminaries
     embedder = FashionSigLIPEmbedding(cfg)
     client = get_vector_db_client(cfg)
+    collection_name = cfg.data.vector_db.collection_name
     images_key = cfg.data.fashion_gen.images_key
     descriptions_key = cfg.data.fashion_gen.descriptions_key
     prices_key = cfg.data.fashion_gen.prices_key
+    index_key = cfg.data.fashion_gen.index_key
+    num_points = cfg.data.fashion_gen.num_datapoints
+    fetch_batch_sz = cfg.data.data_processing.data_fetch_batch_size
 
-    from_idx, done = cfg.data.data_processing.insert_start_index, False
-    while not done:
-        # fetch the data
-        to_idx = from_idx + cfg.data.data_processing.data_fetch_batch_size
-        data, done = get_fashion_gen_data(cfg, from_idx, to_idx)
+    for from_idx in range(0, num_points, fetch_batch_sz):
+        to_idx = min(from_idx + fetch_batch_sz, num_points)
+        data = get_fashion_gen_data(cfg, from_idx, to_idx)
         # create points from it
         points = []
         img_descr_pairs = embedder.get_paired_embedding_batch(
@@ -229,20 +227,23 @@ def populate_vector_db(cfg):
             string_payload = {
                 key: data[key][idx] for key in cfg.data.fashion_gen.string_attributes
             }
-            payload = {prices_key: data[prices_key], **string_payload}
+            payload = {prices_key: data[prices_key][idx], index_key: data[index_key][idx], **string_payload}
             # construct the named vectors
             named_vectors = {
                 cfg.data.vector_db.image_vectors_name: img_vec,
                 cfg.data.vector_db.text_vectors_name: text_vec,
             }
             # construct the point struct from the payload and named vectors
-            struct = models.PointStruct(id=idx, vector=named_vectors, payload=payload)
+            struct = models.PointStruct(id=uuid4(), vector=named_vectors, payload=payload)
             points.append(struct)
         # insert the points into the collection
         log.debug("Created a batch of points. Writing to collection.")
-        client.upsert(collection_name=cfg.data.vector_db.collection_name, points=points)
+        client.upsert(collection_name=collection_name, points=points)
         num_points = cfg.data.fashion_gen.num_datapoints
         log.debug(
             f"Inserted points {from_idx} to {to_idx} out of {num_points} datapoints."
         )
-        from_idx = to_idx
+    # check if the insertion worked by counting the number of points in the collection
+    # by default it uses no filter and returns the exact count
+    count_result = client.count(collection_name=collection_name)
+    log.debug(f"Number of points in collection: {count_result.count}")

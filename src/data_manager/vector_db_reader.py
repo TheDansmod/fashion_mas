@@ -18,6 +18,7 @@ class VectorDbReader:
         self._collection_name = cfg.data.vector_db.collection_name
         self._image_vectors_name = cfg.data.vector_db.image_vectors_name
         self._category_key = cfg.data.fashion_gen.categories_key
+        self._index_key = cfg.data.fashion_gen.index_key
 
     def get_image_matches(self, embedding, num_matches=1, categories=None):
         """Gets num_matches images that best match the embedding.
@@ -50,7 +51,7 @@ class VectorDbReader:
             limit=num_matches,
         )
         for scored_points in query_response.points:
-            item_id = scored_points.id
+            item_id = scored_points.payload[self._index_key]
             item_cat = scored_points.payload[self._category_key]
             ids.append(item_id)
             log.debug(f"id: {item_id}; category: {item_cat}")

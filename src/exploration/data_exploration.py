@@ -69,23 +69,26 @@ def test_fashion_gen(cfg):
     import h5py
     import random
     from PIL import Image
+    import numpy as np
     """Explore the fashion-gen dataset.
 
     See how it is setup, how to navigate it, and what content it has.
     """
     with h5py.File(cfg.data.fashion_gen.hdf5_path, "r") as file:
-        num_images = file["index"].shape[0]
-        idx = random.randint(0, num_images - 1)
-        # img = Image.fromarray(file["input_image"][idx].astype("uint8"))
-        # img.save(cfg.misc.random_image_save_path.format(0))
-        price = file["input_msrpUSD"][idx].item()
-        log.info(f"Number of images: {num_images}")
-        log.info(f"input_msrpUSD {price}")
-        for key in cfg.data.fashion_gen.string_attributes:
-            value = file[key][idx][0].decode(cfg.data.fashion_gen.string_codec)
-            log.info(f"{key} {value}")
-        for key in file.keys():
-            log.info(f"{key}\t{file[key].dtype}")
+        prices = file["input_msrpUSD"][10:20].tolist()
+    log.debug(prices)
+        # num_images = file["index"].shape[0]
+        # idx = random.randint(0, num_images - 1)
+        # # img = Image.fromarray(file["input_image"][idx].astype("uint8"))
+        # # img.save(cfg.misc.random_image_save_path.format(0))
+        # price = file["input_msrpUSD"][idx].item()
+        # log.info(f"Number of images: {num_images}")
+        # log.info(f"input_msrpUSD {price}")
+        # for key in cfg.data.fashion_gen.string_attributes:
+        #     value = file[key][idx][0].decode(cfg.data.fashion_gen.string_codec)
+        #     log.info(f"{key} {value}")
+        # for key in file.keys():
+        #     log.info(f"{key}\t{file[key].dtype}")
 
 
 class FashionSigLIPEmbedding():
@@ -210,7 +213,7 @@ def get_data_distribution(cfg):
     with open(r"src/exploration/prices.txt", "w") as f:
         for start in range(0, num_pts, batch_size):
             end = min(start + batch_size, num_pts)
-            data, done = get_fashion_gen_data(cfg, start, end)
+            data = get_fashion_gen_data(cfg, start, end)
             # categories.update(set(data['input_category']))
             for price in data['input_msrpUSD']:
                 f.write(f"{price}\n")

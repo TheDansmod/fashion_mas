@@ -87,6 +87,9 @@ This is just a first pass version of the agentic system.
 20. 2026-03-09 22:17 I am tired for today. Will continue investigating this shit tomorrow. Regarding the issue with the recommender not doing filtering I think it might just be an issue of not passing the categories.
 21. 2026-03-10 10:45 I was able to fix the issue with the recommender not suggesting aligned category results. It is better now. But I still need to work on getting the filtration node to actually work. I think I am going to try hierarchical categories.
 22. 2026-03-10 11:11 Part of the issue with hierarchical categories is that it is difficult to create mutually exclusive super-categories, and additionally, the existing categorization is imperfect - having unnecessary overlaps and repetition. I think I am just going to try and ask it to output a simple string and then I'll parse that string to see if it contains any of the categories.
+23. 2026-03-10 12:46 The results from the LLMs seem to be pretty good and nearly exactly what I want, but it seems like even though the category of the item is jeans, the actual item is a jacket. I might have to iterate through the entire dataset and assign new categories to each item if that is actually the case. Am checking if that is the case.
+24. 2026-03-10 13:43 There is a discrepancy between the index of the point in the qdrant database and the index of the same datapoint in the hdf5 database, which is causing the issue. Currently, the only solution I can think of is to re-create the index, which will take a really large amount of time - 10 to 12 hours total.
+25. 2026-03-10 17:21 I have re-created the qdrant vector db on linux (the issue was that I was over-writing every batch to the same indices), and that was also useless since it became really large (4 GB) and I got a warning saying to use docker or cloud with qdrant. I have decided to go to docker. I have a migrate script that will hopefully work - since when I had tried to load the qdrant client before, it crashed the full program. If the migration does not work, I will be forced to re-create the qdrant db, this time on docker.
 
 # Library Dependency and their purpose
 1. `langgraph` - agent orchestration. needed for the multi-agent system
@@ -169,3 +172,9 @@ diff -yr /mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas_
 2. Resume from checkpoint / thread id (rag pipeline 01.yaml)
 3. LLM model - qwen / mock / mistral
 4. Langsmith API enabled / not
+
+# Qdrant Migration from Local to Docker
+After I fixed the issue where only a small number of points were constantly being over-written while creating the qdrant collection, the size of the collection ballooned to 4 GB. I also got a warning saying that I should use Qdrant on docker or cloud with so many points / vectors.
+1. Create the docker container:
+`podman run -d --name qdrant-server -p 6333:6333 -p 6334:6334 -v "$(pwd)/data/qdrant_storage:/qdrant/storage:z" docker.io/qdrant/qdrant:latest`
+where 6333 is the rest api, 6334 is the grpc api; :z applies a shared SELinux label; we are creating a volume in the `./data/qdrant_storage` folder.
