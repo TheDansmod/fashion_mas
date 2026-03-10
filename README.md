@@ -86,6 +86,7 @@ This is just a first pass version of the agentic system.
 19. 2026-03-09 22:04 It seems like the qdrant client is returning random fucking shit despite me telling it to return only things that match the specific category. I asked it for jeans 3 times and it returned non-jeans items id 340 (pants), 791 (sweaters), 870 (tops). This is independent of the issue of trying to get the LLM model to output some subset of 49 categories.
 20. 2026-03-09 22:17 I am tired for today. Will continue investigating this shit tomorrow. Regarding the issue with the recommender not doing filtering I think it might just be an issue of not passing the categories.
 21. 2026-03-10 10:45 I was able to fix the issue with the recommender not suggesting aligned category results. It is better now. But I still need to work on getting the filtration node to actually work. I think I am going to try hierarchical categories.
+22. 2026-03-10 11:11 Part of the issue with hierarchical categories is that it is difficult to create mutually exclusive super-categories, and additionally, the existing categorization is imperfect - having unnecessary overlaps and repetition. I think I am just going to try and ask it to output a simple string and then I'll parse that string to see if it contains any of the categories.
 
 # Library Dependency and their purpose
 1. `langgraph` - agent orchestration. needed for the multi-agent system

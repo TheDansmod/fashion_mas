@@ -132,3 +132,14 @@ def draw_langraph_topology(app, path):
     )
     with open(path, "wb") as f:
         f.write(png_bytes)
+
+
+def get_categories_from_string(cfg, search_string):
+    """Gets which categories might be mentioned in the search string."""
+    categories = [cat.lower() for cat in cfg.data.fashion_gen.product_categories]
+    search_string = search_string.lower()
+    matched_categories = []
+    for cat in categories:
+        if cat in search_string:
+            matched_categories.append(cat.upper())
+    return matched_categories

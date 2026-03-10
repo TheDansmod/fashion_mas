@@ -50,5 +50,8 @@ class VectorDbReader:
             limit=num_matches,
         )
         for scored_points in query_response.points:
-            ids.append(scored_points.id)
+            item_id = scored_points.id
+            item_cat = scored_points.payload[self._category_key]
+            ids.append(item_id)
+            log.debug(f"id: {item_id}; category: {item_cat}")
         return ids

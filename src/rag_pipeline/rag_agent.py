@@ -17,9 +17,12 @@ from src.rag_pipeline.llm_schemas import (
     NumRecommendations,
     RequiredClothes,
     SingleImageDescription,
-    ValidCategories,
 )
-from src.utils.common_utils import draw_langraph_topology, get_image_prompt_message
+from src.utils.common_utils import (
+    draw_langraph_topology,
+    get_categories_from_string,
+    get_image_prompt_message,
+)
 
 log = logging.getLogger(__name__)
 
@@ -260,16 +263,16 @@ class FashionAgent:
         valid_categories = (
             "['" + "', '".join(self._cfg.data.fashion_gen.product_categories) + "']"
         )
-        structured_model = self._model.with_structured_output(ValidCategories)
+        # structured_model = self._model.with_structured_output(ValidCategories)
         categories = []
         for descr in state.required_clothes_descriptions:
             prompt = self._cfg.prompts.filtration_node.category_choice_prompt.format(
                 valid_categories=valid_categories, item_description=descr
             )
             log.debug("Invoking model.")
-            response = structured_model.invoke(prompt)  # text prompt - structured
+            response = self._model.invoke(prompt)  # text prompt - unstructured
             log.debug("Received response from model.")
-            categories.append(response.categories)
+            categories.append(get_categories_from_string(self._cfg, response.content))
         log.debug(f"Categories of descriptions:\n{categories}")
         return {"required_clothes_categories": categories}
 

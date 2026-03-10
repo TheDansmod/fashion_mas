@@ -1,6 +1,7 @@
 """Generate Mock LLM to make each dev run cheaper when not testing the LLMs."""
 
 import logging
+import random
 from typing import Any, Type
 
 from langchain_core.messages import AIMessage
@@ -62,6 +63,9 @@ class ChatMockLLM:
             "to explain how the recommended image "
             "successfully satisfies a concrete part or all of the user's request."
         )
+        self.filtration_node_prompt_substring = (
+            "assign one or more of following categories to it:"
+        )
 
     def invoke(self, prompt: Any, *args, **kwargs) -> AIMessage:
         """Respond to unstructured llm invocations."""
@@ -75,6 +79,12 @@ class ChatMockLLM:
             return AIMessage(
                 content="The properties of this garment synergize with the input image."
             )
+        elif self.filtration_node_prompt_substring.lower() in prompt_str:
+            cats = random.choices(
+                ["JEANS", "SCARVES", "SANDALS", "SKIRTS", "TOPS", "DRESSES"],
+                k=random.randint(1, 3),
+            )
+            return AIMessage(content=f"The matching categories are {', '.join(cats)}")
         return AIMessage(content="Default mocked unstructured output.")
 
     def with_structured_output(
