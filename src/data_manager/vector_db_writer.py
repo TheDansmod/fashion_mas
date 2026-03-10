@@ -114,7 +114,10 @@ def get_vector_db_client(cfg):
     collection created. Or if the collection already exists and the recreate flag is
     not enabled, then the existing collection is fetched.
     """
-    client = QdrantClient(url=cfg.data.vector_db.vector_store_network_path, prefer_grpc=cfg.data.vector_db.prefer_grpc)
+    client = QdrantClient(
+        url=cfg.data.vector_db.vector_store_network_path,
+        prefer_grpc=cfg.data.vector_db.prefer_grpc,
+    )
 
     recreate = cfg.data.vector_db.recreate
     collection_name = cfg.data.vector_db.collection_name
@@ -186,11 +189,11 @@ def get_fashion_gen_data(cfg, from_idx, to_idx):
         to_idx = num_datapoints
     vec_decode = np.vectorize(pyfunc=lambda x: x.decode(codec))
     with h5py.File(cfg.data.fashion_gen.hdf5_path, "r") as file:
-        data[images_key] = file[images_key][from_idx: to_idx].astype("uint8")
-        data[prices_key] = np.ravel(file[prices_key][from_idx: to_idx]).tolist()
-        data[index_key] = np.ravel(file[index_key][from_idx: to_idx]).tolist()
+        data[images_key] = file[images_key][from_idx:to_idx].astype("uint8")
+        data[prices_key] = np.ravel(file[prices_key][from_idx:to_idx]).tolist()
+        data[index_key] = file[index_key][from_idx:to_idx].tolist()  # don't need ravel
         for key in cfg.data.fashion_gen.string_attributes:
-            data[key] = vec_decode(np.ravel(file[key][from_idx : to_idx])).tolist()
+            data[key] = vec_decode(np.ravel(file[key][from_idx:to_idx])).tolist()
     return data
 
 
@@ -227,14 +230,20 @@ def populate_vector_db(cfg):
             string_payload = {
                 key: data[key][idx] for key in cfg.data.fashion_gen.string_attributes
             }
-            payload = {prices_key: data[prices_key][idx], index_key: data[index_key][idx], **string_payload}
+            payload = {
+                prices_key: data[prices_key][idx],
+                index_key: data[index_key][idx],
+                **string_payload,
+            }
             # construct the named vectors
             named_vectors = {
                 cfg.data.vector_db.image_vectors_name: img_vec,
                 cfg.data.vector_db.text_vectors_name: text_vec,
             }
             # construct the point struct from the payload and named vectors
-            struct = models.PointStruct(id=uuid4(), vector=named_vectors, payload=payload)
+            struct = models.PointStruct(
+                id=uuid4(), vector=named_vectors, payload=payload
+            )
             points.append(struct)
         # insert the points into the collection
         log.debug("Created a batch of points. Writing to collection.")

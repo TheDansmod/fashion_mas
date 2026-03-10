@@ -13,8 +13,8 @@ fashion_gen:
   prices_key: input_msrpUSD
   # The HDF5 file is a sort of dictionary where each key is a separate dataset. The values of all datasets are aligned. Below is the name of the category dataset.
   categories_key: input_category
-  # The HDF5 file is a sort of dictionary where each key is a separate dataset. The values of all datasets are aligned. Below is the name of the index dataset.
-  index_key: index
+  # The HDF5 file is a sort of dictionary where each key is a separate dataset. The values of all datasets are aligned. Below is the name of the index dataset. index_2 is aligned with the sequential index of the elements in the dataset, while index is not.
+  index_key: index_2
   # this is the total number of datapoints present in the fashion-gen dataset
   num_datapoints: 260_490
   # these are the categories to which the items in the database belong
@@ -27,14 +27,12 @@ vector_db:
   vector_store_network_path: http://localhost:6333
   # qdrant allows two api's - rest and grpc. grpc is more performant while rest api is more convenient. the docs recommend using grpc if we are already familiar with qdrant and are trying to optimize the performance of our application.
   prefer_grpc: true
-  # this is the batch size - fetched using scroll - that is used during the migration process
-  migration_batch_size: 1024
   # this is the name of the collection in qdrant
   collection_name: fashion_gen
   # this is the model used to generated embeddings (multi-modal)
   embedding_model: hf-hub:Marqo/marqo-fashionSigLIP
   # this flag controls if the collection is recreated if it already exists. This will remain true while I have not generated the full collection.
-  recreate: true 
+  recreate: false
   # when inserting the embeddings in to qdrant, since they are multi-modal, I am inserting them as named vectors. Below 2 are the names.
   image_vectors_name: images
   text_vectors_name: texts
@@ -54,3 +52,7 @@ data_processing:
   embedding_batch_size: 512
   # this is the number of datapoints we fetch at one time from the fashion-gen dataset. Best for it to be some integer multiple of the batch size. Not so large that it does not fit in RAM. Without writing image to payload, the process is really fast.
   data_fetch_batch_size: 4096
+  # this is the batch size - fetched using scroll - that is used during the migration process
+  migration_batch_size: 1024
+  # this is the batch size used during payload updates
+  payload_update_batch_size: 1024

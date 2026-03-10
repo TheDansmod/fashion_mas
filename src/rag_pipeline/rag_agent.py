@@ -338,9 +338,7 @@ class FashionAgent:
         descr_key = self._cfg.data.fashion_gen.descriptions_key
         img_key = self._cfg.data.fashion_gen.images_key
         for img_id in state.recommended_clothes_images:
-            data = get_fashion_gen_data(
-                self._cfg, from_idx=img_id, to_idx=img_id + 1
-            )
+            data = get_fashion_gen_data(self._cfg, from_idx=img_id, to_idx=img_id + 1)
             img_descr = data[descr_key][0]
             if state.has_input_images:
                 text_prompt = (
