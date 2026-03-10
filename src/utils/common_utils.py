@@ -152,3 +152,20 @@ def get_qdrant_points_by_id(cfg, ids=None):
         log.debug(point.payload['input_category'])
         log.debug(point.payload['input_description'])
         log.debug(point.payload.keys())
+
+
+def migrate_local_to_docker(cfg):
+    from qdrant_client import QdrantClient
+    log.debug("Starting migration process.")
+    src_client = QdrantClient(path=cfg.data.vector_db.vector_store_path)
+    log.debug("Loaded source client.")
+    dst_client = QdrantClient(path=cfg.data.vector_db.vector_store_network_path, prefer_grpc=cfg.data.vector_db.prefer_grpc)
+    log.debug("Loaded destination client. Starting migration")
+
+    src_client.migrate(
+            dest_client=dst_client,
+            collection_names=[cfg.data.vector_db.collection_name],
+            recreate_on_collision=True,
+            batch_size=cfg.data.vector_db.migration_batch_size
+    )
+

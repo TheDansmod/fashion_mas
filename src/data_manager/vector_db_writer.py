@@ -114,7 +114,7 @@ def get_vector_db_client(cfg):
     collection created. Or if the collection already exists and the recreate flag is
     not enabled, then the existing collection is fetched.
     """
-    client = QdrantClient(path=cfg.data.vector_db.vector_store_path)
+    client = QdrantClient(url=cfg.data.vector_db.vector_store_network_path, prefer_grpc=cfg.data.vector_db.prefer_grpc)
 
     recreate = cfg.data.vector_db.recreate
     collection_name = cfg.data.vector_db.collection_name
