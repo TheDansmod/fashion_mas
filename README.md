@@ -176,8 +176,10 @@ diff -yr /mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas_
 3. LLM model - qwen / mock / mistral
 4. Langsmith API enabled / not
 
-# Qdrant Migration from Local to Docker
+# Qdrant with Docker / Podman
 After I fixed the issue where only a small number of points were constantly being over-written while creating the qdrant collection, the size of the collection ballooned to 4 GB. I also got a warning saying that I should use Qdrant on docker or cloud with so many points / vectors.
 1. Create the docker container:
 `podman run -d --name qdrant-server -p 6333:6333 -p 6334:6334 -v "$(pwd)/data/qdrant_storage:/qdrant/storage:z" docker.io/qdrant/qdrant:latest`
 where 6333 is the rest api, 6334 is the grpc api; :z applies a shared SELinux label; we are creating a volume in the `./data/qdrant_storage` folder.
+2. Stop the docker container gracefully: `podman stop --time 30 qdrant-server`
+3. Start the docker container: `podman start qdrant-server`
