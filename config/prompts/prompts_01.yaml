@@ -42,7 +42,7 @@ modifier_node:
 
 filtration_node:
   category_choice_prompt: |
-    You are an expert fashion assistant. Analyse the description of the clothing item provided below and assign it to one or more of following categories: {valid_categories}. Return a list of strings (of length 1 or more) where each string is a valid category from the provided list. If the product belongs to only 1 category, the returned list of categories should only have 1 item in it.
+    You are an expert fashion assistant. Analyse the description of the clothing item provided below and assign one or more of following categories to it: {valid_categories}. Return a list of strings (of length 1 or more) where each string is a valid category from the provided list. If the product belongs to only 1 category, the returned list of categories should only have 1 item in it.
 
     Clothing Item Description:
     {item_description}

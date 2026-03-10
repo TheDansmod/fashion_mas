@@ -82,6 +82,10 @@ This is just a first pass version of the agentic system.
 	2. The explanation model tried to make its own suggestions. I have now instructed it to give only explanations and if not then a rating of how well it matches - rating is not needed but will help me see how well the verifyer might work.
 	3. The intent node was giving too many suggestions (not just what to extract from the image, but also what jeans to select) and it was too long. I have asked it to be concise (5 sentences or less) and have asked it to restrict itself to image extraction requirements.
 17. 2026-03-09 18:40 I have tried to solve all of these above issues - 2 and 3 through prompt engineering - and 1 through added a filtration node based on the category of the item. Will be testing it out in windows.
+18. 2026-03-09 19:24 I ran the code on windows, but faced issue with getting the filtration output to match the valid categories - the execution gets hung up on that LLM call for quite a while. I am not sure if the single LLM call was taking a while or if langgraph was doing retries and that was taking time. I tried adding a timeout (`client_kwargs={"timeout": 30.0}`), but it was not respected. I will now be trying to use indexed arrays.
+19. 2026-03-09 22:04 It seems like the qdrant client is returning random fucking shit despite me telling it to return only things that match the specific category. I asked it for jeans 3 times and it returned non-jeans items id 340 (pants), 791 (sweaters), 870 (tops). This is independent of the issue of trying to get the LLM model to output some subset of 49 categories.
+20. 2026-03-09 22:17 I am tired for today. Will continue investigating this shit tomorrow. Regarding the issue with the recommender not doing filtering I think it might just be an issue of not passing the categories.
+21. 2026-03-10 10:45 I was able to fix the issue with the recommender not suggesting aligned category results. It is better now. But I still need to work on getting the filtration node to actually work. I think I am going to try hierarchical categories.
 
 # Library Dependency and their purpose
 1. `langgraph` - agent orchestration. needed for the multi-agent system
@@ -99,9 +103,6 @@ This is just a first pass version of the agentic system.
 13. `langchain-google-genai` - this is required to invoke Google AI APIs (I am trying with Gemma model)
 
 # TODOs
-1. Figure out all the categories, sub-cat, brands, etc etc - what all elements they have
-2. Set batch size of marqo-fashionSigLIP model (256, 512, 1024 etc etc) in `config/data/data_01.yaml`.
-3. Handle the case when there are no input images.
 4. Handle the case when the uploaded images are not that of clothes.
 5. The prompts might not really count as system prompts.
 6. Generate more than one match for each requirement, then ask the llm to check which of them matches
@@ -139,15 +140,15 @@ This is just a first pass version of the agentic system.
 		rm $HOME\.local\bin\uvx.exe
 		rm $HOME\.local\bin\uvw.exe
 3. To install Ollama: `irm https://ollama.com/install.ps1 | iex` (to uninstall it go to installed apps and choose ollama from there) - ollama is automatically setup as a run-on-starup app.
-4. Run the `uv sync` command from the fashion_mas folder.
+4. Run the `uv sync` command from the `fashion_mas` folder.
 5. Changed the path of the hdf5 dataset to be a windows path rather than a linux path - ensure you use single quotes rather than double quotes - single quotes means characters are literals, else they might be interpreted as escape sequences.
-6. Created the data folder and put the my shirt in that folder from the original fashion_mas folder.
+6. Created the data folder and put the my shirt in that folder from the original `fashion_mas` folder.
 7. Install the model: `ollama pull qwen3-vl:4b-thinking`
 8. Apparently there is an issue with trying to migrate qdrant folder directly from linux to windows, so we will have to re-create the collection.
-9. Copy the .env file from fashion_mas folder (original)
-10. Ensure recreate (data_01.yaml) is true, resume from checkpoint (rag_pipeline_01.yaml) is false, set main.py to run the populate vector db command - have re-created the db.
-11. Ensure re-create (data_01.yaml) is false, resume from checkpoint (rag_pipeline_01.yaml) is false, set main.py to run fashion agent.
-12. I added some .env variables to the file in original fashion_mas (I am getting frustrated jumping between linux and windows - for now I am going to stay on windows), so I copied over the file to this project.
+9. Copy the .env file from `fashion_mas` folder (original)
+10. Ensure recreate (`data_01.yaml`) is true, resume from checkpoint (`rag_pipeline_01.yaml`) is false, set main.py to run the populate vector db command - have re-created the db.
+11. Ensure re-create (`data_01.yaml`) is false, resume from checkpoint (`rag_pipeline_01.yaml`) is false, set main.py to run fashion agent.
+12. I added some .env variables to the file in original `fashion_mas` (I am getting frustrated jumping between linux and windows - for now I am going to stay on windows), so I copied over the file to this project.
 13. The Langsmith thing was not working. I have created new key.
 14. Still not working. Now giving errors about internet connection 10053 Connection Aborted Error. I have added a new key for the endpoint in the EU. Let' try this way. Works.
 15. I only have 5k traces per month, so I will not log most development traces.
@@ -155,11 +156,15 @@ This is just a first pass version of the agentic system.
 
 # Windows Changes (except setup parts - after git pull - after initial qdrant creation):
 This is after I have already run the code on windows, but have done some development on linux after that, and am switching back to windows to run the code.
-1. Change the hdf5 file path to be windows sensitive: `'C:\Users\lordh\Documents\Svalbard\Data\fashion-gen\fashiongen_256_256_train.h5` - single quotes are mandatory
-2. Create data folder and put the shirt image in it
-3. Copy the .env file over
+1. Change the hdf5 file path to be windows sensitive: `'C:\Users\lordh\Documents\Svalbard\Data\fashion-gen\fashiongen_256_256_train.h5'` - single quotes are mandatory
 
 # Compare files in two folders:
 ```
 diff -yr /mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas_windows/fashion_mas /mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas -X /mnt/windows/Users/lordh/Documents/LibraryOfBabel/Miscellany/Danish/linux_temp/temp_files/0427_fashion_mas_compare_exclude.txt --strip-trailing-cr --suppress-common-lines
 ```
+
+# Checklist before running code:
+1. Re-create vector database (data 01.yaml)
+2. Resume from checkpoint / thread id (rag pipeline 01.yaml)
+3. LLM model - qwen / mock / mistral
+4. Langsmith API enabled / not

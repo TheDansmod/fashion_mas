@@ -1,9 +1,12 @@
 """Generate Mock LLM to make each dev run cheaper when not testing the LLMs."""
 
+import logging
 from typing import Any, Type
 
 from langchain_core.messages import AIMessage
 from pydantic import BaseModel
+
+log = logging.getLogger(__name__)
 
 
 class MockStructuredOutput:
@@ -27,12 +30,19 @@ class MockStructuredOutput:
             return self.schema(
                 required_clothes_descriptions=[
                     "Dark wash denim jeans",
-                    "Black tailored trousers",
-                    "Khaki chinos",
+                    "Blue shorts",
+                    "Black office shoe",
                 ]
             )
         elif schema_name == "ValidCategories":
-            return self.schema(categories=["JEANS", "PANTS"])
+            if "jeans" in prompt:
+                return self.schema(categories=["JEANS", "PANTS"])
+            elif "shorts" in prompt:
+                return self.schema(categories=["SHORTS"])
+            elif "shoe" in prompt:
+                return self.schema(categories=["BOOTS", "LOAFERS", "SNEAKERS"])
+            else:
+                return self.schema(categories=["JEANS", "PANTS"])
         else:
             raise NotImplementedError(
                 f"Mock configuration for schema {schema_name} is unresolved."

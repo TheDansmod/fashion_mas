@@ -94,7 +94,8 @@ class FashionAgent:
         """
         provider = hydra.utils.instantiate(cfg.models.vlm_agent)
         self._model = provider(
-            model=cfg.models.vlm_agent.name, temperature=cfg.models.vlm_agent.temp
+            model=cfg.models.vlm_agent.name,
+            temperature=cfg.models.vlm_agent.temp,
         )
         self._embedder = FashionSigLIPEmbedding(cfg)
         self._reader = VectorDbReader(cfg)
@@ -119,7 +120,7 @@ class FashionAgent:
             user_request=state.input_text
         )
         structured_model = self._model.with_structured_output(NumRecommendations)
-        log.debug("Invoking model 1.")
+        log.debug("Invoking model.")
         response = structured_model.invoke(prompt)  # text prompt - structured
         log.debug("Received response from model.")
         num_recommendations = (
@@ -128,7 +129,7 @@ class FashionAgent:
             else response.num_recommendations
         )
         log.debug(
-            f"Number of recommendations from the user: {response.num_recommendations}"
+            f"Number of recommendations from the user:\n{response.num_recommendations}"
         )
         return {"num_recommendations": num_recommendations}
 
@@ -152,7 +153,7 @@ class FashionAgent:
         log.debug("Invoking model.")
         response = self._model.invoke(prompt)  # text prompt - unstructured
         log.debug("Received response from model.")
-        log.debug(f"Instructions for the VLM: {response.content}")
+        log.debug(f"Instructions for the VLM:\n{response.content}")
         return {"vlm_instructions": response.content}
 
     def vision_node(self, state: AgentState) -> AgentState:
@@ -187,7 +188,7 @@ class FashionAgent:
         return {"input_images_descriptions": descr}
 
     def modifier_node(self, state: AgentState) -> AgentState:
-        """Uses multimodal context to formulate precise target retrieval descriptions.
+        """Produces text descriptions of clothing items requested by user.
 
         Integrates both the original textual imperative and the newly extracted visual
         feature descriptions to generate an array of target apparel descriptions.
@@ -298,8 +299,14 @@ class FashionAgent:
         embeddings = self._embedder.get_text_embedding_batch(
             state.required_clothes_descriptions
         )
-        for embedding in embeddings:
-            match_ids.extend(self._reader.get_image_matches(embedding, num_matches=1))
+        for idx, embedding in enumerate(embeddings):
+            match_ids.extend(
+                self._reader.get_image_matches(
+                    embedding,
+                    num_matches=1,
+                    categories=state.required_clothes_categories[idx],
+                )
+            )
         log.debug(f"Image IDs obtained from recommender_node:\n{match_ids}")
         return {"recommended_clothes_images": set(list(match_ids))}
 

@@ -82,6 +82,29 @@ def fetch_random_fashion_gen_images(cfg, num_images=3):
             log.debug(f"Saved image {i}")
 
 
+def fetch_fashion_gen_images(cfg, image_ids=None):
+    """Fetches some randomly chosen images from fashion-gen.
+
+    The primary use of this is to use those images as input for the agentic system.
+    The images are saved in the path given by cfg.misc.random_image_save_path with the
+    index of the image inserted into the name.
+    """
+    import h5py
+    from PIL import Image
+
+    if not image_ids:
+        raise ValueError("image_ids should be a list of indices")
+    with h5py.File(cfg.data.fashion_gen.hdf5_path, "r") as file:
+        for idx in image_ids:
+            img = Image.fromarray(file["input_image"][idx].astype("uint8"))
+            description = file["input_description"][idx][0].decode("latin-1")
+            category = file["input_category"][idx][0].decode("latin-1")
+            img.save(cfg.misc.random_image_save_path.format(idx))
+            log.debug(
+                f"Saved image {idx}\nDescription: {description}\nCategory: {category}"
+            )
+
+
 def get_image_prompt_message(image_path=None, text_prompt=None, numpy_image=None):
     """Get langgraph compatible prompt containing an image and some text."""
     image_data = encode_image(image_path, numpy_image)

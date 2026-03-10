@@ -241,5 +241,8 @@ def populate_vector_db(cfg):
         # insert the points into the collection
         log.debug("Created a batch of points. Writing to collection.")
         client.upsert(collection_name=cfg.data.vector_db.collection_name, points=points)
-        log.debug(f"Inserted points {from_idx} to {to_idx} out of 260490 datapoints.")
+        num_points = cfg.data.fashion_gen.num_datapoints
+        log.debug(
+            f"Inserted points {from_idx} to {to_idx} out of {num_points} datapoints."
+        )
         from_idx = to_idx
