@@ -1,7 +1,6 @@
 """Read the fashion-gen dataset, generate embeddings, and write them to vector db."""
 
 import logging
-from uuid import uuid4
 
 import h5py
 import numpy as np
@@ -196,6 +195,44 @@ def get_fashion_gen_data(cfg, from_idx, to_idx):
             data[key] = vec_decode(np.ravel(file[key][from_idx:to_idx])).tolist()
     return data
 
+def _iter_data_points(cfg, embedder):
+    image_vec_name = cfg.data.vector_db.image_vectors_name
+    text_vec_name = cfg.data.vector_db.text_vectors_name
+
+    images_key = cfg.data.fashion_gen.images_key
+    descriptions_key = cfg.data.fashion_gen.descriptions_key
+    prices_key = cfg.data.fashion_gen.prices_key
+    index_key = cfg.data.fashion_gen.index_key
+
+    num_points = cfg.data.fashion_gen.num_datapoints
+    fetch_batch_sz = cfg.data.data_processing.data_fetch_batch_size
+
+    for from_idx in range(0, num_points, fetch_batch_sz):
+        to_idx = min(from_idx + fetch_batch_sz, num_points)
+        data = get_fashion_gen_data(cfg, from_idx, to_idx)
+
+        img_descr_pairs = embedder.get_paired_embedding_batch(
+            data[images_key], data[descriptions_key]
+        )
+        log.debug(
+            f"Got embedding {from_idx} to {to_idx} out of {num_points} datapoints."
+        )
+        for idx, (img_vec, text_vec) in enumerate(img_descr_pairs):
+            # construct the payload
+            string_payload = {
+                key: data[key][idx] for key in cfg.data.fashion_gen.string_attributes
+            }
+            payload = {
+                prices_key: data[prices_key][idx],
+                index_key: data[index_key][idx],
+                **string_payload,
+            }
+            # construct the named vectors
+            named_vectors = {image_vec_name: img_vec, text_vec_name: text_vec}
+            # construct the point struct from the payload and named vectors
+            yield models.PointStruct(
+                id=data[index_key][idx], vector=named_vectors, payload=payload
+            )
 
 def populate_vector_db(cfg):
     """Read fashion-gen HDF5 data, generate embeddings, write it into the vector db.
@@ -208,51 +245,12 @@ def populate_vector_db(cfg):
     # preliminaries
     embedder = FashionSigLIPEmbedding(cfg)
     client = get_vector_db_client(cfg)
-    collection_name = cfg.data.vector_db.collection_name
-    images_key = cfg.data.fashion_gen.images_key
-    descriptions_key = cfg.data.fashion_gen.descriptions_key
-    prices_key = cfg.data.fashion_gen.prices_key
-    index_key = cfg.data.fashion_gen.index_key
-    num_points = cfg.data.fashion_gen.num_datapoints
-    fetch_batch_sz = cfg.data.data_processing.data_fetch_batch_size
 
-    for from_idx in range(0, num_points, fetch_batch_sz):
-        to_idx = min(from_idx + fetch_batch_sz, num_points)
-        data = get_fashion_gen_data(cfg, from_idx, to_idx)
-        # create points from it
-        points = []
-        img_descr_pairs = embedder.get_paired_embedding_batch(
-            data[images_key], data[descriptions_key]
-        )
-        log.debug("Creating a batch of points")
-        for idx, (img_vec, text_vec) in enumerate(img_descr_pairs):
-            # construct the payload
-            string_payload = {
-                key: data[key][idx] for key in cfg.data.fashion_gen.string_attributes
-            }
-            payload = {
-                prices_key: data[prices_key][idx],
-                index_key: data[index_key][idx],
-                **string_payload,
-            }
-            # construct the named vectors
-            named_vectors = {
-                cfg.data.vector_db.image_vectors_name: img_vec,
-                cfg.data.vector_db.text_vectors_name: text_vec,
-            }
-            # construct the point struct from the payload and named vectors
-            struct = models.PointStruct(
-                id=uuid4(), vector=named_vectors, payload=payload
-            )
-            points.append(struct)
-        # insert the points into the collection
-        log.debug("Created a batch of points. Writing to collection.")
-        client.upsert(collection_name=collection_name, points=points)
-        num_points = cfg.data.fashion_gen.num_datapoints
-        log.debug(
-            f"Inserted points {from_idx} to {to_idx} out of {num_points} datapoints."
-        )
-    # check if the insertion worked by counting the number of points in the collection
-    # by default it uses no filter and returns the exact count
-    count_result = client.count(collection_name=collection_name)
-    log.debug(f"Number of points in collection: {count_result.count}")
+    # insert the points into the collection
+    client.upload_points(
+        collection_name=cfg.data.vector_db.collection_name,
+        points=_iter_data_points(cfg, embedder),
+        batch_size=cfg.data.data_processing.upload_batch_size,
+        parallel=cfg.data.data_processing.upload_parallel,
+        wait=False,
+    )

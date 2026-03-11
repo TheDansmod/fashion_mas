@@ -8,6 +8,9 @@ defaults:
   - override hydra/job_logging: colorlog
   - override hydra/hydra_logging: colorlog
 
+# for langsmith observability and traces
+observability:
+    project_name: ${oc.env:LANGSMITH_PROJECT}
 
 hydra:
   verbose:

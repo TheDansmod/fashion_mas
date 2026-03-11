@@ -93,6 +93,9 @@ This is just a first pass version of the agentic system.
 26. 2026-03-10 18:04 I tried to do the migration and it did not work, same issue of full RAM usage followed by crash. I am now trying to re-create the vector db by inserting directly into the docker container based qdrant client. - 18:35 - recreated - 25 mins for 260490 points.
 27. 2026-03-10 18:44 The database seems to be returning index values which are much larger than 260490. Will have to figure out what the issue is. I made a mistake again. The sequential index of the datapoint in the h5py database has no relationship with the value of the index key for that datapoint. I will most likely have to re-create the database unless you create a static mapping between the sequential index and the key-value index. I have just iterated through the database and determined that `index_2` is actually perfectly aligned with the true sequential index. I just need to substitute one for the other.
 28. 2026-03-10 20:36 I have run the code for updating the payload values without having to re-create the db by leveraging the batch update points and delete and set payload operations - am really thankful for these. It was relatively fast - no more than a few minutes. Will test now.
+29. 2026-03-10 22:21 It seems like there will be errors if I try and use the existing linux docker setup in windows. As of now I am resigned to re-creating the database on windows. However, I am facing some issues on windows with regards to grpc communication. might have to switch to rest api to see if it works. It did not work even with using REST API. Need to figure this out.
+30. 2026-03-11 10:20 I ran the code on windows and it seems to work after the podman fix, but it is taking an absurd amount of time. I suspect it might be the embedding generation that is slow. I will check. It is using only the CPU. Apparently on windows, just doing `uv add torch` does not include cuda support. I have made the appropriate modification to the pyproject.toml file and have installed the cuda-based pytorch version.
+31. 2026-03-11 12:17 Completed generation, took around 30 minutes.
 
 # Library Dependency and their purpose
 1. `langgraph` - agent orchestration. needed for the multi-agent system
@@ -160,6 +163,10 @@ This is just a first pass version of the agentic system.
 14. Still not working. Now giving errors about internet connection 10053 Connection Aborted Error. I have added a new key for the endpoint in the EU. Let' try this way. Works.
 15. I only have 5k traces per month, so I will not log most development traces.
 16. Set `$env:PYTHONUTF8=1` to ensure that the console can handle emoji outputs.
+17. For the docker setup: install the podman exe file, run it, run `podman machine init` on your system, then run `podman machine start` (`podman machine stop` to terminate the podman guest)
+18. Create the qdrant container image (no :z) with the volume mount of its own - using named volume for windows (from qdrant docs https://qdrant.tech/documentation/quickstart/):
+	1. `podman volume create qdrant_storage_volume`
+	2. `podman run -d --name qdrant-server -p 6333:6333 -p 6334:6334 -v "qdrant_storage_volume:/qdrant/storage" docker.io/qdrant/qdrant:latest`
 
 # Windows Changes (except setup parts - after git pull - after initial qdrant creation):
 This is after I have already run the code on windows, but have done some development on linux after that, and am switching back to windows to run the code.
@@ -173,8 +180,9 @@ diff -yr /mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas_
 # Checklist before running code:
 1. Re-create vector database (data 01.yaml)
 2. Resume from checkpoint / thread id (rag pipeline 01.yaml)
-3. LLM model - qwen / mock / mistral
-4. Langsmith API enabled / not
+3. LLM model - qwen / mock / mistral (models 01.yaml)
+4. Langsmith API enabled / not (.env)
+5. Ensure podman container running (podman ps)
 
 # Qdrant with Docker / Podman
 After I fixed the issue where only a small number of points were constantly being over-written while creating the qdrant collection, the size of the collection ballooned to 4 GB. I also got a warning saying that I should use Qdrant on docker or cloud with so many points / vectors.
@@ -183,3 +191,55 @@ After I fixed the issue where only a small number of points were constantly bein
 where 6333 is the rest api, 6334 is the grpc api; :z applies a shared SELinux label; we are creating a volume in the `./data/qdrant_storage` folder.
 2. Stop the docker container gracefully: `podman stop --time 30 qdrant-server`
 3. Start the docker container: `podman start qdrant-server`
+
+# Debug Windows Podman connectivity Issues
+1. I want to figure out if the issue is with podman on windows or if it is with the qdrant container setup. I will try with traefik/whoami.
+2. Running command: `podman run --detach --name network-diagnostic --publish 8080:80 docker.io/traefik/whoami`
+3. Executing `curl.exe --verbose --ipv4 http://127.0.0.1:8080` gives an error with reset. It seems the issue is with podman on windows.
+4. I stopped all running containers, `podman machine stop`, `podman machine rm`, `wsl --shutdown`.
+5. Settings for WSL can be seen by going to Start Menu > WSL Settings App (I was not able to find the .wslconfig file)
+6. I turned the Hyper-V Firewall Enabled to off in the WSL Settings
+7. I setup podman again: `podman machine init`, `podman machine start`, then command 2 again - whoami, again tried curl (command 3) - but same connection error
+8. I tried to do `wsl hostname -I` and `wsl --distribution podman-machine-default hostname -i` but neither worked since hostname command was not defined (likely due to the pared down distribution of podman)
+10. I set the podman machine to rootful: `podman machine stop`, `podman machine set --rootful`, `podman machine start`, command 2, command 3 - IT WORKED
+11. Will remove the whoami image and try with qdrant
+12. Fix for podman network issues on windows: use rootful setup rather than rootless
+
+
+id=UUID('019cc339-52b1-7cf3-a8cf-df167302630c') 
+name='LangGraph' 
+start_time=datetime.datetime(2026, 3, 6, 12, 57, 19, 793609) 
+run_type='chain' 
+end_time=datetime.datetime(2026, 3, 6, 12, 59, 5, 509210) 
+extra={'metadata': {'LANGSMITH_ENDPOINT': 'https://eu.api.smith.langchain.com', 'LANGSMITH_PROJECT': 'fashion_mas', 'LANGSMITH_TRACING': 'true', 'ls_run_depth': 0, 'revision_id': '1d6d2a3-dirty', 'thread_id': 'dev_run_001'}, 'runtime': {'langchain_core_version': '1.2.16', 'langchain_version': None, 'library': 'langchain-core', 'library_version': '1.2.16', 'platform': 'Windows-11-10.0.26200-SP0', 'py_implementation': 'CPython', 'runtime': 'python', 'runtime_version': '3.13.12', 'sdk': 'langsmith-py', 'sdk_version': '0.7.9'}} 
+error=None 
+serialized=None 
+events=[{'name': 'start', 'time': '2026-03-06T12:57:19.793609+00:00'}, {'name': 'end', 'time': '2026-03-06T12:59:05.509210+00:00'}] 
+inputs={'input_images_path': ['data/my_shirt_01.jpg'], 'input_text': 'Please provide jeans pants that will go will with the uploaded shirt.'} 
+outputs={FULL_OUTPUT} 
+reference_example_id=None 
+parent_run_id=None 
+tags=[] 
+attachments={} 
+session_id=UUID('321bf322-4ebd-48e1-a66e-1e966f50d84c') 
+child_run_ids=None 
+child_runs=None 
+feedback_stats=None 
+app_path='/o/9939fce4-925b-4055-ba06-5d853b4f1823/projects/p/321bf322-4ebd-48e1-a66e-1e966f50d84c/r/019cc339-52b1-7cf3-a8cf-df167302630c?trace_id=019cc339-52b1-7cf3-a8cf-df167302630c&start_time=2026-03-06T12:57:19.793609' 
+manifest_id=None 
+status='success' 
+prompt_tokens=4372 
+completion_tokens=4616 
+total_tokens=8988 
+prompt_token_details={} 
+completion_token_details={} 
+first_token_time=datetime.datetime(2026, 3, 6, 12, 57, 28, 846884) 
+total_cost=None 
+prompt_cost=None 
+completion_cost=None 
+prompt_cost_details={}
+completion_cost_details={} 
+parent_run_ids=[] 
+trace_id=UUID('019cc339-52b1-7cf3-a8cf-df167302630c') 
+dotted_order='20260306T125719793609Z019cc339-52b1-7cf3-a8cf-df167302630c' 
+in_dataset=False

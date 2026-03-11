@@ -256,3 +256,39 @@ def batch_update_vector_db(cfg):
         if offset is None:
             break
         log.debug(f"Done iter {iter_num + 1} of at most {max_num_iter} iterations.")
+
+
+def get_num_used_tokens(cfg):
+    from langsmith import Client
+    from datetime import datetime, timedelta
+
+    client = Client()
+    # run = client.read_run(run_id)
+    # log.debug(f"Total tokens used: {run.total_tokens}")
+    # log.debug(f"Input tokens: {run.prompt_tokens}")
+    # log.debug(f"Output tokens: {run.completion_tokens}")
+    # latest_run = next(client.list_runs(project_name=cfg.observability.project_name, limit=1), None)
+
+    ### latest run
+    # runs = client.list_runs(project_name=cfg.observability.project_name, limit=1)
+    # for latest_run in runs:
+        # log.debug(f"End time: {latest_run.end_time}")
+        # log.debug(f"Status: {latest_run.status}")
+        # log.debug(f"Input Tokens: {latest_run.prompt_tokens}")
+        # log.debug(f"Output Tokens: {latest_run.completion_tokens}")
+        # log.debug(f"Total Tokens: {latest_run.total_tokens}")
+        # log.debug(f"---- Run id: {latest_run.id}")
+        # log.debug(f"True Run ID: 019cdcd8-e991-7402-91cd-c1329b13085f")
+
+    ### total number of runs in last 1 day
+    count = 0
+    latest_run = next(client.list_runs(project_name=cfg.observability.project_name, is_root=True, limit=1), None)
+    if latest_run:
+        log.debug(f"Start time: {latest_run.start_time}")
+        log.debug(f"End time: {latest_run.end_time}")
+        log.debug(f"Status: {latest_run.status}")
+        log.debug(f"Input Tokens: {latest_run.prompt_tokens}")
+        log.debug(f"Output Tokens: {latest_run.completion_tokens}")
+        log.debug(f"Total Tokens: {latest_run.total_tokens}")
+        log.debug(f"---- Run id: {latest_run.id}")
+        log.debug(f"True Run ID: 019cdcd8-e991-7402-91cd-c1329b13085f")
