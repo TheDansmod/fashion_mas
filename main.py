@@ -6,9 +6,8 @@ import hydra
 from dotenv import load_dotenv
 from omegaconf import DictConfig
 
-from src.rag_pipeline.rag_agent import run_fashion_agent
-from src.utils.common_utils import validate_hydra_config, get_num_used_tokens
-from src.data_manager.vector_db_writer import populate_vector_db
+from src.exploration.mistral_exploration import check_image_inputs
+from src.utils.common_utils import validate_hydra_config
 
 # The .env file should contain `HYDRA_FULL_ERROR=1` to see a full stacktrace in case
 # of error.
@@ -25,9 +24,8 @@ log = logging.getLogger(__name__)
 def main(cfg: DictConfig):
     """Launch the current main task for the project."""
     validate_hydra_config(cfg)
-    # run_fashion_agent(cfg)
-    # populate_vector_db(cfg)
-    get_num_used_tokens(cfg)
+    check_image_inputs(cfg)
+
 
 if __name__ == "__main__":
     main()

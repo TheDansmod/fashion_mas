@@ -195,6 +195,7 @@ def get_fashion_gen_data(cfg, from_idx, to_idx):
             data[key] = vec_decode(np.ravel(file[key][from_idx:to_idx])).tolist()
     return data
 
+
 def _iter_data_points(cfg, embedder):
     image_vec_name = cfg.data.vector_db.image_vectors_name
     text_vec_name = cfg.data.vector_db.text_vectors_name
@@ -233,6 +234,7 @@ def _iter_data_points(cfg, embedder):
             yield models.PointStruct(
                 id=data[index_key][idx], vector=named_vectors, payload=payload
             )
+
 
 def populate_vector_db(cfg):
     """Read fashion-gen HDF5 data, generate embeddings, write it into the vector db.

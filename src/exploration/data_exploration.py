@@ -158,7 +158,10 @@ def test_qdrant(cfg):
     """
 
     embedding_model = cfg.data.vector_db.embedding_model
-    client = QdrantClient(path=cfg.data.vector_db.vector_store_path)
+    client = QdrantClient(
+        url=cfg.data.vector_db.vector_store_network_path,
+        prefer_grpc=cfg.data.vector_db.prefer_grpc,
+    )
 
     collection_name = cfg.data.vector_db.collection_name
     image_vectors_name = cfg.data.vector_db.image_vectors_name
@@ -230,3 +233,43 @@ def plot_prices(cfg):
     counts, bins = np.histogram(prices, bins=100)
     plt.hist(bins[:-1], bins, weights=counts)
     plt.show()
+
+
+def get_num_used_tokens(cfg):
+
+    from langsmith import Client
+
+    client = Client()
+    # run = client.read_run(run_id)
+    # log.debug(f"Total tokens used: {run.total_tokens}")
+    # log.debug(f"Input tokens: {run.prompt_tokens}")
+    # log.debug(f"Output tokens: {run.completion_tokens}")
+    # latest_run = next(client.list_runs(project_name=cfg.tracking.project_name, limit=1), None)
+
+    ### latest run
+    # runs = client.list_runs(project_name=cfg.tracking.project_name, limit=1)
+    # for latest_run in runs:
+    # log.debug(f"End time: {latest_run.end_time}")
+    # log.debug(f"Status: {latest_run.status}")
+    # log.debug(f"Input Tokens: {latest_run.prompt_tokens}")
+    # log.debug(f"Output Tokens: {latest_run.completion_tokens}")
+    # log.debug(f"Total Tokens: {latest_run.total_tokens}")
+    # log.debug(f"---- Run id: {latest_run.id}")
+    # log.debug(f"True Run ID: 019cdcd8-e991-7402-91cd-c1329b13085f")
+
+    ### total number of runs in last 1 day
+    count = 0
+    latest_run = next(
+        client.list_runs(project_name=cfg.tracking.project_name, is_root=True, limit=1),
+        None,
+    )
+    if latest_run:
+        log.debug(f"Start time: {latest_run.start_time}")
+        log.debug(f"End time: {latest_run.end_time}")
+        log.debug(f"Status: {latest_run.status}")
+        log.debug(f"Input Tokens: {latest_run.prompt_tokens}")
+        log.debug(f"Output Tokens: {latest_run.completion_tokens}")
+        log.debug(f"Total Tokens: {latest_run.total_tokens}")
+        log.debug(f"---- Run id: {latest_run.id}")
+        log.debug("True Run ID: 019cdcd8-e991-7402-91cd-c1329b13085f")
+

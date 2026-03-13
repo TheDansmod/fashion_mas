@@ -4,7 +4,18 @@
 # 2. qwen3-vl:8b-thinking
 # 3. gemma-3-27b-it
 # 4. mock
+# 5. mistral-large-latest
 vlm_agent:
   _target_: src.utils.model_factory.get_llm_provider
-  name: mock
+  name: mistral-large-latest
   temp: 0.6
+  use_rate_limiter: true
+
+# for the langchain InMemoryRateLimiter - it uses a token (not LLM tokens) bucket model
+rate_limiter:
+  # this is the rate at which tokens get added to the bucket
+  requests_per_second: 1.0
+  # this sets the frequency with which it checks if tokens are available to make a request
+  check_every_n_seconds: 0.3
+  # this is the size of the bucket - allows a burst of requests if the rate limiting is actually long term rather than strictly per second
+  max_bucket_size: 1.0

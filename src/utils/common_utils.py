@@ -1,12 +1,16 @@
 """This file will contain commonly re-used utility functions."""
 
 import base64
+import csv
 import logging
+from datetime import datetime
 from io import BytesIO
 
+import hydra
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables.graph import MermaidDrawMethod
 from PIL import Image
+from qdrant_client import QdrantClient, models
 
 log = logging.getLogger(__name__)
 
@@ -140,12 +144,14 @@ def get_categories_from_string(cfg, search_string):
 
 
 def get_qdrant_points_by_id(cfg, ids=None):
-    from qdrant_client import QdrantClient
-
+    """Logs payload information for Qdrant points using provided IDs."""
     if len(ids) < 1:
         raise ValueError("ids should be a list of ids of length at least 1")
     collection_name = cfg.data.vector_db.collection_name
-    client = QdrantClient(path=cfg.data.vector_db.vector_store_path)
+    client = QdrantClient(
+        url=cfg.data.vector_db.vector_store_network_path,
+        prefer_grpc=cfg.data.vector_db.prefer_grpc,
+    )
     # returned values are list of Records, it has an attribute called payload
     points = client.retrieve(
         collection_name=collection_name, ids=ids, with_payload=True, with_vectors=False
@@ -157,10 +163,12 @@ def get_qdrant_points_by_id(cfg, ids=None):
 
 
 def migrate_local_to_docker(cfg):
-    from qdrant_client import QdrantClient
-
+    """Moves qdrant data from local setup to a docker setup."""
     log.debug("Starting migration process.")
-    src_client = QdrantClient(path=cfg.data.vector_db.vector_store_path)
+    src_client = QdrantClient(
+        url=cfg.data.vector_db.vector_store_network_path,
+        prefer_grpc=cfg.data.vector_db.prefer_grpc,
+    )
     log.debug("Loaded source client.")
     dst_client = QdrantClient(
         path=cfg.data.vector_db.vector_store_network_path,
@@ -190,7 +198,6 @@ def batch_update_vector_db(cfg):
     which still have the wrong key, we can safely re-execute the code when there is a
     failure.
     """
-    from qdrant_client import QdrantClient, models
     import h5py
 
     # get the mapping dictionary between old and new values
@@ -258,37 +265,22 @@ def batch_update_vector_db(cfg):
         log.debug(f"Done iter {iter_num + 1} of at most {max_num_iter} iterations.")
 
 
-def get_num_used_tokens(cfg):
-    from langsmith import Client
-    from datetime import datetime, timedelta
-
-    client = Client()
-    # run = client.read_run(run_id)
-    # log.debug(f"Total tokens used: {run.total_tokens}")
-    # log.debug(f"Input tokens: {run.prompt_tokens}")
-    # log.debug(f"Output tokens: {run.completion_tokens}")
-    # latest_run = next(client.list_runs(project_name=cfg.observability.project_name, limit=1), None)
-
-    ### latest run
-    # runs = client.list_runs(project_name=cfg.observability.project_name, limit=1)
-    # for latest_run in runs:
-        # log.debug(f"End time: {latest_run.end_time}")
-        # log.debug(f"Status: {latest_run.status}")
-        # log.debug(f"Input Tokens: {latest_run.prompt_tokens}")
-        # log.debug(f"Output Tokens: {latest_run.completion_tokens}")
-        # log.debug(f"Total Tokens: {latest_run.total_tokens}")
-        # log.debug(f"---- Run id: {latest_run.id}")
-        # log.debug(f"True Run ID: 019cdcd8-e991-7402-91cd-c1329b13085f")
-
-    ### total number of runs in last 1 day
-    count = 0
-    latest_run = next(client.list_runs(project_name=cfg.observability.project_name, is_root=True, limit=1), None)
-    if latest_run:
-        log.debug(f"Start time: {latest_run.start_time}")
-        log.debug(f"End time: {latest_run.end_time}")
-        log.debug(f"Status: {latest_run.status}")
-        log.debug(f"Input Tokens: {latest_run.prompt_tokens}")
-        log.debug(f"Output Tokens: {latest_run.completion_tokens}")
-        log.debug(f"Total Tokens: {latest_run.total_tokens}")
-        log.debug(f"---- Run id: {latest_run.id}")
-        log.debug(f"True Run ID: 019cdcd8-e991-7402-91cd-c1329b13085f")
+def update_token_use(cfg, usage_metadata):
+    """Updates the token usage tracking csv file with the data from the callback."""
+    csv_path = hydra.utils.to_absolute_path(cfg.tracking.token_usage_tracker_path)
+    log.info(
+        f"Saving token use data for {len(usage_metadata)} models. "
+        "Should be invoked just once every full run."
+    )
+    with open(csv_path, "a", newline="") as csv_file:
+        writer = csv.writer(csv_file)
+        for model_name, metadata in usage_metadata.items():
+            writer.writerow(
+                [
+                    datetime.now().isoformat(timespec="seconds"),
+                    model_name,
+                    metadata["input_tokens"],
+                    metadata["output_tokens"],
+                    metadata["total_tokens"],
+                ]
+            )

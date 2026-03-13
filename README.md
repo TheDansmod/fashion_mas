@@ -111,6 +111,8 @@ This is just a first pass version of the agentic system.
 11. `python-dotenv` - this is required to load dotenv files (like for `HYDRA_FULL_ERROR=1` to get a full stack trace)
 12. `langgraph-checkpoint-sqlite` - this is used in creating sqlite checkpoints for re-run persistence of the agent.
 13. `langchain-google-genai` - this is required to invoke Google AI APIs (I am trying with Gemma model)
+14. `langchain-mistralai` - this is used to invoke Mistral's AI APIs and LLM models (they have a pretty generous free tier)
+15. `langchain` - this is needed for creating my own tools
 
 # TODOs
 4. Handle the case when the uploaded images are not that of clothes.
@@ -205,41 +207,8 @@ where 6333 is the rest api, 6334 is the grpc api; :z applies a shared SELinux la
 11. Will remove the whoami image and try with qdrant
 12. Fix for podman network issues on windows: use rootful setup rather than rootless
 
-
-id=UUID('019cc339-52b1-7cf3-a8cf-df167302630c') 
-name='LangGraph' 
-start_time=datetime.datetime(2026, 3, 6, 12, 57, 19, 793609) 
-run_type='chain' 
-end_time=datetime.datetime(2026, 3, 6, 12, 59, 5, 509210) 
-extra={'metadata': {'LANGSMITH_ENDPOINT': 'https://eu.api.smith.langchain.com', 'LANGSMITH_PROJECT': 'fashion_mas', 'LANGSMITH_TRACING': 'true', 'ls_run_depth': 0, 'revision_id': '1d6d2a3-dirty', 'thread_id': 'dev_run_001'}, 'runtime': {'langchain_core_version': '1.2.16', 'langchain_version': None, 'library': 'langchain-core', 'library_version': '1.2.16', 'platform': 'Windows-11-10.0.26200-SP0', 'py_implementation': 'CPython', 'runtime': 'python', 'runtime_version': '3.13.12', 'sdk': 'langsmith-py', 'sdk_version': '0.7.9'}} 
-error=None 
-serialized=None 
-events=[{'name': 'start', 'time': '2026-03-06T12:57:19.793609+00:00'}, {'name': 'end', 'time': '2026-03-06T12:59:05.509210+00:00'}] 
-inputs={'input_images_path': ['data/my_shirt_01.jpg'], 'input_text': 'Please provide jeans pants that will go will with the uploaded shirt.'} 
-outputs={FULL_OUTPUT} 
-reference_example_id=None 
-parent_run_id=None 
-tags=[] 
-attachments={} 
-session_id=UUID('321bf322-4ebd-48e1-a66e-1e966f50d84c') 
-child_run_ids=None 
-child_runs=None 
-feedback_stats=None 
-app_path='/o/9939fce4-925b-4055-ba06-5d853b4f1823/projects/p/321bf322-4ebd-48e1-a66e-1e966f50d84c/r/019cc339-52b1-7cf3-a8cf-df167302630c?trace_id=019cc339-52b1-7cf3-a8cf-df167302630c&start_time=2026-03-06T12:57:19.793609' 
-manifest_id=None 
-status='success' 
-prompt_tokens=4372 
-completion_tokens=4616 
-total_tokens=8988 
-prompt_token_details={} 
-completion_token_details={} 
-first_token_time=datetime.datetime(2026, 3, 6, 12, 57, 28, 846884) 
-total_cost=None 
-prompt_cost=None 
-completion_cost=None 
-prompt_cost_details={}
-completion_cost_details={} 
-parent_run_ids=[] 
-trace_id=UUID('019cc339-52b1-7cf3-a8cf-df167302630c') 
-dotted_order='20260306T125719793609Z019cc339-52b1-7cf3-a8cf-df167302630c' 
-in_dataset=False
+# Correcting Windows / Linux CRLF vs LF
+1. Create a `.gitattributes` file, add line: `* text=auto eol=lf`
+2. `git add --renormalize .`, do a commit and push
+3. refresh your local un-normalised files: `git rm --cached -r .`, `git reset --hard HEAD`
+4. Verify: `git ls-files --eol`
