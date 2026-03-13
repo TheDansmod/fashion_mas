@@ -1,6 +1,6 @@
 fashion_gen:
   # this is the location of the hdf5 file for the fashion-gen dataset - this is downloaded dataset from kaggle. But it is the smaller version. There is another version with more high resolution images.
-  hdf5_path: 'C:\Users\lordh\Documents\Svalbard\Data\fashion-gen\fashiongen_256_256_train.h5'
+  hdf5_path: '/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/fashiongen_256_256_train.h5'
   # these are the string attributes from the database that we want to capture
   string_attributes: ['input_brand', 'input_category', 'input_composition', 'input_department', 'input_gender', 'input_name', 'input_season', 'input_subcategory', 'input_description']
   # this is the encoding used by the strings in the fashion-gen dataset

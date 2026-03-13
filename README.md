@@ -96,6 +96,12 @@ This is just a first pass version of the agentic system.
 29. 2026-03-10 22:21 It seems like there will be errors if I try and use the existing linux docker setup in windows. As of now I am resigned to re-creating the database on windows. However, I am facing some issues on windows with regards to grpc communication. might have to switch to rest api to see if it works. It did not work even with using REST API. Need to figure this out.
 30. 2026-03-11 10:20 I ran the code on windows and it seems to work after the podman fix, but it is taking an absurd amount of time. I suspect it might be the embedding generation that is slow. I will check. It is using only the CPU. Apparently on windows, just doing `uv add torch` does not include cuda support. I have made the appropriate modification to the pyproject.toml file and have installed the cuda-based pytorch version.
 31. 2026-03-11 12:17 Completed generation, took around 30 minutes.
+32. 2026-03-13 20:33 I am trying to switch to using Mistral AI since it has a pretty generous free tier. I am however, facing issues in that langchain's Mistral AI integration does not include any image capabilities which is making things pretty difficult since images are a central part of my product. I am also trying to sequence multiple things that might impact one another:
+    1. Trying to add a server like FastAPI / Flask - this integrates with Chainlit UI and User History
+    2. Trying to add a MCP server - this exposes tools and stuff that integrates with how the agent is orchestrated
+    3. Agent Orchestration to allow for self-correction loops or reason and plan loops - this integrates with specifying tools for the agent to invoke and use.
+    4. Switching to Mistral AI - this integrates with image based inputs, using a `create_agent` loop vs a langgraph based loop
+33. 2026-03-13 21:44 The langchain chat mistral ai integration does seem to support images, but due to the rate limit, I think it only supports low resolution images which makes things a little difficult for me since I rely heavily on the generated descriptions of images. 
 
 # Library Dependency and their purpose
 1. `langgraph` - agent orchestration. needed for the multi-agent system

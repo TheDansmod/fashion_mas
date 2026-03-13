@@ -18,7 +18,7 @@ from langchain_core.messages import HumanMessage
 from langchain_core.rate_limiters import InMemoryRateLimiter
 from pydantic import BaseModel, Field
 
-from src.utils.common_utils import update_token_use, get_image_prompt_message
+from src.utils.common_utils import update_token_use, get_image_prompt_message, encode_image
 
 log = logging.getLogger(__name__)
 
@@ -215,7 +215,41 @@ def check_image_inputs(cfg):
         rate_limiter=rate_limiter,
     )
     prompt = "Please provide a detailed description of the clothing item in the image."
-    msg = get_image_prompt_message(image_path=cfg.misc.input_image_path_01, text_prompt=prompt)
+    msg = get_image_prompt_message(
+        image_path=cfg.misc.input_image_path_01, text_prompt=prompt
+    )
     response = model.invoke(msg, config=callback_config)
     log.debug(response.content)
     update_token_use(cfg, callback.usage_metadata)
+
+
+def mistral_sdk(cfg):
+    from mistralai.client import Mistral
+    # NOTE: I have removed the mistral api since I got langchain's integration to work
+    encoded_image = encode_image(image_path=cfg.misc.input_image_path_01)
+    log.debug(f"The base64 representation of the image has length: {len(encoded_image)}")
+    with Mistral(api_key=cfg.models.api_keys.mistral) as mistral:
+        response = mistral.chat.complete(
+            model=cfg.models.vlm_agent.name,
+            temperature=cfg.models.vlm_agent.temp,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an expert fashion assistant.",
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Please provide a detailed plain string (no markdown) description of the clothing item in the uploaded image.",
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": f"data:image/jpeg;base64,{encoded_image}"
+                        }
+                    ]
+                },
+            ],
+        )
+    log.debug(response)
