@@ -102,6 +102,7 @@ This is just a first pass version of the agentic system.
     3. Agent Orchestration to allow for self-correction loops or reason and plan loops - this integrates with specifying tools for the agent to invoke and use.
     4. Switching to Mistral AI - this integrates with image based inputs, using a `create_agent` loop vs a langgraph based loop
 33. 2026-03-13 21:44 The langchain chat mistral ai integration does seem to support images, but due to the rate limit, I think it only supports low resolution images which makes things a little difficult for me since I rely heavily on the generated descriptions of images. 
+34. 2026-03-13 22:39 I just tested mistral with the old ollama code and things seem to have worked great. I'm thinking I won't use the create agent automated Re-Act setup since that does not demonstrate competence, but then, the goal is to quickly get something out rather than show a lot of skills.
 
 # Library Dependency and their purpose
 1. `langgraph` - agent orchestration. needed for the multi-agent system
@@ -218,3 +219,7 @@ where 6333 is the rest api, 6334 is the grpc api; :z applies a shared SELinux la
 2. `git add --renormalize .`, do a commit and push
 3. refresh your local un-normalised files: `git rm --cached -r .`, `git reset --hard HEAD`
 4. Verify: `git ls-files --eol`
+
+
+# Branches and their purposes
+1. `ollama_to_mistral` - the rag agent uses ollama, adapt it to use mistral - things like rate limiting, smaller image sizes etc - just to see the results

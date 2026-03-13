@@ -6,6 +6,8 @@ from typing import Literal, Optional
 import hydra
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, START, StateGraph
+from langchain_core.callbacks import UsageMetadataCallbackHandler
+from langchain_core.rate_limiters import InMemoryRateLimiter
 from pydantic import BaseModel, Field
 
 from src.data_manager.vector_db_reader import VectorDbReader
@@ -22,6 +24,7 @@ from src.utils.common_utils import (
     draw_langraph_topology,
     get_categories_from_string,
     get_image_prompt_message,
+    update_token_use
 )
 
 log = logging.getLogger(__name__)
@@ -84,7 +87,7 @@ class FashionAgent:
             and prompt templates.
     """
 
-    def __init__(self, cfg):
+    def __init__(self, cfg, callback_config):
         """Inits the agentic state representations and external client integrations.
 
         Instantiates the underlying generative models, the specialized SigLIP embedding
@@ -95,14 +98,30 @@ class FashionAgent:
             cfg (DictConfig): The Hydra configuration mapping containing systemic
                 hyperparameters.
         """
+        # setup rate limiter
+        rps = cfg.models.rate_limiter.requests_per_second
+        check_int = cfg.models.rate_limiter.check_every_n_seconds
+        bucket_sz = cfg.models.rate_limiter.max_bucket_size
+        if cfg.models.vlm_agent.use_rate_limiter:
+            rate_limiter = InMemoryRateLimiter(
+                requests_per_second=rps,
+                check_every_n_seconds=check_int,
+                max_bucket_size=bucket_sz,
+            )
+        else:
+            rate_limiter = None
+        # setup model
         provider = hydra.utils.instantiate(cfg.models.vlm_agent)
         self._model = provider(
             model=cfg.models.vlm_agent.name,
             temperature=cfg.models.vlm_agent.temp,
+            rate_limiter=rate_limiter,
         )
+        # setup embeddings
         self._embedder = FashionSigLIPEmbedding(cfg)
         self._reader = VectorDbReader(cfg)
         self._cfg = cfg
+        self._callback_config = callback_config
 
     def quantifier_node(self, state: AgentState) -> AgentState:
         """Figures out how many recommendations need to be made to the user.
@@ -124,7 +143,7 @@ class FashionAgent:
         )
         structured_model = self._model.with_structured_output(NumRecommendations)
         log.debug("Invoking model.")
-        response = structured_model.invoke(prompt)  # text prompt - structured
+        response = structured_model.invoke(prompt, config=self._callback_config)  # text prompt - structured
         log.debug("Received response from model.")
         num_recommendations = (
             self._cfg.rag_pipeline.default_num_recommendations
@@ -154,7 +173,7 @@ class FashionAgent:
             user_request=state.input_text
         )
         log.debug("Invoking model.")
-        response = self._model.invoke(prompt)  # text prompt - unstructured
+        response = self._model.invoke(prompt, config=self._callback_config)  # text prompt - unstructured
         log.debug("Received response from model.")
         log.debug(f"Instructions for the VLM:\n{response.content}")
         return {"vlm_instructions": response.content}
@@ -184,7 +203,7 @@ class FashionAgent:
                 ),
             )
             log.debug("Invoking model.")
-            response = structured_model.invoke(msg)  # vision prompt - structured
+            response = structured_model.invoke(msg, config=self._callback_config)  # vision prompt - structured
             log.debug("Received response from model.")
             descr.append(response.image_description)
         log.debug(f"Descriptions obtained from vision node:\n{descr}")
@@ -226,7 +245,7 @@ class FashionAgent:
         structured_model = self._model.with_structured_output(RequiredClothes)
         for attempt_num in range(self._cfg.rag_pipeline.num_recommendation_attempts):
             log.debug("Invoking model.")
-            response = structured_model.invoke(prompt)  # text prompt - structured
+            response = structured_model.invoke(prompt, config=self._callback_config)  # text prompt - structured
             log.debug("Received response from model.")
             if len(response.required_clothes_descriptions) == state.num_recommendations:
                 break
@@ -270,7 +289,7 @@ class FashionAgent:
                 valid_categories=valid_categories, item_description=descr
             )
             log.debug("Invoking model.")
-            response = self._model.invoke(prompt)  # text prompt - unstructured
+            response = self._model.invoke(prompt, config=self._callback_config)  # text prompt - unstructured
             log.debug("Received response from model.")
             categories.append(get_categories_from_string(self._cfg, response.content))
         log.debug(f"Categories of descriptions:\n{categories}")
@@ -359,7 +378,7 @@ class FashionAgent:
                 text_prompt=text_prompt, numpy_image=data[img_key][0]
             )
             log.debug("Invoking model.")
-            response = self._model.invoke(msg)  # vision prompt - unstructured
+            response = self._model.invoke(msg, config=self._callback_config)  # vision prompt - unstructured
             log.debug("Received response from model.")
             expl.append(response.content)
         log.debug(f"Explanations from explanation_node:\n{expl}")
@@ -446,8 +465,12 @@ def run_fashion_agent(cfg):
         cfg (DictConfig): The global Hydra configuration object dictating system
             parameters, model weights, and database connections.
     """
+    # setup callback config
+    callback = UsageMetadataCallbackHandler()
+    callback_config = {"callbacks": [callback]}
+    # run fashion agent
     log.debug("Running fashion agent.")
-    agent = FashionAgent(cfg)
+    agent = FashionAgent(cfg, callback_config)
     initial_state = {
         "has_input_images": True,
         "input_images_path": [cfg.misc.input_image_path_01],
@@ -458,3 +481,4 @@ def run_fashion_agent(cfg):
     config = {"configurable": {"thread_id": cfg.rag_pipeline.persistence.thread_id}}
     result = agent.invoke(initial_state, config, cfg.rag_pipeline.persistence.db_path)
     log.debug(f"Result: {result}")
+    update_token_use(cfg, callback.usage_metadata)
