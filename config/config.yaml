@@ -20,3 +20,5 @@ hydra:
     - src.exploration.mistral_exploration
     - src.exploration.langgraph_exploration
     - src.exploration.data_exploration
+    - src.exploration.fast_mcp_exploration.shipping_agent_client
+    - src.exploration.fast_mcp_exploration.shipping_agent_server

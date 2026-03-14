@@ -194,7 +194,6 @@ def check_rate_limiting(cfg):
 
 def check_image_inputs(cfg):
     """Check how the model can handle image inputs."""
-    # TODO: not working
     callback = UsageMetadataCallbackHandler()
     callback_config = {"callbacks": [callback]}
     rps = cfg.models.rate_limiter.requests_per_second

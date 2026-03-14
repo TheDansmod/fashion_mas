@@ -1,5 +1,7 @@
 """This file will contain commonly re-used utility functions."""
 
+import asyncio
+import functools
 import base64
 import csv
 import logging
@@ -11,6 +13,8 @@ from langchain_core.messages import HumanMessage
 from langchain_core.runnables.graph import MermaidDrawMethod
 from PIL import Image
 from qdrant_client import QdrantClient, models
+from langchain_core.callbacks import UsageMetadataCallbackHandler
+from langchain_core.rate_limiters import InMemoryRateLimiter
 
 log = logging.getLogger(__name__)
 
@@ -284,3 +288,43 @@ def update_token_use(cfg, usage_metadata):
                     metadata["total_tokens"],
                 ]
             )
+
+def track_token_use(func):
+    if asyncio.iscoroutinefunction(func):
+        @functools.wraps(func)
+        async def wrapper(cfg, *args, **kwargs):
+            callback = UsageMetadataCallbackHandler()
+            callback_config = {"callbacks": [callback]}
+            kwargs['callback_config'] = callback_config
+            try:
+                result = await func(cfg, *args, **kwargs)
+            finally:
+                update_token_use(cfg, callback.usage_metadata)
+            return result
+        return wrapper
+    else:
+        @functools.wraps(func)
+        def wrapper(cfg, *args, **kwargs):
+            callback = UsageMetadataCallbackHandler()
+            callback_config = {"callbacks": [callback]}
+            kwargs['callback_config'] = callback_config
+            try:
+                result = func(cfg, *args, **kwargs)
+            finally:
+                update_token_use(cfg, callback.usage_metadata)
+            return result
+        return wrapper
+
+def get_rate_limiter(cfg):
+    rps = cfg.models.rate_limiter.requests_per_second
+    check_int = cfg.models.rate_limiter.check_every_n_seconds
+    bucket_sz = cfg.models.rate_limiter.max_bucket_size
+    if cfg.models.vlm_agent.use_rate_limiter:
+        rate_limiter = InMemoryRateLimiter(
+            requests_per_second=rps,
+            check_every_n_seconds=check_int,
+            max_bucket_size=bucket_sz,
+        )
+    else:
+        rate_limiter = None
+    return rate_limiter

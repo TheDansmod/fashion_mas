@@ -120,6 +120,7 @@ This is just a first pass version of the agentic system.
 13. `langchain-google-genai` - this is required to invoke Google AI APIs (I am trying with Gemma model)
 14. `langchain-mistralai` - this is used to invoke Mistral's AI APIs and LLM models (they have a pretty generous free tier)
 15. `langchain` - this is needed for creating my own tools
+16. `langchain-mcp-adapters` - this is used to create a mcp client which can be directly used by langchain
 
 # TODOs
 4. Handle the case when the uploaded images are not that of clothes.
@@ -223,3 +224,31 @@ where 6333 is the rest api, 6334 is the grpc api; :z applies a shared SELinux la
 
 # Branches and their purposes
 1. `ollama_to_mistral` - the rag agent uses ollama, adapt it to use mistral - things like rate limiting, smaller image sizes etc - just to see the results
+
+# Learnings
+## MCP
+1. The MCP protocol acts in a client and server setup. The server defines tools (get weather / calculator), resources (database etc), and prompts which can be used by the MCP Client. The server also executes the tools and returns their results.
+2. The Client is an application like Claude Code or some other script. The client acts as an intermediary between the server and the LLM.
+3. The Flow:
+    1. The client sends a request to the server to figure out the available tools.
+    2. The client tells the LLM "these are the available tools" - and this may be all the truly available tools or it might just be a subset, and gives the LLM some task.
+    3. The LLM then says to the client "Ok, run these tools with these parameters" and the client then forwards them to the Server
+    4. The Server executes the requested tools and returns the results to the Client.
+    5. The Client then passes these on to the LLM and waits for what to do next.
+4. The entire setup is built on async calls
+5. JSON-RPC is used as the wire protocol over (possibly):
+    1. Stdio - The host / client process spawns the MCP server as a child process and communicates by writing to the child's stdio and reading from the child's stdout. It is really fast. The limitation here is that one host can only connect to one server process and nobody else.
+    2. SSE (depreciated) - Server Sent Events - it used HTTP which is unidirectional - but creates two permanent endpoints - for sending and receiving - this would require session management across the two connections which is difficult
+    3. Streamable HTTP - This uses just one HTTP endpoint. The client can sends messages via POST requests and accepts both a JSON response (short reponses) or persistent connection where the server streams back the response over Server Sent Events (SSE). To allow the server to push information to the client, the client can open a persistent GET request.
+
+## Langchain
+1. Can't do both bind tools and structured output together - have to specify tools differently - this is since structured output acts as another bind tools and that over-writes the bind tools call
+
+
+## Qdrant MCP Server Code:
+1. `main.py` - just sets the transport - stdio, sse, streamable http from cli args, and invokes `server.py`
+2. `server.py` - sets up tool settings, qdrant settings, embedding provider settings and invokes the core part - the Qdrant MCP Server
+3. The default embedding provider used is sentence transformer mini
+4. `mcp_server.py` - conatains the QdrantMCPServer - the init fn sets up the embedding provider, the connection to the qdrant server - either local or through url and an async qdrant client with store and search functionality with filters, and calls the setup tools function
+5. `setup_tools` in `mcp_server.QdrantMCPServer` - defines two async functions find and store (those actually available as tools) which take in the context and the search string or the data to save - the string and metadata. it invokes the store and search functions from the qdrant connection after using the embeddings
+6. I am not 100% certain about this, but I think before invoking these guys we need to setup the QdrantSettings in some way - the provided code is just a template.
