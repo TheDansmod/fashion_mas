@@ -3,6 +3,28 @@ line-length = 88
 extend-exclude = [
     "src/exploration/data_exploration.py",
     "src/exploration/langgraph_exploration.py",
+    "src/exploration/fast_mcp_exploration/shipping_agent_client.py",
+    "src/exploration/fast_mcp_exploration/shipping_agent_server.py",
+    # mcp server qdrant files
+    "src/exploration/mcp-server-qdrant/tests/test_settings.py",
+    "src/exploration/mcp-server-qdrant/tests/test_qdrant_integration.py",
+    "src/exploration/mcp-server-qdrant/tests/test_fastembed_integration.py",
+    "src/exploration/mcp-server-qdrant/tests/__init__.py",
+    "src/exploration/mcp-server-qdrant/src/mcp_server_qdrant/settings.py",
+    "src/exploration/mcp-server-qdrant/src/mcp_server_qdrant/server.py",
+    "src/exploration/mcp-server-qdrant/src/mcp_server_qdrant/qdrant.py",
+    "src/exploration/mcp-server-qdrant/src/mcp_server_qdrant/mcp_server.py",
+    "src/exploration/mcp-server-qdrant/src/mcp_server_qdrant/main.py",
+    "src/exploration/mcp-server-qdrant/src/mcp_server_qdrant/__init__.py",
+    "src/exploration/mcp-server-qdrant/src/mcp_server_qdrant/embeddings/types.py",
+    "src/exploration/mcp-server-qdrant/src/mcp_server_qdrant/embeddings/fastembed.py",
+    "src/exploration/mcp-server-qdrant/src/mcp_server_qdrant/embeddings/factory.py",
+    "src/exploration/mcp-server-qdrant/src/mcp_server_qdrant/embeddings/base.py",
+    "src/exploration/mcp-server-qdrant/src/mcp_server_qdrant/embeddings/__init__.py",
+    "src/exploration/mcp-server-qdrant/src/mcp_server_qdrant/common/wrap_filters.py",
+    "src/exploration/mcp-server-qdrant/src/mcp_server_qdrant/common/func_tools.py",
+    "src/exploration/mcp-server-qdrant/src/mcp_server_qdrant/common/filters.py",
+    "src/exploration/mcp-server-qdrant/src/mcp_server_qdrant/common/__init__.py",
 ]
 [lint]
 extend-select = [

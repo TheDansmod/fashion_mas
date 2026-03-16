@@ -1,5 +1,4 @@
 import pytest
-
 from mcp_server_qdrant.embeddings.types import EmbeddingProviderType
 from mcp_server_qdrant.settings import (
     DEFAULT_TOOL_FIND_DESCRIPTION,
@@ -13,7 +12,6 @@ from mcp_server_qdrant.settings import (
 class TestQdrantSettings:
     def test_default_values(self):
         """Test that required fields raise errors when not provided."""
-
         # Should not raise error because there are no required fields
         QdrantSettings()
 

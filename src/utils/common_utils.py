@@ -1,20 +1,20 @@
 """This file will contain commonly re-used utility functions."""
 
 import asyncio
-import functools
 import base64
 import csv
+import functools
 import logging
 from datetime import datetime
 from io import BytesIO
 
 import hydra
+from langchain_core.callbacks import UsageMetadataCallbackHandler
 from langchain_core.messages import HumanMessage
+from langchain_core.rate_limiters import InMemoryRateLimiter
 from langchain_core.runnables.graph import MermaidDrawMethod
 from PIL import Image
 from qdrant_client import QdrantClient, models
-from langchain_core.callbacks import UsageMetadataCallbackHandler
-from langchain_core.rate_limiters import InMemoryRateLimiter
 
 log = logging.getLogger(__name__)
 
@@ -73,11 +73,11 @@ def fetch_random_fashion_gen_images(cfg, num_images=3):
     from PIL import Image
 
     with h5py.File(cfg.data.fashion_gen.hdf5_path, "r") as file:
-        num_images = file["index"].shape[0]
+        num_datapoints = file["index"].shape[0]
         for i in range(num_images):
-            idx = random.randint(0, num_images - 1)
+            idx = random.randint(0, num_datapoints - 1)
             img = Image.fromarray(file["input_image"][idx].astype("uint8"))
-            img.save(cfg.misc.random_image_save_path.format(i))
+            img.save(cfg.misc.random_image_save_path.format(idx))
             log.debug(f"Saved image {i}")
 
 
@@ -124,6 +124,22 @@ def get_image_prompt_message(image_path=None, text_prompt=None, numpy_image=None
             ]
         )
     ]
+    return message
+
+def get_multi_image_prompt_message(image_paths, text_prompt):
+    """Get langgraph compatible prompt containing an image and some text."""
+    content = []
+    for image_path in image_paths:
+        image_data = encode_image(image_path)
+        content.append({
+            "type": "image_url",
+            "image_url": f"data:image/jpeg;base64,{image_data}",
+        })
+    content.append({
+            "type": "text",
+            "text": text_prompt,
+    })
+    message = [HumanMessage(content=content)]
     return message
 
 
@@ -289,33 +305,41 @@ def update_token_use(cfg, usage_metadata):
                 ]
             )
 
+
 def track_token_use(func):
+    """Decorator to track token usage for LLM calls - useful for Mistral."""
     if asyncio.iscoroutinefunction(func):
+
         @functools.wraps(func)
         async def wrapper(cfg, *args, **kwargs):
             callback = UsageMetadataCallbackHandler()
             callback_config = {"callbacks": [callback]}
-            kwargs['callback_config'] = callback_config
+            kwargs["callback_config"] = callback_config
             try:
                 result = await func(cfg, *args, **kwargs)
             finally:
                 update_token_use(cfg, callback.usage_metadata)
             return result
+
         return wrapper
     else:
+
         @functools.wraps(func)
         def wrapper(cfg, *args, **kwargs):
             callback = UsageMetadataCallbackHandler()
             callback_config = {"callbacks": [callback]}
-            kwargs['callback_config'] = callback_config
+            kwargs["callback_config"] = callback_config
             try:
                 result = func(cfg, *args, **kwargs)
             finally:
                 update_token_use(cfg, callback.usage_metadata)
             return result
+
         return wrapper
 
+
 def get_rate_limiter(cfg):
+    """Sets up a rate limiter for the LLM agent."""
     rps = cfg.models.rate_limiter.requests_per_second
     check_int = cfg.models.rate_limiter.check_every_n_seconds
     bucket_sz = cfg.models.rate_limiter.max_bucket_size
@@ -328,3 +352,14 @@ def get_rate_limiter(cfg):
     else:
         rate_limiter = None
     return rate_limiter
+
+def get_llm_model(cfg):
+    """Creates and returns an LLM model for use with appropriate rate limits."""
+    provider = hydra.utils.instantiate(cfg.models.vlm_agent)
+    model = provider(
+        model=cfg.models.vlm_agent.name,
+        temperature=cfg.models.vlm_agent.temp,
+        rate_limiter=get_rate_limiter(cfg),
+    )
+    return model
+

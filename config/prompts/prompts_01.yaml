@@ -47,6 +47,18 @@ filtration_node:
     Clothing Item Description:
     {item_description}
 
+recommender_node:
+  match_clothes_prompt: |
+    You are an expert fashion assistant. Below, I will be providing you a textual description of an item of clothing. Please do the following:
+      - Get the available categories in the product catalogue
+      - Based on the available categories, assign one or more categories to the clothing item description
+      - Fetch some clothes that match that description (semantic search) from the product catalogue
+      - Evaluate which of the returned images best satisfy the clothing item description
+      - Return the id of the image which best satisfies the clothing item description
+
+    Clothing Item Description:
+    {item_description}
+
 explanation_node:
   # this prompt is to explain the recommended items when input images are present
   images_present_prompt: |

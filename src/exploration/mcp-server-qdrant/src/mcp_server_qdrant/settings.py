@@ -19,8 +19,7 @@ METADATA_PATH = "metadata"
 
 
 class ToolSettings(BaseSettings):
-    """
-    Configuration for all the tools.
+    """Configuration for all the tools.
     """
 
     tool_store_description: str = Field(
@@ -34,8 +33,7 @@ class ToolSettings(BaseSettings):
 
 
 class EmbeddingProviderSettings(BaseSettings):
-    """
-    Configuration for the embedding provider.
+    """Configuration for the embedding provider.
     """
 
     # danish: the validation alias is just a field name that it is ok to use during validation
@@ -76,8 +74,7 @@ class FilterableField(BaseModel):
 
 
 class QdrantSettings(BaseSettings):
-    """
-    Configuration for the Qdrant connector.
+    """Configuration for the Qdrant connector.
     """
 
     location: str | None = Field(default=None, validation_alias="QDRANT_URL")

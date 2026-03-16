@@ -15,8 +15,7 @@ ArbitraryFilter = dict[str, Any]
 
 
 class Entry(BaseModel):
-    """
-    A single entry in the Qdrant collection.
+    """A single entry in the Qdrant collection.
     """
 
     content: str
@@ -24,8 +23,7 @@ class Entry(BaseModel):
 
 
 class QdrantConnector:
-    """
-    Encapsulates the connection to a Qdrant server and all the methods to interact with it.
+    """Encapsulates the connection to a Qdrant server and all the methods to interact with it.
     :param qdrant_url: The URL of the Qdrant server.
     :param qdrant_api_key: The API key to use for the Qdrant server.
     :param collection_name: The name of the default collection to use. If not provided, each tool will require
@@ -53,16 +51,14 @@ class QdrantConnector:
         self._field_indexes = field_indexes
 
     async def get_collection_names(self) -> list[str]:
-        """
-        Get the names of all collections in the Qdrant server.
+        """Get the names of all collections in the Qdrant server.
         :return: A list of collection names.
         """
         response = await self._client.get_collections()
         return [collection.name for collection in response.collections]
 
     async def store(self, entry: Entry, *, collection_name: str | None = None):
-        """
-        Store some information in the Qdrant collection, along with the specified metadata.
+        """Store some information in the Qdrant collection, along with the specified metadata.
         :param entry: The entry to store in the Qdrant collection.
         :param collection_name: The name of the collection to store the information in, optional. If not provided,
                                 the default collection is used.
@@ -98,8 +94,7 @@ class QdrantConnector:
         limit: int = 10,
         query_filter: models.Filter | None = None,
     ) -> list[Entry]:
-        """
-        Find points in the Qdrant collection. If there are no entries found, an empty list is returned.
+        """Find points in the Qdrant collection. If there are no entries found, an empty list is returned.
         :param query: The query to use for the search.
         :param collection_name: The name of the collection to search in, optional. If not provided,
                                 the default collection is used.
@@ -138,8 +133,7 @@ class QdrantConnector:
         ]
 
     async def _ensure_collection_exists(self, collection_name: str):
-        """
-        Ensure that the collection exists, creating it if necessary.
+        """Ensure that the collection exists, creating it if necessary.
         :param collection_name: The name of the collection to ensure exists.
         """
         collection_exists = await self._client.collection_exists(collection_name)

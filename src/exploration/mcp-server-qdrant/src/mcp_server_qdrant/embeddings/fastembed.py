@@ -7,8 +7,7 @@ from mcp_server_qdrant.embeddings.base import EmbeddingProvider
 
 
 class FastEmbedProvider(EmbeddingProvider):
-    """
-    FastEmbed implementation of the embedding provider.
+    """FastEmbed implementation of the embedding provider.
     :param model_name: The name of the FastEmbed model to use.
     """
 
@@ -35,8 +34,7 @@ class FastEmbedProvider(EmbeddingProvider):
         return embeddings[0].tolist()
 
     def get_vector_name(self) -> str:
-        """
-        Return the name of the vector for the Qdrant collection.
+        """Return the name of the vector for the Qdrant collection.
         Important: This is compatible with the FastEmbed logic used before 0.6.0.
         """
         model_name = self.embedding_model.model_name.split("/")[-1].lower()

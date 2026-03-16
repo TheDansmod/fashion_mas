@@ -4,11 +4,14 @@ import logging
 from typing import Literal, Optional
 
 import hydra
-from langgraph.checkpoint.sqlite import SqliteSaver
-from langgraph.graph import END, START, StateGraph
 from langchain_core.callbacks import UsageMetadataCallbackHandler
 from langchain_core.rate_limiters import InMemoryRateLimiter
+from langgraph.checkpoint.sqlite import SqliteSaver
+from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel, Field
+from langchain_mcp_adapters.client import MultiServerMCPClient  
+from langchain_core.tools import StructuredTool
+from langchain.agents import create_agent
 
 from src.data_manager.vector_db_reader import VectorDbReader
 from src.data_manager.vector_db_writer import (
@@ -24,10 +27,36 @@ from src.utils.common_utils import (
     draw_langraph_topology,
     get_categories_from_string,
     get_image_prompt_message,
-    update_token_use
+    update_token_use,
+    get_llm_model,
 )
 
 log = logging.getLogger(__name__)
+
+
+def make_mistral_compatible(tool):
+    """Wraps an MCP tool to ensure it returns a plain string."""
+    def stringify_invoke(*args, **kwargs):
+        tool_input = args[0] if args else kwargs
+        res = tool.invoke(tool_input)
+        if isinstance(res, list):
+            return "\n".join(b.get("text", "") if isinstance(b, dict) else str(b) for b in res)
+        return str(res)
+
+    async def stringify_ainvoke(*args, **kwargs):
+        tool_input = args[0] if args else kwargs
+        res = await tool.ainvoke(tool_input)
+        if isinstance(res, list):
+            return "\n".join(b.get("text", "") if isinstance(b, dict) else str(b) for b in res)
+        return str(res)
+
+    return StructuredTool.from_function(
+        func=stringify_invoke,
+        coroutine=stringify_ainvoke,
+        name=tool.name,
+        description=tool.description,
+        args_schema=tool.args_schema,
+    )
 
 
 class AgentState(BaseModel):
@@ -97,31 +126,23 @@ class FashionAgent:
         Args:
             cfg (DictConfig): The Hydra configuration mapping containing systemic
                 hyperparameters.
+            callback_config (dict): A config object to be used with each llm call in
+                order to track the number of input, output, and total tokens used. It
+                is useful for Mistral API calls since they are rate limited to 500k
+                tokens per minute.
         """
-        # setup rate limiter
-        rps = cfg.models.rate_limiter.requests_per_second
-        check_int = cfg.models.rate_limiter.check_every_n_seconds
-        bucket_sz = cfg.models.rate_limiter.max_bucket_size
-        if cfg.models.vlm_agent.use_rate_limiter:
-            rate_limiter = InMemoryRateLimiter(
-                requests_per_second=rps,
-                check_every_n_seconds=check_int,
-                max_bucket_size=bucket_sz,
-            )
-        else:
-            rate_limiter = None
-        # setup model
-        provider = hydra.utils.instantiate(cfg.models.vlm_agent)
-        self._model = provider(
-            model=cfg.models.vlm_agent.name,
-            temperature=cfg.models.vlm_agent.temp,
-            rate_limiter=rate_limiter,
-        )
+        self._model = get_llm_model(cfg)
         # setup embeddings
-        self._embedder = FashionSigLIPEmbedding(cfg)
-        self._reader = VectorDbReader(cfg)
         self._cfg = cfg
         self._callback_config = callback_config
+        self._client = MultiServerMCPClient({
+                "shipping_server": {
+                    "transport": "streamable_http",
+                    "url": "http://localhost:8000/mcp",
+                },
+        })
+        tools = await self._client.get_tools()
+        self._tools = [make_mistral_compatible(tool) for tool in tools]
 
     def quantifier_node(self, state: AgentState) -> AgentState:
         """Figures out how many recommendations need to be made to the user.
@@ -143,7 +164,9 @@ class FashionAgent:
         )
         structured_model = self._model.with_structured_output(NumRecommendations)
         log.debug("Invoking model.")
-        response = structured_model.invoke(prompt, config=self._callback_config)  # text prompt - structured
+        response = structured_model.invoke(
+            prompt, config=self._callback_config
+        )  # text prompt - structured
         log.debug("Received response from model.")
         num_recommendations = (
             self._cfg.rag_pipeline.default_num_recommendations
@@ -173,7 +196,9 @@ class FashionAgent:
             user_request=state.input_text
         )
         log.debug("Invoking model.")
-        response = self._model.invoke(prompt, config=self._callback_config)  # text prompt - unstructured
+        response = self._model.invoke(
+            prompt, config=self._callback_config
+        )  # text prompt - unstructured
         log.debug("Received response from model.")
         log.debug(f"Instructions for the VLM:\n{response.content}")
         return {"vlm_instructions": response.content}
@@ -203,7 +228,9 @@ class FashionAgent:
                 ),
             )
             log.debug("Invoking model.")
-            response = structured_model.invoke(msg, config=self._callback_config)  # vision prompt - structured
+            response = structured_model.invoke(
+                msg, config=self._callback_config
+            )  # vision prompt - structured
             log.debug("Received response from model.")
             descr.append(response.image_description)
         log.debug(f"Descriptions obtained from vision node:\n{descr}")
@@ -245,7 +272,9 @@ class FashionAgent:
         structured_model = self._model.with_structured_output(RequiredClothes)
         for attempt_num in range(self._cfg.rag_pipeline.num_recommendation_attempts):
             log.debug("Invoking model.")
-            response = structured_model.invoke(prompt, config=self._callback_config)  # text prompt - structured
+            response = structured_model.invoke(
+                prompt, config=self._callback_config
+            )  # text prompt - structured
             log.debug("Received response from model.")
             if len(response.required_clothes_descriptions) == state.num_recommendations:
                 break
@@ -259,41 +288,6 @@ class FashionAgent:
             f"\n{response.required_clothes_descriptions}"
         )
         return {"required_clothes_descriptions": response.required_clothes_descriptions}
-
-    def filtration_node(self, state: AgentState) -> AgentState:
-        """Gets the filters for the required clothes descriptions.
-
-        Each item in the dataset or product catalogue being used belongs to one
-        category. When searching the vector database for product items that match
-        the required_clothes_descriptions, the recommendations become more appropriate
-        when they are filtered based on the category to which each requirement belongs.
-        This node invokes the LLM for each description and asks the LLM to choose which
-        category the item being described belongs to. Each description might belong to
-        more than one category.
-
-        Args:
-            state (AgentState): The current multidimensional state vector.
-
-        Returns:
-            AgentState: The updated state dictionary containing a list of list of
-                categories in `required_clothes_categories` key.
-        """
-        log.debug("Entered filtration node.")
-        valid_categories = (
-            "['" + "', '".join(self._cfg.data.fashion_gen.product_categories) + "']"
-        )
-        # structured_model = self._model.with_structured_output(ValidCategories)
-        categories = []
-        for descr in state.required_clothes_descriptions:
-            prompt = self._cfg.prompts.filtration_node.category_choice_prompt.format(
-                valid_categories=valid_categories, item_description=descr
-            )
-            log.debug("Invoking model.")
-            response = self._model.invoke(prompt, config=self._callback_config)  # text prompt - unstructured
-            log.debug("Received response from model.")
-            categories.append(get_categories_from_string(self._cfg, response.content))
-        log.debug(f"Categories of descriptions:\n{categories}")
-        return {"required_clothes_categories": categories}
 
     def recommender_node(self, state: AgentState) -> AgentState:
         """Executes semantic similarity search within the vector embedding space.
@@ -313,24 +307,11 @@ class FashionAgent:
         # TODO: figure out a way to ensure that you stick to the number of required
         # clothing items
         log.debug("Entered recommender node.")
-        # get embeddings for each of the required clothes descriptions
-        # get the top image match for each of the embeddings - need client for this
-        # populate the recommended_clothes_images with the indexes of the returned
-        # matches
-        match_ids = []
-        embeddings = self._embedder.get_text_embedding_batch(
-            state.required_clothes_descriptions
-        )
-        for idx, embedding in enumerate(embeddings):
-            match_ids.extend(
-                self._reader.get_image_matches(
-                    embedding,
-                    num_matches=1,
-                    categories=state.required_clothes_categories[idx],
-                )
-            )
-        log.debug(f"Image IDs obtained from recommender_node:\n{match_ids}")
-        return {"recommended_clothes_images": set(list(match_ids))}
+        agent = create_agent(model=self._model, tools=self._tools, debug=True)
+        template = self._cfg.prompts.recommender_node.match_clothes_prompt.
+        for descr in state.required_clothes_descriptions:
+            prompt = template.format(item_description=descr)
+            response = agent.ainvoke({"messages": prompt}, config=self._callback_config)
 
     def explanation_node(self, state: AgentState) -> AgentState:
         """Formulates analytical justifications elucidating the retrieval congruence.
@@ -378,7 +359,9 @@ class FashionAgent:
                 text_prompt=text_prompt, numpy_image=data[img_key][0]
             )
             log.debug("Invoking model.")
-            response = self._model.invoke(msg, config=self._callback_config)  # vision prompt - unstructured
+            response = self._model.invoke(
+                msg, config=self._callback_config
+            )  # vision prompt - unstructured
             log.debug("Received response from model.")
             expl.append(response.content)
         log.debug(f"Explanations from explanation_node:\n{expl}")

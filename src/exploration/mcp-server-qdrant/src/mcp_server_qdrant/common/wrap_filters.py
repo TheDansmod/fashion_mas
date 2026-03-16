@@ -12,10 +12,7 @@ from mcp_server_qdrant.settings import FilterableField
 def wrap_filters(
     original_func: Callable, filterable_fields: dict[str, FilterableField]
 ) -> Callable:
-    """
-    Wraps the original_func function: replaces `filter` parameter with multiple parameters defined by `filterable_fields`.
-    """
-
+    """Wraps the original_func function: replaces `filter` parameter with multiple parameters defined by `filterable_fields`."""
     sig = inspect.signature(original_func)
 
     @wraps(original_func)
@@ -150,7 +147,8 @@ if __name__ == "__main__":
     wrapped_find(query="dress", collection_name="test", color="red")
 
     print("get_function_type_hints(find):\n", get_function_type_hints(find))
-    print('\n\n')
+    print("\n\n")
     print(
-            "get_function_type_hints(wrapped_find):\n", get_function_type_hints(wrapped_find)
+        "get_function_type_hints(wrapped_find):\n",
+        get_function_type_hints(wrapped_find),
     )

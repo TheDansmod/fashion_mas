@@ -4,8 +4,7 @@ from mcp_server_qdrant.settings import EmbeddingProviderSettings
 
 
 def create_embedding_provider(settings: EmbeddingProviderSettings) -> EmbeddingProvider:
-    """
-    Create an embedding provider based on the specified type.
+    """Create an embedding provider based on the specified type.
     :param settings: The settings for the embedding provider.
     :return: An instance of the specified embedding provider.
     """

@@ -3,9 +3,10 @@
 What I am looking to achieve:
     - [x] get it to do tool calling
     - [x] get it to do structured outputs
-    - [ ] get it to handle image inputs
+    - [x] get it to handle image inputs
     - [x] track token usage since Mistral has token limits
     - [x] enforce rate limits (1 request / second)
+    - [ ] how many 256x256 images can the model handle together?
 """
 
 import logging
@@ -18,7 +19,14 @@ from langchain_core.messages import HumanMessage
 from langchain_core.rate_limiters import InMemoryRateLimiter
 from pydantic import BaseModel, Field
 
-from src.utils.common_utils import update_token_use, get_image_prompt_message, encode_image
+from src.utils.common_utils import (
+    encode_image,
+    get_image_prompt_message,
+    update_token_use,
+    track_token_use,
+    get_rate_limiter,
+    get_multi_image_prompt_message,
+)
 
 log = logging.getLogger(__name__)
 
@@ -223,10 +231,14 @@ def check_image_inputs(cfg):
 
 
 def mistral_sdk(cfg):
+    """Check how to use mistral's API since langchain said they don't support images."""
     from mistralai.client import Mistral
+
     # NOTE: I have removed the mistral api since I got langchain's integration to work
     encoded_image = encode_image(image_path=cfg.misc.input_image_path_01)
-    log.debug(f"The base64 representation of the image has length: {len(encoded_image)}")
+    log.debug(
+        f"The base64 representation of the image has length: {len(encoded_image)}"
+    )
     with Mistral(api_key=cfg.models.api_keys.mistral) as mistral:
         response = mistral.chat.complete(
             model=cfg.models.vlm_agent.name,
@@ -241,14 +253,36 @@ def mistral_sdk(cfg):
                     "content": [
                         {
                             "type": "text",
-                            "text": "Please provide a detailed plain string (no markdown) description of the clothing item in the uploaded image.",
+                            "text": (
+                                "Please provide a detailed plain string (no "
+                                "markdown) description of the clothing item in the "
+                                "uploaded image."
+                            ),
                         },
                         {
                             "type": "image_url",
-                            "image_url": f"data:image/jpeg;base64,{encoded_image}"
-                        }
-                    ]
+                            "image_url": f"data:image/jpeg;base64,{encoded_image}",
+                        },
+                    ],
                 },
             ],
         )
     log.debug(response)
+
+def get_llm_model(cfg):
+    provider = hydra.utils.instantiate(cfg.models.vlm_agent)
+    model = provider(
+        model=cfg.models.vlm_agent.name,
+        temperature=cfg.models.vlm_agent.temp,
+        rate_limiter=get_rate_limiter(cfg),
+    )
+    return model
+
+@track_token_use
+def check_multi_image_input(cfg, callback_config):
+    """To see how many images the Mistral model can handle together."""
+    model = get_llm_model(cfg)
+    prompt = 'Please provide a description of each of the uploaded images'
+    msg = get_multi_image_prompt_message(image_paths=cfg.misc.test_image_paths, text_prompt=prompt)
+    response = model.invoke(msg, config=callback_config)
+    log.debug(response.content)

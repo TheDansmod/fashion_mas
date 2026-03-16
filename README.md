@@ -103,6 +103,7 @@ This is just a first pass version of the agentic system.
     4. Switching to Mistral AI - this integrates with image based inputs, using a `create_agent` loop vs a langgraph based loop
 33. 2026-03-13 21:44 The langchain chat mistral ai integration does seem to support images, but due to the rate limit, I think it only supports low resolution images which makes things a little difficult for me since I rely heavily on the generated descriptions of images. 
 34. 2026-03-13 22:39 I just tested mistral with the old ollama code and things seem to have worked great. I'm thinking I won't use the create agent automated Re-Act setup since that does not demonstrate competence, but then, the goal is to quickly get something out rather than show a lot of skills.
+35. 2026-03-16 11:27 I have been able to setup and test an MCP server for a shipping agent. And the Mistral AI seems to have done well on it. I am currently working on creating a MCP server and client for the qdrant client. I will later be fixing the agent orchestration.
 
 # Library Dependency and their purpose
 1. `langgraph` - agent orchestration. needed for the multi-agent system
@@ -193,6 +194,7 @@ diff -yr /mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas_
 3. LLM model - qwen / mock / mistral (models 01.yaml)
 4. Langsmith API enabled / not (.env)
 5. Ensure podman container running (podman ps)
+6. If using mcp client, ensure server is running
 
 # Qdrant with Docker / Podman
 After I fixed the issue where only a small number of points were constantly being over-written while creating the qdrant collection, the size of the collection ballooned to 4 GB. I also got a warning saying that I should use Qdrant on docker or cloud with so many points / vectors.

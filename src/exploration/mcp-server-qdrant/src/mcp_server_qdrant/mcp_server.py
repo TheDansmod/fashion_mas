@@ -24,9 +24,7 @@ logger = logging.getLogger(__name__)
 # FastMCP is an alternative interface for declaring the capabilities
 # of the server. Its API is based on FastAPI.
 class QdrantMCPServer(FastMCP):
-    """
-    A MCP server for Qdrant.
-    """
+    """A MCP server for Qdrant."""
 
     def __init__(
         self,
@@ -81,16 +79,12 @@ class QdrantMCPServer(FastMCP):
     def format_entry(self, entry: Entry) -> str:
         # danish: an Entry just contains some content (str) and some metadata (dict[str, Any])
         # danish doubt: why are we returning this HTML or whatever?
-        """
-        Feel free to override this method in your subclass to customize the format of the entry.
-        """
+        """Feel free to override this method in your subclass to customize the format of the entry."""
         entry_metadata = json.dumps(entry.metadata) if entry.metadata else ""
         return f"<entry><content>{entry.content}</content><metadata>{entry_metadata}</metadata></entry>"
 
     def setup_tools(self):
-        """
-        Register the tools in the server.
-        """
+        """Register the tools in the server."""
 
         async def store(
             ctx: Context,
@@ -109,8 +103,7 @@ class QdrantMCPServer(FastMCP):
                 ),
             ] = None,
         ) -> str:
-            """
-            Store some information in Qdrant.
+            """Store some information in Qdrant.
             :param ctx: The context for the request.
             :param information: The information to store.
             :param metadata: JSON metadata to store with the information, optional.
@@ -136,8 +129,7 @@ class QdrantMCPServer(FastMCP):
             # danish: ArbitraryFilter is a dict[str, Any]
             query_filter: ArbitraryFilter | None = None,
         ) -> list[str] | None:
-            """
-            Find memories in Qdrant.
+            """Find memories in Qdrant.
             :param ctx: The context for the request.
             :param query: The query to use for the search.
             :param collection_name: The name of the collection to search in, optional. If not provided,
@@ -145,7 +137,6 @@ class QdrantMCPServer(FastMCP):
             :param query_filter: The filter to apply to the query.
             :return: A list of entries found or None.
             """
-
             # Log query_filter
             await ctx.debug(f"Query filter: {query_filter}")
 

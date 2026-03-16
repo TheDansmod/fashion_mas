@@ -2,12 +2,10 @@ import argparse
 
 
 def main():
-    """
-    Main entry point for the mcp-server-qdrant script defined
+    """Main entry point for the mcp-server-qdrant script defined
     in pyproject.toml. It runs the MCP server with a specific transport
     protocol.
     """
-
     # Parse the command-line arguments to determine the transport protocol.
     parser = argparse.ArgumentParser(description="mcp-server-qdrant")
     parser.add_argument(
