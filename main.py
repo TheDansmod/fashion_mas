@@ -7,7 +7,7 @@ import hydra
 from dotenv import load_dotenv
 from omegaconf import DictConfig
 
-from src.mcp_server.mcp_client import run_client
+from src.rag_pipeline.rag_agent import run_fashion_agent
 from src.utils.common_utils import validate_hydra_config
 
 # The .env file should contain `HYDRA_FULL_ERROR=1` to see a full stacktrace in case
@@ -25,7 +25,7 @@ log = logging.getLogger(__name__)
 def main(cfg: DictConfig):
     """Launch the current main task for the project."""
     validate_hydra_config(cfg)
-    asyncio.run(run_client(cfg))
+    asyncio.run(run_fashion_agent(cfg))
 
 
 if __name__ == "__main__":

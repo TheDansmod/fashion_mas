@@ -100,3 +100,7 @@ class ValidCategories(BaseModel):
             "description is provided, belongs."
         ),
     )
+
+
+class MatchedImageId(BaseModel):
+    image_id: int = Field(..., description="Id of the best matched image")

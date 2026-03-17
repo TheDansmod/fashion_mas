@@ -12,35 +12,27 @@ works.
 """
 
 import base64
-import h5py
+import json
 import logging
-import torch
 from io import BytesIO
-from PIL import Image
 from typing import Literal
+
+import h5py
 import numpy as np
-from fastmcp import FastMCP
-from qdrant_client import QdrantClient, models
-from pydantic import BaseModel, Field
-from fastmcp.tools import tool
 import open_clip
+import torch
+from fastmcp import FastMCP
+from fastmcp.tools import tool
+from mcp.types import ImageContent, TextContent
+from PIL import Image
+from pydantic import BaseModel, Field
+from qdrant_client import QdrantClient, models
 
 logging.basicConfig(
-    level=logging.INFO,
-    format='[%(asctime)s - %(levelname)s] - %(message)s'
+    level=logging.INFO, format="[%(asctime)s - %(levelname)s] - %(message)s"
 )
 
 log = logging.getLogger(__name__)
-
-class MatchedImage(BaseModel):
-    b64_image: str = Field(..., min_length=1, description='A base64 encoding of the matched image from the database')
-    category: Literal["CLUTCHES & POUCHES", "POUCHES & DOCUMENT HOLDERS", "BOOTS", "BACKPACKS", "SWEATERS", "SWIMWEAR", "MONKSTRAPS", "JEWELRY", "DUFFLE & TOP HANDLE BAGS", "JEANS", "LACE UPS", "SKIRTS", "DUFFLE BAGS", "TOPS", "DRESSES", "MESSENGER BAGS & SATCHELS", "SOCKS", "LOAFERS", "ESPADRILLES", "UNDERWEAR & LOUNGEWEAR", "BAG ACCESSORIES", "HATS", "SANDALS", "JACKETS & COATS", "MESSENGER BAGS", "GLOVES", "TRAVEL BAGS", "LINGERIE", "SCARVES", "KEYCHAINS", "BLANKETS", "TIES", "FLATS", "SHORTS", "PANTS", "SUITS & BLAZERS", "TOTE BAGS", "HEELS", "EYEWEAR", "BRIEFCASES", "JUMPSUITS", "FINE JEWELRY", "BELTS & SUSPENDERS", "SHIRTS", "BOAT SHOES & MOCCASINS", "SNEAKERS", "POCKET SQUARES & TIE BARS", "SHOULDER BAGS"] = Field(..., description='Category to which the matched image belongs.')
-    price: float = Field(..., description='Price of the matched image')
-    description: str = Field(..., description='Description of the matched image.')
-    match_score: float = Field(..., description='Match score for the matched image. Higher scores indicate better match.')
-
-class MatchedImages(BaseModel):
-    matched_images: list[MatchedImage] = Field(..., description='A list of the images matched to the input query.')
 
 class ProductCatalogueMCPServer:
     def __init__(self, connector, embedder):
@@ -50,44 +42,172 @@ class ProductCatalogueMCPServer:
     def _reformat_image_data(self, matches):
         matched_images = []
         for match in matches:
-            b64_image = encode_image(match['input_image'][0])[:20]  # TODO undo the 20
-            category = match['input_category'][0]
-            price = match['input_msrpUSD'][0]
-            description = match['input_description'][0]
-            score = match['score']
-            matched_images.append(MatchedImage(b64_image=b64_image, category=category, price=price, description=description, match_score=score))
-        return MatchedImages(matched_images=matched_images)
+            b64_image = encode_image(match["input_image"][0])
+            metadata = {
+                "price": match["input_msrpUSD"][0],
+                "category": match["input_category"][0],
+                "description": match["input_description"][0],
+                "id": match["index_2"][0],
+                "score": match["score"],
+            }
+            text_content = TextContent(type="text", text=json.dumps(metadata))
+            image_content = ImageContent(
+                type="image", data=b64_image, mimeType="image/jpeg"
+            )
+        return [text_content, image_content]
 
     @tool
-    def semantic_search(self, description: str, categories: list[str], num_matches: int) -> MatchedImages:
-        log.info(f"DANISH: in semantic search.")
+    def semantic_search(
+        self, description: str, categories: list[str], num_matches: int
+    ):
+        """Get num_matches images and their metadata that match the description and categories.
+
+        Given some text description of an item of clothing or an accessory, this
+        function returns `num_matches` images along with their metadata (which
+        includes id, price, category, description, and score) from within the images
+        that belong to the listed categories.
+
+        Args:
+            description (str): The description to which the returned images are matched.
+            categories (list[str]): The matched images will belong to one of these
+                listed valid categories.
+            num_matches (int): The number of matched images that should be returned.
+
+        Returns:
+            Matched Images and their metadata. The metadata is a dictionary with the
+            keys of `price`, `category`, `description`, `id`, and `score`. The score
+            tells how good of a match (to the input text) the returned item is.
+        """
+        log.info("DANISH: in semantic search.")
         for category in categories:
-            if not category in self._connector.get_valid_categories():
+            if category not in self._connector.get_valid_categories():
                 return {"error": f"{category} is not a valid category."}
         embedding = self._embedder.get_text_embedding_batch([description])[0]
-        matches = self._connector.get_image_matches(embedding, categories=categories, num_matches=num_matches)
-        log.info(f"DANISH: returning some matches.")
+        matches = self._connector.get_image_matches(
+            embedding, categories=categories, num_matches=num_matches
+        )
+        log.info("DANISH: returning some matches.")
         return self._reformat_image_data(matches)
-    
+
     @tool
-    def get_product_categories(self):
-        log.info(f"DANISH: in get product categories.")
-        return ["CLUTCHES & POUCHES", "POUCHES & DOCUMENT HOLDERS", "BOOTS", "BACKPACKS", "SWEATERS", "SWIMWEAR", "MONKSTRAPS", "JEWELRY", "DUFFLE & TOP HANDLE BAGS", "JEANS", "LACE UPS", "SKIRTS", "DUFFLE BAGS", "TOPS", "DRESSES", "MESSENGER BAGS & SATCHELS", "SOCKS", "LOAFERS", "ESPADRILLES", "UNDERWEAR & LOUNGEWEAR", "BAG ACCESSORIES", "HATS", "SANDALS", "JACKETS & COATS", "MESSENGER BAGS", "GLOVES", "TRAVEL BAGS", "LINGERIE", "SCARVES", "KEYCHAINS", "BLANKETS", "TIES", "FLATS", "SHORTS", "PANTS", "SUITS & BLAZERS", "TOTE BAGS", "HEELS", "EYEWEAR", "BRIEFCASES", "JUMPSUITS", "FINE JEWELRY", "BELTS & SUSPENDERS", "SHIRTS", "BOAT SHOES & MOCCASINS", "SNEAKERS", "POCKET SQUARES & TIE BARS", "SHOULDER BAGS"]
+    def get_product_categories(self) -> list[str]:
+        """Returns a list of valid product categories."""
+        log.info("DANISH: in get product categories.")
+        return [
+            "CLUTCHES & POUCHES",
+            "POUCHES & DOCUMENT HOLDERS",
+            "BOOTS",
+            "BACKPACKS",
+            "SWEATERS",
+            "SWIMWEAR",
+            "MONKSTRAPS",
+            "JEWELRY",
+            "DUFFLE & TOP HANDLE BAGS",
+            "JEANS",
+            "LACE UPS",
+            "SKIRTS",
+            "DUFFLE BAGS",
+            "TOPS",
+            "DRESSES",
+            "MESSENGER BAGS & SATCHELS",
+            "SOCKS",
+            "LOAFERS",
+            "ESPADRILLES",
+            "UNDERWEAR & LOUNGEWEAR",
+            "BAG ACCESSORIES",
+            "HATS",
+            "SANDALS",
+            "JACKETS & COATS",
+            "MESSENGER BAGS",
+            "GLOVES",
+            "TRAVEL BAGS",
+            "LINGERIE",
+            "SCARVES",
+            "KEYCHAINS",
+            "BLANKETS",
+            "TIES",
+            "FLATS",
+            "SHORTS",
+            "PANTS",
+            "SUITS & BLAZERS",
+            "TOTE BAGS",
+            "HEELS",
+            "EYEWEAR",
+            "BRIEFCASES",
+            "JUMPSUITS",
+            "FINE JEWELRY",
+            "BELTS & SUSPENDERS",
+            "SHIRTS",
+            "BOAT SHOES & MOCCASINS",
+            "SNEAKERS",
+            "POCKET SQUARES & TIE BARS",
+            "SHOULDER BAGS",
+        ]
+
 
 class QdrantConnector:
     def __init__(self, url, collection_name):
         self._client = QdrantClient(url=url, prefer_grpc=True)
-        log.info(f"DANISH: connected to qdrant.")
+        log.info("DANISH: connected to qdrant.")
         # validate collection existence
         if not self._client.collection_exists(collection_name):
             raise ValueError(f"Collection {collection_name} does not exist.")
         self._collection_name = collection_name
-        self._category_key = 'input_category'
-        self._image_vectors_name = 'images'
-        self._index_key = 'index_2'
+        self._category_key = "input_category"
+        self._image_vectors_name = "images"
+        self._index_key = "index_2"
 
     def get_valid_categories(self):
-        return ["CLUTCHES & POUCHES", "POUCHES & DOCUMENT HOLDERS", "BOOTS", "BACKPACKS", "SWEATERS", "SWIMWEAR", "MONKSTRAPS", "JEWELRY", "DUFFLE & TOP HANDLE BAGS", "JEANS", "LACE UPS", "SKIRTS", "DUFFLE BAGS", "TOPS", "DRESSES", "MESSENGER BAGS & SATCHELS", "SOCKS", "LOAFERS", "ESPADRILLES", "UNDERWEAR & LOUNGEWEAR", "BAG ACCESSORIES", "HATS", "SANDALS", "JACKETS & COATS", "MESSENGER BAGS", "GLOVES", "TRAVEL BAGS", "LINGERIE", "SCARVES", "KEYCHAINS", "BLANKETS", "TIES", "FLATS", "SHORTS", "PANTS", "SUITS & BLAZERS", "TOTE BAGS", "HEELS", "EYEWEAR", "BRIEFCASES", "JUMPSUITS", "FINE JEWELRY", "BELTS & SUSPENDERS", "SHIRTS", "BOAT SHOES & MOCCASINS", "SNEAKERS", "POCKET SQUARES & TIE BARS", "SHOULDER BAGS"]
+        return [
+            "CLUTCHES & POUCHES",
+            "POUCHES & DOCUMENT HOLDERS",
+            "BOOTS",
+            "BACKPACKS",
+            "SWEATERS",
+            "SWIMWEAR",
+            "MONKSTRAPS",
+            "JEWELRY",
+            "DUFFLE & TOP HANDLE BAGS",
+            "JEANS",
+            "LACE UPS",
+            "SKIRTS",
+            "DUFFLE BAGS",
+            "TOPS",
+            "DRESSES",
+            "MESSENGER BAGS & SATCHELS",
+            "SOCKS",
+            "LOAFERS",
+            "ESPADRILLES",
+            "UNDERWEAR & LOUNGEWEAR",
+            "BAG ACCESSORIES",
+            "HATS",
+            "SANDALS",
+            "JACKETS & COATS",
+            "MESSENGER BAGS",
+            "GLOVES",
+            "TRAVEL BAGS",
+            "LINGERIE",
+            "SCARVES",
+            "KEYCHAINS",
+            "BLANKETS",
+            "TIES",
+            "FLATS",
+            "SHORTS",
+            "PANTS",
+            "SUITS & BLAZERS",
+            "TOTE BAGS",
+            "HEELS",
+            "EYEWEAR",
+            "BRIEFCASES",
+            "JUMPSUITS",
+            "FINE JEWELRY",
+            "BELTS & SUSPENDERS",
+            "SHIRTS",
+            "BOAT SHOES & MOCCASINS",
+            "SNEAKERS",
+            "POCKET SQUARES & TIE BARS",
+            "SHOULDER BAGS",
+        ]
 
     def get_image_matches(self, embedding, categories, num_matches):
         matches = []
@@ -111,10 +231,11 @@ class QdrantConnector:
         for scored_points in query_response.points:
             item_id = scored_points.payload[self._index_key]
             score = scored_points.score
-            img_data = get_fashion_gen_data(from_idx=item_id, to_idx=item_id+1)
-            img_data['score'] = score
+            img_data = get_fashion_gen_data(from_idx=item_id, to_idx=item_id + 1)
+            img_data["score"] = score
             matches.append(img_data)
         return matches
+
 
 def get_fashion_gen_data(from_idx, to_idx):
     """Get data from the fashion-gen dataset in dictionary format.
@@ -134,13 +255,23 @@ def get_fashion_gen_data(from_idx, to_idx):
             sending back floats, they are lists of floats.
     """
     data = dict()
-    images_key = 'input_image'
-    prices_key = 'input_msrpUSD'
-    index_key = 'index_2'
+    images_key = "input_image"
+    prices_key = "input_msrpUSD"
+    index_key = "index_2"
     num_datapoints = 260490
-    codec = 'latin-1'
-    hdf5_path = r'/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/fashiongen_256_256_train.h5'
-    string_attributes = ['input_brand', 'input_category', 'input_composition', 'input_department', 'input_gender', 'input_name', 'input_season', 'input_subcategory', 'input_description']
+    codec = "latin-1"
+    hdf5_path = r"/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/fashiongen_256_256_train.h5"
+    string_attributes = [
+        "input_brand",
+        "input_category",
+        "input_composition",
+        "input_department",
+        "input_gender",
+        "input_name",
+        "input_season",
+        "input_subcategory",
+        "input_description",
+    ]
     if from_idx >= num_datapoints or from_idx >= to_idx:
         return data
     else:
@@ -156,11 +287,13 @@ def get_fashion_gen_data(from_idx, to_idx):
             data[key] = vec_decode(np.ravel(file[key][from_idx:to_idx])).tolist()
     return data
 
+
 def encode_image(numpy_image):
     img = Image.fromarray(numpy_image)
     buffer = BytesIO()
     img.save(buffer, format="png")
     return base64.b64encode(buffer.getvalue()).decode("utf-8")
+
 
 class FashionSigLIPEmbedding:
     """Create and return multi-modal embeddings."""
@@ -174,9 +307,9 @@ class FashionSigLIPEmbedding:
         self._device_type = "cuda" if torch.cuda.is_available() else "cpu"
         self._device = torch.device(self._device_type)
         self._model, _, self._preprocess_val = open_clip.create_model_and_transforms(
-                'hf-hub:Marqo/marqo-fashionSigLIP'
+            "hf-hub:Marqo/marqo-fashionSigLIP"
         )
-        self._tokenizer = open_clip.get_tokenizer('hf-hub:Marqo/marqo-fashionSigLIP')
+        self._tokenizer = open_clip.get_tokenizer("hf-hub:Marqo/marqo-fashionSigLIP")
         self._model.to(self._device)
         self._embed_batch_size = 512
 
@@ -254,11 +387,14 @@ class FashionSigLIPEmbedding:
         text_results = self.get_text_embedding_batch(texts)
         return list(zip(img_results, text_results))
 
-if __name__ == '__main__':
-    connector = QdrantConnector(url='http://localhost:6333', collection_name='fashion_gen')
+
+if __name__ == "__main__":
+    connector = QdrantConnector(
+        url="http://localhost:6333", collection_name="fashion_gen"
+    )
     embedder = FashionSigLIPEmbedding()
     server = ProductCatalogueMCPServer(connector=connector, embedder=embedder)
     mcp = FastMCP("Product Catalogue MCP Server")
     mcp.add_tool(server.semantic_search)
     mcp.add_tool(server.get_product_categories)
-    mcp.run(transport='http', port=8000)
+    mcp.run(transport="http", port=8000)

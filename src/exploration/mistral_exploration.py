@@ -22,10 +22,10 @@ from pydantic import BaseModel, Field
 from src.utils.common_utils import (
     encode_image,
     get_image_prompt_message,
-    update_token_use,
-    track_token_use,
-    get_rate_limiter,
     get_multi_image_prompt_message,
+    get_rate_limiter,
+    track_token_use,
+    update_token_use,
 )
 
 log = logging.getLogger(__name__)
@@ -269,6 +269,7 @@ def mistral_sdk(cfg):
         )
     log.debug(response)
 
+
 def get_llm_model(cfg):
     provider = hydra.utils.instantiate(cfg.models.vlm_agent)
     model = provider(
@@ -278,11 +279,14 @@ def get_llm_model(cfg):
     )
     return model
 
+
 @track_token_use
 def check_multi_image_input(cfg, callback_config):
     """To see how many images the Mistral model can handle together."""
     model = get_llm_model(cfg)
-    prompt = 'Please provide a description of each of the uploaded images'
-    msg = get_multi_image_prompt_message(image_paths=cfg.misc.test_image_paths, text_prompt=prompt)
+    prompt = "Please provide a description of each of the uploaded images"
+    msg = get_multi_image_prompt_message(
+        image_paths=cfg.misc.test_image_paths, text_prompt=prompt
+    )
     response = model.invoke(msg, config=callback_config)
     log.debug(response.content)

@@ -3,32 +3,27 @@
 import logging
 from typing import Literal, Optional
 
-import hydra
-from langchain_core.callbacks import UsageMetadataCallbackHandler
-from langchain_core.rate_limiters import InMemoryRateLimiter
-from langgraph.checkpoint.sqlite import SqliteSaver
+from langchain.agents import create_agent
+from langchain_core.tools import StructuredTool
+from langchain_mcp_adapters.client import MultiServerMCPClient
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel, Field
-from langchain_mcp_adapters.client import MultiServerMCPClient  
-from langchain_core.tools import StructuredTool
-from langchain.agents import create_agent
 
-from src.data_manager.vector_db_reader import VectorDbReader
 from src.data_manager.vector_db_writer import (
-    FashionSigLIPEmbedding,
     get_fashion_gen_data,
 )
 from src.rag_pipeline.llm_schemas import (
+    MatchedImageId,
     NumRecommendations,
     RequiredClothes,
     SingleImageDescription,
 )
 from src.utils.common_utils import (
     draw_langraph_topology,
-    get_categories_from_string,
     get_image_prompt_message,
-    update_token_use,
     get_llm_model,
+    track_token_use,
 )
 
 log = logging.getLogger(__name__)
@@ -36,23 +31,46 @@ log = logging.getLogger(__name__)
 
 def make_mistral_compatible(tool):
     """Wraps an MCP tool to ensure it returns a plain string."""
-    def stringify_invoke(*args, **kwargs):
-        tool_input = args[0] if args else kwargs
-        res = tool.invoke(tool_input)
-        if isinstance(res, list):
-            return "\n".join(b.get("text", "") if isinstance(b, dict) else str(b) for b in res)
-        return str(res)
 
-    async def stringify_ainvoke(*args, **kwargs):
+    def sanitize_response(response):
+        result = []
+        if isinstance(response, list):
+            for block in response:
+                if isinstance(block, dict):
+                    block_type = block["type"]
+                    if block_type == "text":
+                        result.append({"type": "text", "text": block["text"]})
+                    elif block_type == "image":
+                        result.append(
+                            {
+                                "type": "image_url",
+                                "image_url": f"data:{block['mime_type']};base64,{block['base64']}",
+                            }
+                        )
+                    else:
+                        raise ValueError("unexpected type")
+                else:
+                    # we default to converting the whole thing to string if element of
+                    # the list is not a dictionary
+                    result.append({"type": "text", "text": str(block)})
+            return result
+        else:
+            # we just default to string if response is not a list
+            return str(response)
+
+    def sync_wrapper(*args, **kwargs):
         tool_input = args[0] if args else kwargs
-        res = await tool.ainvoke(tool_input)
-        if isinstance(res, list):
-            return "\n".join(b.get("text", "") if isinstance(b, dict) else str(b) for b in res)
-        return str(res)
+        response = tool.invoke(tool_input)
+        return sanitize_response(response)
+
+    async def async_wrapper(*args, **kwargs):
+        tool_input = args[0] if args else kwargs
+        response = await tool.ainvoke(tool_input)
+        return sanitize_response(response)
 
     return StructuredTool.from_function(
-        func=stringify_invoke,
-        coroutine=stringify_ainvoke,
+        func=sync_wrapper,
+        coroutine=async_wrapper,
         name=tool.name,
         description=tool.description,
         args_schema=tool.args_schema,
@@ -85,19 +103,20 @@ class AgentState(BaseModel):
         recommended_clothes_explanation (list[str]): These are a list of explanations,
             one per clothing item recommended, each of which explains how that clothing
             item satisfies the user's request.
-        required_clothes_categories (list[str]): This is a list of categories to which
-            each of the recommended descriptions belongs. This will help filter the
-            search in qdrant vector matching.
+        num_times_critiqued (int): This is the number of times the output of the
+            recommendation node has been critiqued. If it exceeds the limit set by
+            `cfg.rag_pipeline.max_num_critiques`, then we continue on with the current
+            recommendations.
     """
 
     has_input_images: bool
+    num_times_critiqued: int
     input_images_path: list[str]
     input_text: str
     num_recommendations: Optional[int] = Field(default_factory=int)
     vlm_instructions: Optional[str] = Field(default_factory=str)
     input_images_descriptions: Optional[list[str]] = Field(default_factory=list)
     required_clothes_descriptions: Optional[list[str]] = Field(default_factory=list)
-    required_clothes_categories: Optional[list[list[str]]] = Field(default_factory=list)
     recommended_clothes_images: Optional[list[int]] = Field(default_factory=list)
     recommended_clothes_explanation: Optional[list[str]] = Field(default_factory=list)
 
@@ -135,14 +154,14 @@ class FashionAgent:
         # setup embeddings
         self._cfg = cfg
         self._callback_config = callback_config
-        self._client = MultiServerMCPClient({
+        self._client = MultiServerMCPClient(
+            {
                 "shipping_server": {
                     "transport": "streamable_http",
                     "url": "http://localhost:8000/mcp",
                 },
-        })
-        tools = await self._client.get_tools()
-        self._tools = [make_mistral_compatible(tool) for tool in tools]
+            }
+        )
 
     def quantifier_node(self, state: AgentState) -> AgentState:
         """Figures out how many recommendations need to be made to the user.
@@ -158,7 +177,7 @@ class FashionAgent:
             AgentState: The updated state dictionary containing the
                 `num_recommendations` scalar.
         """
-        log.debug("Entered recommendations node.")
+        log.debug("Entered quantifier node.")
         prompt = self._cfg.prompts.quantifier_node.num_recommendations_prompt.format(
             user_request=state.input_text
         )
@@ -174,7 +193,7 @@ class FashionAgent:
             else response.num_recommendations
         )
         log.debug(
-            f"Number of recommendations from the user:\n{response.num_recommendations}"
+            f"Number of recommendations required by the user:\n{response.num_recommendations}"
         )
         return {"num_recommendations": num_recommendations}
 
@@ -289,7 +308,7 @@ class FashionAgent:
         )
         return {"required_clothes_descriptions": response.required_clothes_descriptions}
 
-    def recommender_node(self, state: AgentState) -> AgentState:
+    async def recommender_node(self, state: AgentState) -> AgentState:
         """Executes semantic similarity search within the vector embedding space.
 
         Transforms the target apparel descriptions into dense vector embeddings
@@ -304,14 +323,44 @@ class FashionAgent:
             AgentState: The updated state dictionary containing a deduplicated set of
                 `recommended_clothes_images` indices.
         """
-        # TODO: figure out a way to ensure that you stick to the number of required
         # clothing items
+        recommended_clothes_images = []
         log.debug("Entered recommender node.")
-        agent = create_agent(model=self._model, tools=self._tools, debug=True)
-        template = self._cfg.prompts.recommender_node.match_clothes_prompt.
+        tools = await self._client.get_tools()
+        tools = [make_mistral_compatible(tool) for tool in tools]
+        agent = create_agent(
+            model=self._model,
+            tools=tools,
+            response_format=MatchedImageId,
+            debug=True,
+        )
+        template = self._cfg.prompts.recommender_node.match_clothes_prompt
         for descr in state.required_clothes_descriptions:
             prompt = template.format(item_description=descr)
-            response = agent.ainvoke({"messages": prompt}, config=self._callback_config)
+            response = await agent.ainvoke(
+                {"messages": prompt}, config=self._callback_config
+            )
+            recommended_clothes_images.append(response['structured_response'].image_id)
+        return {"recommended_clothes_images": recommended_clothes_images}
+
+    def critique_node(self, state: AgentState) -> AgentState:
+        """Critiques the recommendations and proposes suggestions.
+
+        Checks if the recommendations are a good response to the user's queries. If
+        yes, then we simply move on. If not, it specifically mentions how the
+        modifier node should adjust its descriptions of recommended clothes so that
+        the next attempt has a better chance of satisfying the users requests. There
+        is a limited number of retries after which we continue anyways.
+
+        Args:
+            state (AgentState): The current multidimensional state vector.
+
+        Returns:
+            AgentState: The updated state dictionary containing the
+                `recommended_clothes_explanation` array.
+        """
+        # This node is not yet for use
+        pass
 
     def explanation_node(self, state: AgentState) -> AgentState:
         """Formulates analytical justifications elucidating the retrieval congruence.
@@ -385,7 +434,7 @@ class FashionAgent:
         """
         return "intent_node" if state.has_input_images else "modifier_node"
 
-    def invoke(self, initial_state, config, conn_string):
+    async def ainvoke(self, initial_state, config, conn_string):
         """Compiles the state graph, injects persistence, and initiates execution.
 
         Constructs the explicit vertex and edge topologies of the RAG pipeline. Attaches
@@ -403,7 +452,7 @@ class FashionAgent:
         Returns:
             dict: The final, fully populated state vector at the termination vertex.
         """
-        with SqliteSaver.from_conn_string(conn_string) as checkpointer:
+        async with AsyncSqliteSaver.from_conn_string(conn_string) as checkpointer:
             builder = StateGraph(AgentState)
             # nodes
             builder.add_node("quantifier_node", self.quantifier_node)
@@ -412,7 +461,6 @@ class FashionAgent:
             builder.add_node("modifier_node", self.modifier_node)
             builder.add_node("recommender_node", self.recommender_node)
             builder.add_node("explanation_node", self.explanation_node)
-            builder.add_node("filtration_node", self.filtration_node)
             # edges
             builder.add_edge(START, "quantifier_node")
             builder.add_conditional_edges(
@@ -420,8 +468,7 @@ class FashionAgent:
             )
             builder.add_edge("intent_node", "vision_node")
             builder.add_edge("vision_node", "modifier_node")
-            builder.add_edge("modifier_node", "filtration_node")
-            builder.add_edge("filtration_node", "recommender_node")
+            builder.add_edge("modifier_node", "recommender_node")
             builder.add_edge("recommender_node", "explanation_node")
             builder.add_edge("explanation_node", END)
             # compile and run
@@ -432,11 +479,12 @@ class FashionAgent:
                 if self._cfg.rag_pipeline.persistence.resume_from_checkpoint
                 else initial_state
             )
-            result = app.invoke(invocation_state, config)
+            result = await app.ainvoke(invocation_state, config)
             return result
 
 
-def run_fashion_agent(cfg):
+@track_token_use
+async def run_fashion_agent(cfg, callback_config):
     """Instantiates the pipeline environment and triggers agentic execution.
 
     Operates as the primary entry point for executing the LangGraph agent. It
@@ -448,20 +496,17 @@ def run_fashion_agent(cfg):
         cfg (DictConfig): The global Hydra configuration object dictating system
             parameters, model weights, and database connections.
     """
-    # setup callback config
-    callback = UsageMetadataCallbackHandler()
-    callback_config = {"callbacks": [callback]}
     # run fashion agent
     log.debug("Running fashion agent.")
     agent = FashionAgent(cfg, callback_config)
     initial_state = {
         "has_input_images": True,
         "input_images_path": [cfg.misc.input_image_path_01],
+        "num_times_critiqued": 0,  # not used
         "input_text": (
             "Please provide 3 jeans pants that will go well with the uploaded shirt."
         ),
     }
     config = {"configurable": {"thread_id": cfg.rag_pipeline.persistence.thread_id}}
-    result = agent.invoke(initial_state, config, cfg.rag_pipeline.persistence.db_path)
+    result = await agent.ainvoke(initial_state, config, cfg.rag_pipeline.persistence.db_path)
     log.debug(f"Result: {result}")
-    update_token_use(cfg, callback.usage_metadata)

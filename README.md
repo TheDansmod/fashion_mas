@@ -104,6 +104,8 @@ This is just a first pass version of the agentic system.
 33. 2026-03-13 21:44 The langchain chat mistral ai integration does seem to support images, but due to the rate limit, I think it only supports low resolution images which makes things a little difficult for me since I rely heavily on the generated descriptions of images. 
 34. 2026-03-13 22:39 I just tested mistral with the old ollama code and things seem to have worked great. I'm thinking I won't use the create agent automated Re-Act setup since that does not demonstrate competence, but then, the goal is to quickly get something out rather than show a lot of skills.
 35. 2026-03-16 11:27 I have been able to setup and test an MCP server for a shipping agent. And the Mistral AI seems to have done well on it. I am currently working on creating a MCP server and client for the qdrant client. I will later be fixing the agent orchestration.
+36. 2026-03-16 17:24 I was fretting with Mistral requiring only text input as tool call results, but that is not the case - as I had expected. Even if we pass it a list of dicts with keys text and type (and should work with images identically), then it still works.
+37. 2026-03-16 20:51 I was able to get the code running with the MCP server. Now I just need to make a few changes - the self-correction loop, human interaction, and the UI.
 
 # Library Dependency and their purpose
 1. `langgraph` - agent orchestration. needed for the multi-agent system
@@ -122,6 +124,7 @@ This is just a first pass version of the agentic system.
 14. `langchain-mistralai` - this is used to invoke Mistral's AI APIs and LLM models (they have a pretty generous free tier)
 15. `langchain` - this is needed for creating my own tools
 16. `langchain-mcp-adapters` - this is used to create a mcp client which can be directly used by langchain
+17. `aiosqlite` - this is needed for asynchronous sqlite usage
 
 # TODOs
 4. Handle the case when the uploaded images are not that of clothes.

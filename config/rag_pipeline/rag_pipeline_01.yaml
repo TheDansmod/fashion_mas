@@ -3,14 +3,16 @@ persistence:
   db_path: data/pipeline_checkpoints.db
   # this is the name / id of the thread used for persistence (if you change the thread name, it becomes a new session)
   # need to create new thread id every time the schema changes
-  thread_id: dev_run_002
+  thread_id: dev_run_001
   # this flag controls if we are resuming from a previous checkpoint or if we are starting a new thread
-  resume_from_checkpoint: false
+  resume_from_checkpoint: true
 
 # TODO: put this under some sub-heading
 # this is to determine the number of recommendations to return to the user if the user does not specify how many recommendations they want
 default_num_recommendations: 3
 
-# this is how many times we will try to generate the correct number of recommendations
+# this is how many times we will try to generate the correct number of recommendations - in the modifier node
 num_recommendation_attempts: 3
 
+# this is the maximum number of times the critique node is allowed to critique the output of the recommendation node
+max_num_critiques: 3

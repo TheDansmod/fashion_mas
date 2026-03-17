@@ -13,17 +13,31 @@ def make_mistral_compatible(tool):
     """Wraps an MCP tool to ensure it returns a plain string."""
     def stringify_invoke(*args, **kwargs):
         tool_input = args[0] if args else kwargs
-        res = tool.invoke(tool_input)
-        if isinstance(res, list):
-            return "\n".join(b.get("text", "") if isinstance(b, dict) else str(b) for b in res)
-        return str(res)
+        response = tool.invoke(tool_input)
+        result = []
+        if isinstance(response, list):
+            for block in response:
+                if isinstance(block, dict):
+                    result.append({k: v for k, v in block.items() if k in ["type", "text"]})
+                else:
+                    result.append({"type": "text", "text": str(block)})
+            return result
+        else:
+            return str(response)
 
     async def stringify_ainvoke(*args, **kwargs):
         tool_input = args[0] if args else kwargs
-        res = await tool.ainvoke(tool_input)
-        if isinstance(res, list):
-            return "\n".join(b.get("text", "") if isinstance(b, dict) else str(b) for b in res)
-        return str(res)
+        response = await tool.ainvoke(tool_input)
+        result = []
+        if isinstance(response, list):
+            for block in response:
+                if isinstance(block, dict):
+                    result.append({k: v for k, v in block.items() if k in ["type", "text"]})
+                else:
+                    result.append({"type": "text", "text": str(block)})
+            return result
+        else:
+            return str(response)
 
     return StructuredTool.from_function(
         func=stringify_invoke,

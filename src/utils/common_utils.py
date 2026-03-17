@@ -126,19 +126,24 @@ def get_image_prompt_message(image_path=None, text_prompt=None, numpy_image=None
     ]
     return message
 
+
 def get_multi_image_prompt_message(image_paths, text_prompt):
     """Get langgraph compatible prompt containing an image and some text."""
     content = []
     for image_path in image_paths:
         image_data = encode_image(image_path)
-        content.append({
-            "type": "image_url",
-            "image_url": f"data:image/jpeg;base64,{image_data}",
-        })
-    content.append({
+        content.append(
+            {
+                "type": "image_url",
+                "image_url": f"data:image/jpeg;base64,{image_data}",
+            }
+        )
+    content.append(
+        {
             "type": "text",
             "text": text_prompt,
-    })
+        }
+    )
     message = [HumanMessage(content=content)]
     return message
 
@@ -353,6 +358,7 @@ def get_rate_limiter(cfg):
         rate_limiter = None
     return rate_limiter
 
+
 def get_llm_model(cfg):
     """Creates and returns an LLM model for use with appropriate rate limits."""
     provider = hydra.utils.instantiate(cfg.models.vlm_agent)
@@ -362,4 +368,3 @@ def get_llm_model(cfg):
         rate_limiter=get_rate_limiter(cfg),
     )
     return model
-

@@ -404,6 +404,7 @@ name = "fashion-mas"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "aiosqlite" },
     { name = "fastmcp" },
     { name = "h5py" },
     { name = "hydra-colorlog" },
@@ -430,6 +431,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "aiosqlite", specifier = ">=0.22.1" },
     { name = "fastmcp", specifier = ">=3.1.0" },
     { name = "h5py", specifier = ">=3.15.1" },
     { name = "hydra-colorlog", specifier = ">=1.2.0" },

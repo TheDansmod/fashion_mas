@@ -1,40 +1,59 @@
 import logging
 
-from langchain_mcp_adapters.client import MultiServerMCPClient  
 from langchain_core.tools import StructuredTool
-import json
+from langchain_mcp_adapters.client import MultiServerMCPClient
 
 log = logging.getLogger(__name__)
 
+
 def make_mistral_compatible(tool):
     """Wraps an MCP tool to ensure it returns a plain string."""
-    def stringify_invoke(*args, **kwargs):
+
+    def sanitize_response(response):
+        result = []
+        if isinstance(response, list):
+            for block in response:
+                if isinstance(block, dict):
+                    block_type = block["type"]
+                    if block_type == "text":
+                        result.append({"type": "text", "text": block["text"]})
+                    elif block_type == "image":
+                        result.append(
+                            {
+                                "type": "image_url",
+                                "image_url": f"data:{block['mime_type']};base64,{block['base64']}",
+                            }
+                        )
+                    else:
+                        raise ValueError("unexpected type")
+                else:
+                    # we default to converting the whole thing to string if element of
+                    # the list is not a dictionary
+                    result.append({"type": "text", "text": str(block)})
+            return result
+        else:
+            # we just default to string if response is not a list
+            return str(response)
+
+    def sync_wrapper(*args, **kwargs):
         tool_input = args[0] if args else kwargs
         response = tool.invoke(tool_input)
-        log.debug(f'{response=}')
-        if isinstance(response, list):
-            result = "\n".join(b.get("text", "") if isinstance(b, dict) else str(b) for b in response)
-        else:
-            result = str(response)
-        return result
+        return sanitize_response(response)
 
-    async def stringify_ainvoke(*args, **kwargs):
+    async def async_wrapper(*args, **kwargs):
         tool_input = args[0] if args else kwargs
         response = await tool.ainvoke(tool_input)
-        log.debug(f'{response=}')
-        if isinstance(response, list):
-            result = "\n".join(b.get("text", "") if isinstance(b, dict) else str(b) for b in response)
-        else:
-            result = str(response)
-        return result
+        log.debug(f"{len(response)=}\n{response=}")
+        return sanitize_response(response)
 
     return StructuredTool.from_function(
-        func=stringify_invoke,
-        coroutine=stringify_ainvoke,
+        func=sync_wrapper,
+        coroutine=async_wrapper,
         name=tool.name,
         description=tool.description,
         args_schema=tool.args_schema,
     )
+
 
 def get_mcp_client():
     client = MultiServerMCPClient(
@@ -47,12 +66,9 @@ def get_mcp_client():
     )
     return client
 
-async def run_client(cfg):
-    log.debug('running client')
-    client = get_mcp_client()
-    tools = await client.get_tools()
-    tools = [make_mistral_compatible(t) for t in tools]
-    tool_name = 'semantic_search'
+
+async def test_semantic_search(tools):
+    tool_name = "semantic_search"
     tool = None
     for t in tools:
         if t.name == tool_name:
@@ -62,13 +78,35 @@ async def run_client(cfg):
         categories = ["BOOTS", "BOAT SHOES & MOCCASINS"]
         num_matches = 3
         # response is a list of dicts
-        response = await tool.ainvoke({"description": description, "categories": categories, "num_matches": num_matches})
+        response = await tool.ainvoke(
+            {
+                "description": description,
+                "categories": categories,
+                "num_matches": num_matches,
+            }
+        )
         log.debug(response)
-        log.debug(type(response))
-        # for resp in response:
-        #     for key, value in resp.items():
-        #         if key == 'text':
-        #             value = json.dumps(json.loads(value), indent=2)
-        #         log.debug(f'{key}: {value}')
     else:
-        log.debug('tool not found')
+        log.debug("tool not found")
+
+
+async def test_product_categories(tools):
+    tool_name = "get_product_categories"
+    tool = None
+    for t in tools:
+        if t.name == tool_name:
+            tool = t
+    if tool:
+        response = await tool.ainvoke(dict())
+        log.debug(response)
+    else:
+        log.debug("tool not found")
+
+
+async def run_client(cfg):
+    log.debug("running client")
+    client = get_mcp_client()
+    tools = await client.get_tools()
+    tools = [make_mistral_compatible(t) for t in tools]
+    await test_semantic_search(tools)
+    await test_product_categories(tools)
