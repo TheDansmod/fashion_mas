@@ -132,9 +132,6 @@ class AgentState(BaseModel):
         required_clothes_descriptions (list[str]): These are a list of strings where
             each string describes a separate item of clothing. Together they are
             intended to satisfy the full user request.
-        recommended_clothes_images (list[int]): These are a list of indices of the
-            clothing items which matched the descriptions in
-            `required_clothes_descriptions`.
         recommended_clothes_explanation (list[str]): These are a list of explanations,
             one per clothing item recommended, each of which explains how that clothing
             item satisfies the user's request.
@@ -159,7 +156,6 @@ class AgentState(BaseModel):
     vlm_instructions: Optional[str] = Field(default_factory=str)
     input_images_descriptions: Optional[list[str]] = Field(default_factory=list)
     required_clothes_descriptions: Optional[list[str]] = Field(default_factory=list)
-    recommended_clothes_images: Optional[list[int]] = Field(default_factory=list)
     recommended_clothes_explanation: Optional[list[str]] = Field(default_factory=list)
     recommended_clothes_descriptions: Optional[list[str]] = Field(default_factory=list)
     recommended_clothes_image_paths: Optional[list[str]] = Field(default_factory=list)

@@ -106,6 +106,7 @@ This is just a first pass version of the agentic system.
 35. 2026-03-16 11:27 I have been able to setup and test an MCP server for a shipping agent. And the Mistral AI seems to have done well on it. I am currently working on creating a MCP server and client for the qdrant client. I will later be fixing the agent orchestration.
 36. 2026-03-16 17:24 I was fretting with Mistral requiring only text input as tool call results, but that is not the case - as I had expected. Even if we pass it a list of dicts with keys text and type (and should work with images identically), then it still works.
 37. 2026-03-16 20:51 I was able to get the code running with the MCP server. Now I just need to make a few changes - the self-correction loop, human interaction, and the UI.
+38. 2026-03-18 15:29 I am desperately trying to figure out how to integrate chainlit with the langgraph setup that I currently have, but there seems to be no end to the trouble. It either does not run or it runs multiple times messing up the langgraph loop. It also does not play well with hydra since it wants to have control over the launch. For the moment, I am going to go back to simple while loop and check if everything is working fine.
 
 # Library Dependency and their purpose
 1. `langgraph` - agent orchestration. needed for the multi-agent system

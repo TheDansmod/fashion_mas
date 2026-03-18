@@ -9,7 +9,7 @@ class MockAgent:
     def invoke(self, *args, **kwargs):
         if self.schema_name == "UpdatedUserRequest":
             # for human node
-            return {'structured_response': self.schema(relevant_image_indexes=[3, 5], updated_user_query="Mock updated user query.")}
+            return {'structured_response': self.schema(relevant_image_indexes=[0, 2], updated_user_query="Mock updated user query.")}
         else:
             raise NotImplementedError(f"invoking agent for this schema name {self.schema_name} is not implemented")
 
@@ -56,6 +56,7 @@ class ChatMockLLM:
                 raise NotImplementedError(f"Invoking model for this string prompt: {prompt} is not implemented")
         elif isinstance(prompt, list):
             for content in prompt[0].content:
+                # for explanation node
                 if content['type'] == 'text' and self.explanation_node_prompt_substring.lower() in content['text'].lower():
                     return self.explanation_node_return
             raise NotImplementedError(f"Mock LLM in list prompt could not find the right text: {prompt}")

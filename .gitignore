@@ -24,3 +24,5 @@ config/kaggle.json
 src/exploration/prices.txt
 # I have some random images being generated in this folder
 src/exploration/random_images/
+# can ignore .chainlit folder for now - it unnecessarily clutters the tracked files with the translations
+.chainlit/

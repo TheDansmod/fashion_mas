@@ -21,6 +21,6 @@ mcp:
   llm_tool_names:
     - semantic_search
     - get_product_categories
-  db_tool_name: get_fashion_gen_data
+  db_tool_name: get_datapoint_by_index
 
 temporary_images_folder: data/temp_images/

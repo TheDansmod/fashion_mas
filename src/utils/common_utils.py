@@ -315,37 +315,36 @@ def update_token_use(cfg, usage_metadata):
             )
 
 
-# TODO: uncomment this after testing
-# def track_token_use(func):
-#     """Decorator to track token usage for LLM calls - useful for Mistral."""
-#     if asyncio.iscoroutinefunction(func):
-# 
-#         @functools.wraps(func)
-#         async def wrapper(cfg, *args, **kwargs):
-#             callback = UsageMetadataCallbackHandler()
-#             callback_config = {"callbacks": [callback]}
-#             kwargs["callback_config"] = callback_config
-#             try:
-#                 result = await func(cfg, *args, **kwargs)
-#             finally:
-#                 update_token_use(cfg, callback.usage_metadata)
-#             return result
-# 
-#         return wrapper
-#     else:
-# 
-#         @functools.wraps(func)
-#         def wrapper(cfg, *args, **kwargs):
-#             callback = UsageMetadataCallbackHandler()
-#             callback_config = {"callbacks": [callback]}
-#             kwargs["callback_config"] = callback_config
-#             try:
-#                 result = func(cfg, *args, **kwargs)
-#             finally:
-#                 update_token_use(cfg, callback.usage_metadata)
-#             return result
-# 
-#         return wrapper
+def track_token_use(func):
+    """Decorator to track token usage for LLM calls - useful for Mistral."""
+    if asyncio.iscoroutinefunction(func):
+
+        @functools.wraps(func)
+        async def wrapper(cfg, *args, **kwargs):
+            callback = UsageMetadataCallbackHandler()
+            callback_config = {"callbacks": [callback]}
+            kwargs["callback_config"] = callback_config
+            try:
+                result = await func(cfg, *args, **kwargs)
+            finally:
+                update_token_use(cfg, callback.usage_metadata)
+            return result
+
+        return wrapper
+    else:
+
+        @functools.wraps(func)
+        def wrapper(cfg, *args, **kwargs):
+            callback = UsageMetadataCallbackHandler()
+            callback_config = {"callbacks": [callback]}
+            kwargs["callback_config"] = callback_config
+            try:
+                result = func(cfg, *args, **kwargs)
+            finally:
+                update_token_use(cfg, callback.usage_metadata)
+            return result
+
+        return wrapper
 
 
 def get_rate_limiter(cfg):
@@ -382,7 +381,7 @@ def get_tool_with_name(tools, search_name):
             tool = t
             break
     if not tool:
-        raise ValueError("DB tool not found")
+        raise ValueError(f"DB tool not found: {search_name}")
     return tool
 
 
@@ -409,7 +408,7 @@ def save_image_url_to_folder(folder_path: str, image_url: str) -> Path:
         image_data = base64.b64decode(image_url)
     with open(file_path, 'wb') as file:
         file.write(image_data)
-    return file_path
+    return str(file_path)
 
 def make_mistral_compatible(tool):
     """Wraps an MCP tool to ensure it returns a plain string."""

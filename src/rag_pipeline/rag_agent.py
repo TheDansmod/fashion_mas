@@ -34,6 +34,7 @@ from src.utils.common_utils import (
     get_multi_image_prompt_message,
     save_image_url_to_folder,
     make_mistral_compatible,
+    track_token_use,
 )
 
 log = logging.getLogger(__name__)
@@ -123,36 +124,23 @@ class FashionAgent:
             # update the user input so that the normal state update (which assumes first chat, can also serve for non-first chat situations
             updated_user_request = response["structured_response"]
             user_input["input_text"] = updated_user_request.updated_user_query
-            input_images_path = []
+            num_new_input_images = len(user_input.get("input_images_path", []))
+            input_images_path = user_input.get("input_images_path", [])
             # we want to already populate the input image descriptions since although we would be able to obtain descriptions later on from the llm, the descriptions in the fashion dataset often include things that are not apparent visually - like the material
-            input_images_descriptions = [""] * len(user_input.get("input_images_path", list())) # the multiplication is because we later extend the input image descriptions and the input image paths - so this keeps them aligned.
-            # save the input_images_path. some of the paths are for images in the hdf5 file, which must be fetched from mcp server and saved in a temporary folder
+            input_images_descriptions = [""] * num_new_input_images # the multiplication is because append the other values later
+            # save the input_images_path. some of the paths are for previously recommended images, so we take those from the state
             log.debug("Getting relevant images")
             for idx in updated_user_request.relevant_image_indexes:
                 if idx < base_len:
                     input_images_path.append(state.input_images_path[idx])
                     input_images_descriptions.append("")  # we append empty strings so that we can figure out in later nodes, which images need a description - we don't re-use the description of the image that we have already - the llm generated one - since this loop, we might need a description of an aspect of the image that is different from the aspect described in the previous loop
                 else:
-                    tools = await self._client.get_tools()
-                    tool = get_tool_with_name(tools, self._cfg.rag_pipeline.mcp.db_tool_name)
-                    img_idx = state.recommended_clothes_images[idx - base_len]
-                    response = await tool.ainvoke({"index": img_idx})
-                    image_url, image_descr = None, None
-                    for block in response:
-                        if 'image_url' in block:
-                            image_url = block['image_url']
-                        elif 'text' in block:
-                            image_descr = json.loads(block['text'])['input_description']
-                    if (image_url is None) or (image_descr is None):
-                        raise ValueError("Could not find either image or description")
-                    path = save_image_url_to_folder(self._cfg.rag_pipeline.temporary_images_folder, image_url)
-                    input_images_path.append(path)
-                    input_images_descriptions.append(image_descr)
+                    input_images_path.append(state.recommended_clothes_image_paths[idx - base_len])
+                    input_images_descriptions.append(state.recommended_clothes_descriptions[idx - base_len])
             log.debug("Got relevant images")
-            # we use extend since there might already be some images uploaded by the user in the new loop
-            user_input.setdefault("input_images_path", list()).extend(input_images_path)
             # we don't expect the user input to have input image descriptions
-            user_input.setdefault("input_images_descriptions", list()).extend(input_images_descriptions)
+            user_input['input_images_path'] = input_images_path
+            user_input['input_images_descriptions'] = input_images_descriptions
         num_input_images = len(user_input.get("input_images_path", []))
         state_update = {
                 "is_chat_start": False,
@@ -315,6 +303,7 @@ class FashionAgent:
         return {"required_clothes_descriptions": response.required_clothes_descriptions}
 
     async def recommender_node(self, state: AgentState) -> AgentState:
+        # TODO: adjust description - we no longer use recommended_clothes_images
         """Executes semantic similarity search within the vector embedding space.
 
         Transforms the target apparel descriptions into dense vector embeddings
@@ -353,18 +342,22 @@ class FashionAgent:
         tools = await self._client.get_tools()
         tool = get_tool_with_name(tools, self._cfg.rag_pipeline.mcp.db_tool_name)
         recommended_clothes_image_paths = []
-        for idx, img_idx in enumerate(recommended_clothes_images):
-            response = await tool.ainvoke({"index": img_idx})
+        recommended_clothes_descriptions = []
+        for img_index in recommended_clothes_images:
+            response = await tool.ainvoke({"index": img_index})
             image_url = None
             for block in response:
-                if 'image_url' in block:
-                    image_url = block['image_url']
-            if image_url is None:
+                if 'base64' in block:
+                    image_url = block['base64']
+                elif 'text' in block:
+                    image_descr = json.loads(block['text'])['description']
+            if (image_url is None) or (image_descr is None):
                 raise ValueError("Could not find either image or description")
             path = save_image_url_to_folder(self._cfg.rag_pipeline.temporary_images_folder, image_url)
             recommended_clothes_image_paths.append(path)
-        log.debug(f"recommended_clothes_images: {recommended_clothes_images}\nrecommended_clothes_image_paths: {recommended_clothes_image_paths}")
-        return {"recommended_clothes_images": recommended_clothes_images, "recommended_clothes_image_paths": recommended_clothes_image_paths}
+            recommended_clothes_descriptions.append(image_descr)
+        log.debug(f"recommended_clothes_image_paths: {recommended_clothes_image_paths}\n recommended_clothes_descriptions: {recommended_clothes_descriptions}")
+        return {"recommended_clothes_image_paths": recommended_clothes_image_paths, "recommended_clothes_descriptions": recommended_clothes_descriptions}
 
     def critique_node(self, state: AgentState) -> AgentState:
         """Critiques the recommendations and proposes suggestions.
@@ -401,7 +394,6 @@ class FashionAgent:
         """
         log.debug("Entered explanation node.")
         expl = []
-        reco_cloth_descr = []
         ref_descr = "\n".join(
             [
                 f"{idx + 1}. {img_descr}"
@@ -410,9 +402,7 @@ class FashionAgent:
         )
         descr_key = self._cfg.data.fashion_gen.descriptions_key
         img_key = self._cfg.data.fashion_gen.images_key
-        for img_id in state.recommended_clothes_images:
-            data = get_fashion_gen_data(self._cfg, from_idx=img_id, to_idx=img_id + 1)
-            img_descr = data[descr_key][0]
+        for img_path, img_descr in zip(state.recommended_clothes_image_paths, state.recommended_clothes_descriptions):
             if state.has_input_images:
                 text_prompt = (
                     self._cfg.prompts.explanation_node.images_present_prompt.format(
@@ -428,18 +418,15 @@ class FashionAgent:
                         user_request=state.input_text,
                     )
                 )
-            msg = get_image_prompt_message(
-                text_prompt=text_prompt, numpy_image=data[img_key][0]
-            )
+            msg = get_image_prompt_message(image_path=img_path, text_prompt=text_prompt)
             log.debug("Invoking model.")
             response = self._model.invoke(
                 msg, config=self._callback_config
             )  # vision prompt - unstructured
             log.debug("Received response from model.")
             expl.append(response.content)
-            reco_cloth_descr.append(img_descr)
         log.debug(f"Explanations from explanation_node:\n{expl}")
-        return {"recommended_clothes_explanation": expl, "recommended_clothes_descriptions": reco_cloth_descr}
+        return {"recommended_clothes_explanation": expl}
 
     def quantifier_node_router(
         self, state: AgentState
@@ -473,6 +460,7 @@ class FashionAgent:
         builder.add_node("explanation_node", self.explanation_node)
         # edges
         builder.add_edge(START, "human_node")
+        builder.add_edge("human_node", "quantifier_node")
         builder.add_conditional_edges(
             "quantifier_node", self.quantifier_node_router
         )
@@ -495,3 +483,29 @@ class FashionAgent:
     async def close_connection(self):
         if self._connection:
             await self._connection.close()
+
+@track_token_use
+async def run_fashion_agent(cfg, callback_config):
+    log.debug("running fashion agent")
+    agent = FashionAgent(cfg, callback_config)
+    try:
+        await agent.compile_graph(cfg.rag_pipeline.persistence.db_path)
+        config = {"configurable": {"thread_id": cfg.rag_pipeline.persistence.thread_id}}
+        result = await agent.ainvoke({"is_chat_start": True}, config)
+        while True:
+            input_text = input("Enter `quit` to exit gracefully. Please provide input text: ")
+            if input_text.strip().lower() == "quit":
+                log.info("Exiting gracefully.")
+                break
+            num_input_images = int(input("Enter number of input images: "))
+            input_images_path = []
+            for img_num in range(num_input_images):
+                path = input(f"Please provide the path to the input image {img_num + 1}: ")
+                input_images_path.append(path)
+            resume_payload = {"input_text": input_text, "input_images_path": input_images_path}
+            result = await agent.ainvoke(Command(resume=resume_payload), config=config)
+            if 'recommended_clothes_image_paths' in result:
+                for expl, path in zip(result["recommended_clothes_explanation"], result['recommended_clothes_image_paths']):
+                    log.info(f"Recommended Image Path: {path}\nExplanation: {expl}")
+    finally:
+        await agent.close_connection()
