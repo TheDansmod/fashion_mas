@@ -1,13 +1,21 @@
 """This file will contain commonly re-used utility functions."""
 
+from pathlib import Path
+import numpy as np
+import uuid
+import asyncio
 import base64
 import csv
+import functools
 import logging
 from datetime import datetime
 from io import BytesIO
 
 import hydra
+from langchain_core.tools import StructuredTool
+from langchain_core.callbacks import UsageMetadataCallbackHandler
 from langchain_core.messages import HumanMessage
+from langchain_core.rate_limiters import InMemoryRateLimiter
 from langchain_core.runnables.graph import MermaidDrawMethod
 from PIL import Image
 from qdrant_client import QdrantClient, models
@@ -69,11 +77,11 @@ def fetch_random_fashion_gen_images(cfg, num_images=3):
     from PIL import Image
 
     with h5py.File(cfg.data.fashion_gen.hdf5_path, "r") as file:
-        num_images = file["index"].shape[0]
+        num_datapoints = file["index"].shape[0]
         for i in range(num_images):
-            idx = random.randint(0, num_images - 1)
+            idx = random.randint(0, num_datapoints - 1)
             img = Image.fromarray(file["input_image"][idx].astype("uint8"))
-            img.save(cfg.misc.random_image_save_path.format(i))
+            img.save(cfg.misc.random_image_save_path.format(idx))
             log.debug(f"Saved image {i}")
 
 
@@ -120,6 +128,27 @@ def get_image_prompt_message(image_path=None, text_prompt=None, numpy_image=None
             ]
         )
     ]
+    return message
+
+
+def get_multi_image_prompt_message(image_paths, text_prompt):
+    """Get langgraph compatible prompt containing an image and some text."""
+    content = []
+    for image_path in image_paths:
+        image_data = encode_image(image_path)
+        content.append(
+            {
+                "type": "image_url",
+                "image_url": f"data:image/jpeg;base64,{image_data}",
+            }
+        )
+    content.append(
+        {
+            "type": "text",
+            "text": text_prompt,
+        }
+    )
+    message = [HumanMessage(content=content)]
     return message
 
 
@@ -284,3 +313,148 @@ def update_token_use(cfg, usage_metadata):
                     metadata["total_tokens"],
                 ]
             )
+
+
+# TODO: uncomment this after testing
+# def track_token_use(func):
+#     """Decorator to track token usage for LLM calls - useful for Mistral."""
+#     if asyncio.iscoroutinefunction(func):
+# 
+#         @functools.wraps(func)
+#         async def wrapper(cfg, *args, **kwargs):
+#             callback = UsageMetadataCallbackHandler()
+#             callback_config = {"callbacks": [callback]}
+#             kwargs["callback_config"] = callback_config
+#             try:
+#                 result = await func(cfg, *args, **kwargs)
+#             finally:
+#                 update_token_use(cfg, callback.usage_metadata)
+#             return result
+# 
+#         return wrapper
+#     else:
+# 
+#         @functools.wraps(func)
+#         def wrapper(cfg, *args, **kwargs):
+#             callback = UsageMetadataCallbackHandler()
+#             callback_config = {"callbacks": [callback]}
+#             kwargs["callback_config"] = callback_config
+#             try:
+#                 result = func(cfg, *args, **kwargs)
+#             finally:
+#                 update_token_use(cfg, callback.usage_metadata)
+#             return result
+# 
+#         return wrapper
+
+
+def get_rate_limiter(cfg):
+    """Sets up a rate limiter for the LLM agent."""
+    rps = cfg.models.rate_limiter.requests_per_second
+    check_int = cfg.models.rate_limiter.check_every_n_seconds
+    bucket_sz = cfg.models.rate_limiter.max_bucket_size
+    if cfg.models.vlm_agent.use_rate_limiter:
+        rate_limiter = InMemoryRateLimiter(
+            requests_per_second=rps,
+            check_every_n_seconds=check_int,
+            max_bucket_size=bucket_sz,
+        )
+    else:
+        rate_limiter = None
+    return rate_limiter
+
+
+def get_llm_model(cfg):
+    """Creates and returns an LLM model for use with appropriate rate limits."""
+    provider = hydra.utils.instantiate(cfg.models.vlm_agent)
+    model = provider(
+        model=cfg.models.vlm_agent.name,
+        temperature=cfg.models.vlm_agent.temp,
+        rate_limiter=get_rate_limiter(cfg),
+    )
+    return model
+
+def get_tool_with_name(tools, search_name):
+    """Given a list of mcp tools, returns the tool with the search name, or errors."""
+    tool = None
+    for t in tools:
+        if t.name == search_name:
+            tool = t
+            break
+    if not tool:
+        raise ValueError("DB tool not found")
+    return tool
+
+
+def save_numpy_image_to_folder(folder_path: str, image_array: np.ndarray) -> Path:
+    """Saves numpy image to temporary folder, returns path."""
+    directory = Path(folder_path)
+    directory.mkdir(parents=True, exist_ok=True)
+    filename = f"{uuid.uuid4()}.png"
+    file_path = directory / filename
+    image = Image.fromarray(image_array)
+    image.save(file_path)
+    return file_path
+
+def save_image_url_to_folder(folder_path: str, image_url: str) -> Path:
+    """Saves image_url to temporary folder, returns path."""
+    directory = Path(folder_path)
+    directory.mkdir(parents=True, exist_ok=True)
+    filename = f"{uuid.uuid4()}.png"
+    file_path = directory / filename
+    if "," in image_url:
+        base64_string = image_url.split(",")[1]
+        image_data = base64.b64decode(base64_string)
+    else:
+        image_data = base64.b64decode(image_url)
+    with open(file_path, 'wb') as file:
+        file.write(image_data)
+    return file_path
+
+def make_mistral_compatible(tool):
+    """Wraps an MCP tool to ensure it returns a plain string."""
+
+    def sanitize_response(response):
+        result = []
+        if isinstance(response, list):
+            for block in response:
+                if isinstance(block, dict):
+                    block_type = block["type"]
+                    if block_type == "text":
+                        result.append({"type": "text", "text": block["text"]})
+                    elif block_type == "image":
+                        result.append(
+                            {
+                                "type": "image_url",
+                                "image_url": f"data:{block['mime_type']};base64,{block['base64']}",
+                            }
+                        )
+                    else:
+                        raise ValueError("unexpected type")
+                else:
+                    # we default to converting the whole thing to string if element of
+                    # the list is not a dictionary
+                    result.append({"type": "text", "text": str(block)})
+            return result
+        else:
+            # we just default to string if response is not a list
+            return str(response)
+
+    def sync_wrapper(*args, **kwargs):
+        tool_input = args[0] if args else kwargs
+        response = tool.invoke(tool_input)
+        return sanitize_response(response)
+
+    async def async_wrapper(*args, **kwargs):
+        tool_input = args[0] if args else kwargs
+        response = await tool.ainvoke(tool_input)
+        return sanitize_response(response)
+
+    return StructuredTool.from_function(
+        func=sync_wrapper,
+        coroutine=async_wrapper,
+        name=tool.name,
+        description=tool.description,
+        args_schema=tool.args_schema,
+    )
+

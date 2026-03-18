@@ -1,3 +1,29 @@
+human_node:
+  # this is used to update the relevant images and to update the user prompt while taking into account the previous user prompt when the user gives some feedback or adjustment for the recommendations.
+  input_update_prompt: |
+    You are an expert fashion assistant. You have previously interacted with the user. Below I will be providing you with the following:
+      - original user input image descriptions (given only if the user had uploaded any images)
+      - original user text input (the original request of the user)
+      - response image descriptions (descriptions of images that you had replied with previously)
+      - new user input images (actual images, not their descriptions. Might not be present if the user does not upload any images on the new request)
+      - new user text input (the user might modify the original request, give a new request, ask for a modification of the response, etc)
+    Please synthesise the old interaction and the new user request and do the following:
+      - Each of the old image descriptions has an index for the image. If the old image(s) - either input or response - are relevant to the new user request, then please include the index of the relevant old image(s) in the returned value. For example, if the user in their new text input says, "I like the responses, but please show them in red" then that would mean that only the response images are relevant. So, your returned value should include the indices for the response images only.
+      - Combine the original user text input (if it is relevant) and the new user text input to create a fresh user query that comprehensively, but concisely states what the user wants. The goal here is that we should not have to refer to the original user request to successfully satisfy the users wants. For example, if the user says something like "Instead of pants, show me hats that go well with my uploaded shirt" then then new user query will be something along the lines of "Please suggest hats that go well with the uploaded shirt".
+    The newly uploaded images are assumed to be relevant in any case. Thus, your return value should have a list of indices of the relevant images, and a comprehensive, but concise string description of what the user wants now.
+
+    Original User Input Image Descriptions:
+    {original_image_descriptions}
+
+    Original User Text Input:
+    {original_text_input}
+
+    Response Image Descriptions:
+    {response_image_descriptions}
+
+    New User Text Input:
+    {new_text_input}
+
 quantifier_node:
   # this is to obtain the number of recommendations the user has asked for (if any)
   num_recommendations_prompt: |
@@ -43,6 +69,18 @@ modifier_node:
 filtration_node:
   category_choice_prompt: |
     You are an expert fashion assistant. Analyse the description of the clothing item provided below and assign one or more of following categories to it: {valid_categories}. Return a concise, plain string response mentioning the assigned categories.
+
+    Clothing Item Description:
+    {item_description}
+
+recommender_node:
+  match_clothes_prompt: |
+    You are an expert fashion assistant. Below, I will be providing you a textual description of an item of clothing. Please do the following:
+      - Get the available categories in the product catalogue
+      - Based on the available categories, assign one or more categories to the clothing item description
+      - Fetch some clothes that match that description (semantic search) from the product catalogue
+      - Evaluate which of the returned images best satisfy the clothing item description
+      - Return the id of the image which best satisfies the clothing item description
 
     Clothing Item Description:
     {item_description}

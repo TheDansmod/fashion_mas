@@ -11,6 +11,16 @@ persistence:
 # this is to determine the number of recommendations to return to the user if the user does not specify how many recommendations they want
 default_num_recommendations: 3
 
-# this is how many times we will try to generate the correct number of recommendations
+# this is how many times we will try to generate the correct number of recommendations - in the modifier node
 num_recommendation_attempts: 3
 
+# this is the maximum number of times the critique node is allowed to critique the output of the recommendation node
+max_num_critiques: 3
+
+mcp:
+  llm_tool_names:
+    - semantic_search
+    - get_product_categories
+  db_tool_name: get_fashion_gen_data
+
+temporary_images_folder: data/temp_images/
