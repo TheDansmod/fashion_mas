@@ -36,20 +36,19 @@ if not GlobalHydra.instance().is_initialized():
             config_name="config", overrides=[], return_hydra_config=True
         )
     hydra.core.utils.configure_log(cfg.hydra.job_logging, cfg.hydra.verbose)
+
+    # code start - this is here since we want to execute it just once
+    validate_hydra_config(cfg)
+
+    metadata_callback = UsageMetadataCallbackHandler()
+    callback_config = {"callbacks": [metadata_callback]}
+    agent = FashionAgent(cfg, callback_config)
 # this is to prevent a loop of watch files creating a log and hydra logging it and watchfiles logging that
 logging.getLogger("watchfiles.main").setLevel(logging.WARNING)
 
 @cl.on_chat_start
 async def start_chat():
-    validate_hydra_config(cfg)
-
-    metadata_callback = UsageMetadataCallbackHandler()
-    callback_config = {"callbacks": [metadata_callback, cl.LangchainCallbackHandler(stream_final_answer=True)]}
-    cl.user_session.set("metadata_callback", metadata_callback)
-
-    agent = FashionAgent(cfg, callback_config)
     await agent.compile_graph(cfg.rag_pipeline.persistence.db_path)
-    cl.user_session.set("agent", agent)
 
     config = {"configurable": {"thread_id": cl.context.session.id}}
     cl.user_session.set("config", config)
@@ -59,37 +58,30 @@ async def start_chat():
     ).send()
 
     result = await agent.ainvoke({"is_chat_start": True}, config=config)
-    print(result)
 
 @cl.on_message
 async def on_message(message: cl.Message):
-    agent = cl.user_session.get("agent")
+    if message.content == "quit":
+        await cl.Message(content="Chat session ended gracefully. Please refresh to start again.").send()
+        return
+
     config = cl.user_session.get("config")
 
     images = [el for el in (message.elements or []) if "image" in getattr(el, "mime", "")]
-    print(f"message content:", message.content)
     resume_payload = {
             "input_images_path": [img.path for img in images],
             "input_text": message.content,
     }
-    print("In on_message, invoking agent.")
     result = await agent.ainvoke(Command(resume=resume_payload), config=config)
-    response_images = []
-    for path in result['recommended_clothes_image_paths']:
-        image = cl.Image(path=path, name='image 1', display='inline')
-        response_images.append(image)
-    await cl.Message(content=f"Referencing the images in order: {'\n'.join(result['recommended_clothes_explanation'])}").send()
-
-    # state = await agent._graph.get_state(config)
-    # if not state.next:
-    #     await cl.Message(content="Chat session ended gracefully. Please refresh to start again.").send()
-    #     return
+    if 'recommended_clothes_image_paths' in result:
+        response_images = []
+        for path in result['recommended_clothes_image_paths']:
+            image = cl.Image(path=path, name='image 1', display='inline')
+            response_images.append(image)
+        await cl.Message(content=f"Referencing the images in order: {'\n'.join(result['recommended_clothes_explanation'])}").send()
 
 @cl.on_chat_end
 async def end_chat():
-    metadata_callback = cl.user_session.get("metadata_callback") 
-    agent = cl.user_session.get("agent")
-
     update_token_use(cfg, metadata_callback.usage_metadata)
     print("updated token use")
     if agent:

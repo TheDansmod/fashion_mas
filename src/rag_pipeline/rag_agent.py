@@ -99,10 +99,6 @@ class FashionAgent:
         """
         user_input = interrupt("Waiting for user input...")
         log.debug("Entered human node")
-        log.debug(f"get from user input: {user_input.get('input_text', "").strip().lower()}")
-        if user_input.get("input_text", "").strip().lower() == "quit":
-            log.debug("human input is not quit")
-            return state
         if not state.is_chat_start:
             # extract all info needed for building new user request
             log.debug("Not chat start")
@@ -463,21 +459,6 @@ class FashionAgent:
         """
         return "intent_node" if state.has_input_images else "modifier_node"
 
-    def human_node_router(self, state: AgentState) -> Literal["__end__", "quantifier_node"]:
-        """Goes it end if user inputs quit, else continues on like normal.
-
-        Args:
-            state (AgentState): The current multidimensional state vector.
-
-        Returns:
-            Literal["__end__", "quantifier_node"]: The deterministic string identifier
-                of the subsequent vertex in the execution graph.
-        """
-        if state.input_text.strip().lower() == "quit":
-            return END
-        else:
-            return "quantifier_node"
-
     async def compile_graph(self, conn_string):
         self._connection = await aiosqlite.connect(conn_string)
         checkpointer = AsyncSqliteSaver(self._connection)
@@ -492,7 +473,6 @@ class FashionAgent:
         builder.add_node("explanation_node", self.explanation_node)
         # edges
         builder.add_edge(START, "human_node")
-        builder.add_conditional_edges("human_node", self.human_node_router)
         builder.add_conditional_edges(
             "quantifier_node", self.quantifier_node_router
         )
