@@ -125,6 +125,7 @@ This is just a first pass version of the agentic system.
 15. `langchain` - this is needed for creating my own tools
 16. `langchain-mcp-adapters` - this is used to create a mcp client which can be directly used by langchain
 17. `aiosqlite` - this is needed for asynchronous sqlite usage
+18. `chainlit` - this is for the UI
 
 # TODOs
 4. Handle the case when the uploaded images are not that of clothes.

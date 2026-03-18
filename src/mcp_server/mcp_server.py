@@ -34,6 +34,8 @@ logging.basicConfig(
 
 log = logging.getLogger(__name__)
 
+mcp = FastMCP("Product Catalogue MCP Server")
+
 class ProductCatalogueMCPServer:
     def __init__(self, connector, embedder):
         self._connector = connector
@@ -48,7 +50,7 @@ class ProductCatalogueMCPServer:
                 "category": match["input_category"][0],
                 "description": match["input_description"][0],
                 "id": match["index_2"][0],
-                "score": match["score"],
+                "score": match.get('score', 0),
             }
             text_content = TextContent(type="text", text=json.dumps(metadata))
             image_content = ImageContent(
@@ -88,6 +90,12 @@ class ProductCatalogueMCPServer:
         )
         log.info("DANISH: returning some matches.")
         return self._reformat_image_data(matches)
+
+    @tool
+    def get_datapoint_by_index(self, index: int):
+        """Get a datapoint, including image and metadata, using index in db."""
+        data = get_fashion_gen_data(from_idx=index, to_idx=index+1)
+        return self._reformat_image_data([data])
 
     @tool
     def get_product_categories(self) -> list[str]:
@@ -143,7 +151,6 @@ class ProductCatalogueMCPServer:
             "POCKET SQUARES & TIE BARS",
             "SHOULDER BAGS",
         ]
-
 
 class QdrantConnector:
     def __init__(self, url, collection_name):
@@ -394,7 +401,7 @@ if __name__ == "__main__":
     )
     embedder = FashionSigLIPEmbedding()
     server = ProductCatalogueMCPServer(connector=connector, embedder=embedder)
-    mcp = FastMCP("Product Catalogue MCP Server")
     mcp.add_tool(server.semantic_search)
     mcp.add_tool(server.get_product_categories)
-    mcp.run(transport="http", port=8000)
+    mcp.add_tool(server.get_datapoint_by_index)
+    mcp.run(transport="http", port=9000)

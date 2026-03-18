@@ -5,7 +5,7 @@ persistence:
   # need to create new thread id every time the schema changes
   thread_id: dev_run_001
   # this flag controls if we are resuming from a previous checkpoint or if we are starting a new thread
-  resume_from_checkpoint: true
+  resume_from_checkpoint: false
 
 # TODO: put this under some sub-heading
 # this is to determine the number of recommendations to return to the user if the user does not specify how many recommendations they want
@@ -16,3 +16,11 @@ num_recommendation_attempts: 3
 
 # this is the maximum number of times the critique node is allowed to critique the output of the recommendation node
 max_num_critiques: 3
+
+mcp:
+  llm_tool_names:
+    - semantic_search
+    - get_product_categories
+  db_tool_name: get_fashion_gen_data
+
+temporary_images_folder: data/temp_images/

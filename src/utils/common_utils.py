@@ -1,5 +1,8 @@
 """This file will contain commonly re-used utility functions."""
 
+from pathlib import Path
+import numpy as np
+import uuid
 import asyncio
 import base64
 import csv
@@ -9,6 +12,7 @@ from datetime import datetime
 from io import BytesIO
 
 import hydra
+from langchain_core.tools import StructuredTool
 from langchain_core.callbacks import UsageMetadataCallbackHandler
 from langchain_core.messages import HumanMessage
 from langchain_core.rate_limiters import InMemoryRateLimiter
@@ -311,36 +315,37 @@ def update_token_use(cfg, usage_metadata):
             )
 
 
-def track_token_use(func):
-    """Decorator to track token usage for LLM calls - useful for Mistral."""
-    if asyncio.iscoroutinefunction(func):
-
-        @functools.wraps(func)
-        async def wrapper(cfg, *args, **kwargs):
-            callback = UsageMetadataCallbackHandler()
-            callback_config = {"callbacks": [callback]}
-            kwargs["callback_config"] = callback_config
-            try:
-                result = await func(cfg, *args, **kwargs)
-            finally:
-                update_token_use(cfg, callback.usage_metadata)
-            return result
-
-        return wrapper
-    else:
-
-        @functools.wraps(func)
-        def wrapper(cfg, *args, **kwargs):
-            callback = UsageMetadataCallbackHandler()
-            callback_config = {"callbacks": [callback]}
-            kwargs["callback_config"] = callback_config
-            try:
-                result = func(cfg, *args, **kwargs)
-            finally:
-                update_token_use(cfg, callback.usage_metadata)
-            return result
-
-        return wrapper
+# TODO: uncomment this after testing
+# def track_token_use(func):
+#     """Decorator to track token usage for LLM calls - useful for Mistral."""
+#     if asyncio.iscoroutinefunction(func):
+# 
+#         @functools.wraps(func)
+#         async def wrapper(cfg, *args, **kwargs):
+#             callback = UsageMetadataCallbackHandler()
+#             callback_config = {"callbacks": [callback]}
+#             kwargs["callback_config"] = callback_config
+#             try:
+#                 result = await func(cfg, *args, **kwargs)
+#             finally:
+#                 update_token_use(cfg, callback.usage_metadata)
+#             return result
+# 
+#         return wrapper
+#     else:
+# 
+#         @functools.wraps(func)
+#         def wrapper(cfg, *args, **kwargs):
+#             callback = UsageMetadataCallbackHandler()
+#             callback_config = {"callbacks": [callback]}
+#             kwargs["callback_config"] = callback_config
+#             try:
+#                 result = func(cfg, *args, **kwargs)
+#             finally:
+#                 update_token_use(cfg, callback.usage_metadata)
+#             return result
+# 
+#         return wrapper
 
 
 def get_rate_limiter(cfg):
@@ -368,3 +373,88 @@ def get_llm_model(cfg):
         rate_limiter=get_rate_limiter(cfg),
     )
     return model
+
+def get_tool_with_name(tools, search_name):
+    """Given a list of mcp tools, returns the tool with the search name, or errors."""
+    tool = None
+    for t in tools:
+        if t.name == search_name:
+            tool = t
+            break
+    if not tool:
+        raise ValueError("DB tool not found")
+    return tool
+
+
+def save_numpy_image_to_folder(folder_path: str, image_array: np.ndarray) -> Path:
+    """Saves numpy image to temporary folder, returns path."""
+    directory = Path(folder_path)
+    directory.mkdir(parents=True, exist_ok=True)
+    filename = f"{uuid.uuid4()}.png"
+    file_path = directory / filename
+    image = Image.fromarray(image_array)
+    image.save(file_path)
+    return file_path
+
+def save_image_url_to_folder(folder_path: str, image_url: str) -> Path:
+    """Saves image_url to temporary folder, returns path."""
+    directory = Path(folder_path)
+    directory.mkdir(parents=True, exist_ok=True)
+    filename = f"{uuid.uuid4()}.png"
+    file_path = directory / filename
+    if "," in image_url:
+        base64_string = image_url.split(",")[1]
+        image_data = base64.b64decode(base64_string)
+    else:
+        image_data = base64.b64decode(image_url)
+    with open(file_path, 'wb') as file:
+        file.write(image_data)
+    return file_path
+
+def make_mistral_compatible(tool):
+    """Wraps an MCP tool to ensure it returns a plain string."""
+
+    def sanitize_response(response):
+        result = []
+        if isinstance(response, list):
+            for block in response:
+                if isinstance(block, dict):
+                    block_type = block["type"]
+                    if block_type == "text":
+                        result.append({"type": "text", "text": block["text"]})
+                    elif block_type == "image":
+                        result.append(
+                            {
+                                "type": "image_url",
+                                "image_url": f"data:{block['mime_type']};base64,{block['base64']}",
+                            }
+                        )
+                    else:
+                        raise ValueError("unexpected type")
+                else:
+                    # we default to converting the whole thing to string if element of
+                    # the list is not a dictionary
+                    result.append({"type": "text", "text": str(block)})
+            return result
+        else:
+            # we just default to string if response is not a list
+            return str(response)
+
+    def sync_wrapper(*args, **kwargs):
+        tool_input = args[0] if args else kwargs
+        response = tool.invoke(tool_input)
+        return sanitize_response(response)
+
+    async def async_wrapper(*args, **kwargs):
+        tool_input = args[0] if args else kwargs
+        response = await tool.ainvoke(tool_input)
+        return sanitize_response(response)
+
+    return StructuredTool.from_function(
+        func=sync_wrapper,
+        coroutine=async_wrapper,
+        name=tool.name,
+        description=tool.description,
+        args_schema=tool.args_schema,
+    )
+
