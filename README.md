@@ -1,6 +1,26 @@
-# Goal
-1. To create a multi-agent system that can do fashion recommendation
-2. It should be able to take as input both images (of clothing items) and text (description, modifiers, etc) and search a product database and produce recommended items and explain why it made those recommendations
+# FRAG: The Fashion Recommendation Agent
+A multi-modal, multi-agent RAG framework for getting clothing item recommendations from a product catalogue.
+
+# Demo
+
+# Features
+1. A stateful multi-agent pipeline using LangGraph with conditional branching and specialised nodes for intent parsing, visual feature extraction, retrieval, self-correction, and explanation.
+2. A **self-correcting RAG** loop inspired by Self-RAG, where a critique agent evaluates retrieval quality and feeds structured correction signals back into the generation stage."
+3. Uses a domain-specific multi-modal embedding model (marqo-fashionSigLIP) for cross-modal semantic search, enabling image-to-image and text-to-image retrieval across a 260k-item vector database - which acts as an analogue to the product catalogue.
+4. A production-grade **MCP server** (with streamable HTTP transport) exposing a Qdrant vector database as LLM-consumable tools, following the Model Context Protocol standard."
+5. Incorporates stateful multi-turn conversation with cross-turn image reference tracking and SQLite-backed checkpoint persistence for session resumability.
+6. Async-first agentic backend with real-time streaming updates to a **Chainlit UI**, including per-session token usage monitoring for API rate limit management, along with **LangSmith observability** for enhanced debugging.
+
+# Install and Run Instructions
+1. Clone git repo
+2. Run `uv sync` from root directory
+3. Create the folder for the vector db: `mkdir -p data/qdrant_storate/`
+4. Install podman / docker and run `podman run -d --name qdrant-server -p 6333:6333 -p 6334:6334 -v "$(pwd)/data/qdrant_storage:/qdrant/storage:z" docker.io/qdrant/qdrant:latest` to download and setup the docker container. This is only needed when creating the container for the first time.
+5. If the container already exists, just need to run `podman start qdrant-server` in order to start it.
+6. Download the dataset using the kaggle CLI: `kaggle datasets download -d bothin/fashiongen-validation` or download from [here](https://www.kaggle.com/datasets/bothin/fashiongen-validation) and save to `DATAPATH`.
+6. The project uses the Mistral API by default, so need to have a `.env` file at root level with `MISTRAL_API_KEY=<key>`
+7. Start the mcp server: `uv run src/mcp_server/mcp_server.py --datapath DATAPATH`
+8. Start the chainlit UI: `uv run chainlit run app.py` or run the application in the terminal - without chainlit: `uv run cli_main.py`
 
 # Implementation Details
 1. We will be using the Fashion-Gen dataset in an MCP server as our product database (the MCP server will come later, for now, just langgraph and Qdrant)
@@ -108,6 +128,8 @@ This is just a first pass version of the agentic system.
 37. 2026-03-16 20:51 I was able to get the code running with the MCP server. Now I just need to make a few changes - the self-correction loop, human interaction, and the UI.
 38. 2026-03-18 15:29 I am desperately trying to figure out how to integrate chainlit with the langgraph setup that I currently have, but there seems to be no end to the trouble. It either does not run or it runs multiple times messing up the langgraph loop. It also does not play well with hydra since it wants to have control over the launch. For the moment, I am going to go back to simple while loop and check if everything is working fine.
 39. 2026-03-19 08:07 Things seem to be working fine with chainlit now, but the recommendations are still not very good, perhaps you need to add a critique node after all? It took around 10k total tokens for a single run with mistral.
+40. 2026-03-19 17:31 I have added the critique node which might help improve recommendations. I tried using the mistral-large-2411 model, but it is pretty terrible. It could not even get the number of recommendations right. I have switched back to mistral-large-latest which has a monthly limit of 4 million tokens - so at 10k tokens I only get 400 tries per month. I am going to try mistral-medium-latest since that does not seem to have any monthly limits.
+41. 2026-03-19 18:31 I have generated some video of the code running. I need to now trim it and upload it, clean up the readme a little, and I will have a full project!
 
 # Library Dependency and their purpose
 1. `langgraph` - agent orchestration. needed for the multi-agent system
@@ -261,3 +283,9 @@ where 6333 is the rest api, 6334 is the grpc api; :z applies a shared SELinux la
 4. `mcp_server.py` - conatains the QdrantMCPServer - the init fn sets up the embedding provider, the connection to the qdrant server - either local or through url and an async qdrant client with store and search functionality with filters, and calls the setup tools function
 5. `setup_tools` in `mcp_server.QdrantMCPServer` - defines two async functions find and store (those actually available as tools) which take in the context and the search string or the data to save - the string and metadata. it invokes the store and search functions from the qdrant connection after using the embeddings
 6. I am not 100% certain about this, but I think before invoking these guys we need to setup the QdrantSettings in some way - the provided code is just a template.
+
+
+# Video trimming
+```
+ffmpeg -ss 00:00:12 -to 00:01:40 -i fashion_agent_demo_raw.mkv -c:v libx264 -crf 18 -preset slow -an fashion_agent_demo.mp4
+```

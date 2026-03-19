@@ -164,7 +164,7 @@ class AgentState(BaseModel):
     vlm_instructions: Optional[str] = Field(default_factory=str)
     input_images_descriptions: Optional[list[str]] = Field(default_factory=list)
     required_clothes_descriptions: Optional[list[str]] = Field(default_factory=list)
-    recommended_clothes_explanation: Optional[list[str]] = Field(default_factory=list)
+    recommended_clothes_explanation: Optional[str] = Field(default_factory=str)
     recommended_clothes_descriptions: Optional[list[str]] = Field(default_factory=list)
     recommended_clothes_image_paths: Optional[list[str]] = Field(default_factory=list)
 

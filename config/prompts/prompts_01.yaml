@@ -91,28 +91,10 @@ recommender_node:
 
 critique_node:
   critique_prompt: |
-    You are an expert fashion assistant. You are provided with the user's uploaded images (if any) and the user request, along with images of products intended to completely satisfy the user's request and their descriptions. Please carefully analyse the request and the recommendations and give a Yes or No answer as to whether the recommendations satisfy the request. If they don't, then give a concise 2 sentence or smaller fix for how to satisfy the user request.
+    You are an expert fashion assistant. You are provided with the user's uploaded images (if any) and the user request, along with descriptions of products intended to completely satisfy the user's request. Please carefully analyse the request and the recommendations and give a Yes or No answer as to whether the recommendations satisfy the request. If they don't, then give a concise 3 sentence or smaller fix of what was wrong with the recommendations and what not to do.
 
 explanation_node:
   # this prompt is to explain the recommended items when input images are present
-  images_present_prompt: |
-    You are a proficient fashion assistant. Use the uploaded recommended image, the recommended image description, the reference clothes descriptions, and the user request (which could have multiple parts), to explain how the recommended image successfully satisfies a concrete part or all of the user's request. The reference clothes descriptions and the user requests were obtained from the user. If the recommended image description does not satisfy the user request appropriately, please mention that it does not satisfy the user request and give a rating from 1 to 10, on how well it satisfies the user request. For example, if the user asked for a shirt, but the recommendation image describes a cap, then give the lowest possible of 1 point.
+  explanation_prompt: |
+    You are a proficient fashion assistant. You are provided with the user's uploaded images (if any) and the user request, along with images of the recommended products and their descriptions. Please explain how the recommended products successfully satisfy the user's request.
 
-    Recommended Image Description:
-    {recommended_image_description}
-
-    Reference Clothes Descriptions:
-    {reference_descriptions}
-
-    User Request:
-    {user_request}
-
-  # this prompt is to explain the recommended items when input images are absent
-  images_absent_prompt: |
-    You are an expert fashion assistant. Use the uploaded recommended image, the recommended image description, and the user request (which could have multiple parts), to explain how the recommended image successfully satisfies a concrete part or all of the user's request. The reference clothes descriptions and the user requests were obtained from the user. If the recommended image description does not satisfy the user request appropriately, please mention that it does not satisfy the user request and give a rating from 1 to 10, on how well it satisfies the user request. For example, if the user asked for a shirt, but the recommendation image describes a cap, then give the lowest possible of 1 point.
-
-    Recommended Image Description:
-    {recommended_image_description}
-
-    User Request:
-    {user_request}

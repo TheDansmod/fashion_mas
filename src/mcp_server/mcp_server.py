@@ -11,6 +11,7 @@ works.
 8. Later we can increase the information returned by matched image
 """
 
+import argparse
 import base64
 import json
 import logging
@@ -267,7 +268,7 @@ def get_fashion_gen_data(from_idx, to_idx):
     index_key = "index_2"
     num_datapoints = 260490
     codec = "latin-1"
-    hdf5_path = r"/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/fashiongen_256_256_train.h5"
+    hdf5_path = args.datapath
     string_attributes = [
         "input_brand",
         "input_category",
@@ -394,8 +395,14 @@ class FashionSigLIPEmbedding:
         text_results = self.get_text_embedding_batch(texts)
         return list(zip(img_results, text_results))
 
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--datapath', type=str, default="/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/fashiongen_256_256_train.h5", help="Path to the hdf5 file for the fashion gen dataset")
+    args = parser.parse_args()
+    return args
 
 if __name__ == "__main__":
+    args = get_args()
     connector = QdrantConnector(
         url="http://localhost:6333", collection_name="fashion_gen"
     )

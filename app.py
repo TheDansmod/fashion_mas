@@ -21,10 +21,10 @@ from src.utils.common_utils import update_token_use
 # The .env file should contain `HYDRA_FULL_ERROR=1` to see a full stacktrace in case
 # of error.
 # The .env file should also have the HF_TOKEN value from huggingface for vision model
-# access.
+# access - not mandatory.
 # The .env file should populate langsmith endpoints like `LANGSMITH_TRACING=true`,
 # `LANGSMITH_PROJECT=<project_name>`, `LANGSMITH_API_KEY`, `LANGSMITH_ENDPOINT=<eu/us>`.
-# The .env file should have a key for google AI api calls: `GOOGLE_API_KEY=<key>`
+# The .env file should have a key for mistral api key: `MISTRAL_API_KEY=<key>`
 
 # having to do this since chainlit and hydra both want to start the app and I have
 # decided to get chainlit to do the startup. Chainlit loads the run file as a module
@@ -86,12 +86,13 @@ async def on_message(message: cl.Message):
                     step.output = f"unknown node {node_name}"
 
     paths = accumulated_state.get("recommended_clothes_image_paths", [])
-    explanations = accumulated_state.get("recommended_clothes_explanation", [])
+    expl = accumulated_state.get("recommended_clothes_explanation", "")
 
-    if paths and explanations:
-        for expl, path in zip(explanations, paths):
-            image = cl.Image(path=path, name='image 1', display='inline')
-            await cl.Message(content=expl, elements=[image]).send()
+    if paths and expl:
+        images = []
+        for path in paths:
+            images.append(cl.Image(path=path, name='image 1', display='inline'))
+        await cl.Message(content=expl, elements=images).send()
     else:
         await cl.Message(content="No recommendations could be found for your request.").send()
 
@@ -104,6 +105,6 @@ async def end_chat():
         print("closed connection")
         await agent.close_connection()
 
-    # temp_dir_path = Path(cfg.rag_pipeline.temporary_images_folder)
-    # if temp_dir_path.exists() and temp_dir_path.is_dir():
-    #     shutil.rmtree(temp_dir_path)
+    temp_dir_path = Path(cfg.rag_pipeline.temporary_images_folder)
+    if temp_dir_path.exists() and temp_dir_path.is_dir():
+        shutil.rmtree(temp_dir_path)

@@ -56,6 +56,6 @@ NODE_META = {
     ),
     "explanation_node": (
         "Explanation Node 💬",
-        lambda u: "Generated recommendation rationales.",
+        lambda u: "Generated recommendation rationale.",
     ),
 }

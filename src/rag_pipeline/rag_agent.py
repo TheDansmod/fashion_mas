@@ -6,18 +6,14 @@ from typing import Literal
 from uuid import uuid4
 
 import aiosqlite
-# TODO: fix in test
-# from langchain.agents import create_agent
-from src.utils.mock_llm_agent_03 import mock_create_agent as create_agent
+from langchain.agents import create_agent
+# from src.utils.mock_llm_agent_03 import mock_create_agent as create_agent
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel, Field
 from langgraph.types import interrupt, Command
 
-from src.data_manager.vector_db_writer import (
-    get_fashion_gen_data,
-)
 from src.rag_pipeline.llm_schemas import (
     MatchedImageId,
     NumRecommendations,
@@ -120,7 +116,7 @@ class FashionAgent:
             msg = get_multi_image_prompt_message(user_input.get("input_images_path", []), text_prompt=prompt)
             # create and invoke agent
             log.debug("Invoking agent")
-            agent = create_agent(model=self._model, response_format=UpdatedUserRequest, debug=True)
+            agent = create_agent(model=self._model, response_format=UpdatedUserRequest, debug=False)
             response = await agent.ainvoke({"messages": msg}, config=self._callback_config)
             log.debug("Got agent response")
             # update the user input so that the normal state update (which assumes first chat, can also serve for non-first chat situations
@@ -331,7 +327,7 @@ class FashionAgent:
             model=self._model,
             tools=tools,
             response_format=MatchedImageId,
-            debug=True,
+            debug=False,
         )
         template = self._cfg.prompts.recommender_node.match_clothes_prompt
         for descr in state.required_clothes_descriptions:
@@ -377,7 +373,7 @@ class FashionAgent:
 
         Returns:
             AgentState: The updated state dictionary containing the
-                `recommended_clothes_explanation` array.
+                `num_times_critiqued` and `critique_text`.
         """
         # check if we are done with critiquing
         log.debug("Entered critique node.")
@@ -387,10 +383,9 @@ class FashionAgent:
         prompts = []
         for img_path in state.input_images_path:
             prompts.append(("image", img_path))
-        prompts.append(("text", f"All the above are user input images.\nThe user request is\n{state.input_text}."))
-        for img_path, img_descr in zip(state.recommended_clothes_image_paths, state.recommended_clothes_descriptions):
-            prompts.append(("image", img_path))
-            prompts.append(("text", f"The above image is a recommended item of clothing. Its description is: {img_descr}."))
+        prompts.append(("text", f"All the above are user input images.\n\nThe user request is: {state.input_text}\n\n"))
+        for idx, img_descr in enumerate(state.recommended_clothes_descriptions):
+            prompts.append(("text", f"Description of Item {idx + 1}: {img_descr}\n\n"))
         prompts.append(("text", self._cfg.prompts.critique_node.critique_prompt))
         msg = get_multi_image_multi_prompt_message(prompts)
         # make and invoke the model
@@ -419,41 +414,21 @@ class FashionAgent:
                 `recommended_clothes_explanation` array.
         """
         log.debug("Entered explanation node.")
-        expl = []
-        # descriptions of user input clothing items
-        ref_descr = "\n".join(
-            [
-                f"{idx + 1}. {img_descr}"
-                for idx, img_descr in enumerate(state.input_images_descriptions)
-            ]
-        )
-        descr_key = self._cfg.data.fashion_gen.descriptions_key
-        img_key = self._cfg.data.fashion_gen.images_key
-        for img_path, img_descr in zip(state.recommended_clothes_image_paths, state.recommended_clothes_descriptions):
-            if state.has_input_images:
-                text_prompt = (
-                    self._cfg.prompts.explanation_node.images_present_prompt.format(
-                        reference_descriptions=ref_descr,
-                        recommended_image_description=img_descr,
-                        user_request=state.input_text,
-                    )
-                )
-            else:
-                text_prompt = (
-                    self._cfg.prompts.explanation_node.images_absent_prompt.format(
-                        recommended_image_description=img_descr,
-                        user_request=state.input_text,
-                    )
-                )
-            msg = get_image_prompt_message(image_path=img_path, text_prompt=text_prompt)
-            log.debug("Invoking model.")
-            response = self._model.invoke(
-                msg, config=self._callback_config
-            )  # vision prompt - unstructured
-            log.debug("Received response from model.")
-            expl.append(response.content)
-        log.debug(f"Explanations from explanation_node:\n{expl}")
-        return {"recommended_clothes_explanation": expl}
+        # create prompt
+        prompts = []
+        for img_path in state.input_images_path:
+            prompts.append(("image", img_path))
+        prompts.append(("text", f"All the above are user input images.\n\nThe user request is: {state.input_text}\n\n"))
+        for idx, img_descr in enumerate(state.recommended_clothes_descriptions):
+            prompts.append(("image", state.recommended_clothes_image_paths[idx]))
+            prompts.append(("text", f"Above is Recommended Image {idx + 1}.\nDescription of Item {idx + 1}: {img_descr}\n\n"))
+        prompts.append(("text", self._cfg.prompts.explanation_node.explanation_prompt))
+        msg = get_multi_image_multi_prompt_message(prompts)
+        # invoke model
+        log.debug("Invoking model")
+        response = self._model.invoke(msg)
+        log.debug("Got response: {response.content}")
+        return {"recommended_clothes_explanation": response.content}
 
     def quantifier_node_router(
         self, state: AgentState
@@ -550,7 +525,10 @@ async def run_fashion_agent(cfg, callback_config):
             resume_payload = {"input_text": input_text, "input_images_path": input_images_path}
             result = await agent.ainvoke(Command(resume=resume_payload), config=config)
             if 'recommended_clothes_image_paths' in result:
-                for expl, path in zip(result["recommended_clothes_explanation"], result['recommended_clothes_image_paths']):
-                    log.info(f"Recommended Image Path: {path}\nExplanation: {expl}")
+                for path in result['recommended_clothes_image_paths']:
+                    log.info(f"Recommended Image Path: {path}")
+                log.info("Explanation: {result['recommended_clothes_explanation']}")
+            else:
+                log.error("ERROR: recommended_clothes_image_paths not in result, but expected")
     finally:
         await agent.close_connection()
