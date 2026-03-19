@@ -9,6 +9,7 @@ from omegaconf import DictConfig
 
 from src.rag_pipeline.rag_agent import run_fashion_agent
 from src.utils.common_utils import validate_hydra_config
+from src.data_manager.vector_db_writer import populate_vector_db
 
 # The .env file should contain `HYDRA_FULL_ERROR=1` to see a full stacktrace in case
 # of error.
@@ -25,7 +26,10 @@ log = logging.getLogger(__name__)
 def main(cfg: DictConfig):
     """Launch the current main task for the project."""
     validate_hydra_config(cfg)
-    asyncio.run(run_fashion_agent(cfg))
+    if cfg.data.vector_db.recreate:
+        populate_vector_db(cfg)
+    else:
+        asyncio.run(run_fashion_agent(cfg))
 
 
 if __name__ == "__main__":

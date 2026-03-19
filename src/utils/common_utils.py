@@ -47,7 +47,7 @@ def validate_hydra_config(cfg):
     log.debug(f"Running model: {cfg.models.vlm_agent.name}")
     if cfg.data.vector_db.recreate:
         confirmation = input(
-            "Please enter `YES` if you want to re-create the vector db: "
+            "Please enter `YES` if you want to create / re-create the vector db: "
         )
         if confirmation != "YES":
             raise ValueError("Cannot recreate vector db without confirmation.")
