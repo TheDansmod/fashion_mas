@@ -12,6 +12,9 @@ https://github.com/user-attachments/assets/cc40f339-4bd2-4075-aea9-9388405977f5
 5. Incorporates stateful multi-turn conversation with cross-turn image reference tracking and SQLite-backed checkpoint persistence for session resumability.
 6. Async-first agentic backend with real-time streaming updates to a **Chainlit UI**, including per-session token usage monitoring for API rate limit management, along with **LangSmith observability** for enhanced debugging.
 
+# Agent Orchestration Diagram
+<img width="309" height="844" alt="fashion_agent_diagram" src="https://github.com/user-attachments/assets/79ef3f6a-9411-4232-b967-7272b5946b9c" />
+
 # Install and Run Instructions
 1. Clone git repo
 2. Run `uv sync` from root directory
