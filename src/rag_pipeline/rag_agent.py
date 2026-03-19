@@ -6,9 +6,8 @@ from typing import Literal
 from uuid import uuid4
 
 import aiosqlite
-# TODO: change this after testing
-# from langchain.agents import create_agent
-from src.utils.mock_llm_agent_03 import mock_create_agent as create_agent
+from langchain.agents import create_agent
+# from src.utils.mock_llm_agent_03 import mock_create_agent as create_agent
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph import END, START, StateGraph
@@ -394,6 +393,7 @@ class FashionAgent:
         """
         log.debug("Entered explanation node.")
         expl = []
+        # descriptions of user input clothing items
         ref_descr = "\n".join(
             [
                 f"{idx + 1}. {img_descr}"
@@ -479,11 +479,22 @@ class FashionAgent:
             else initial_state
         )
         return await self._graph.ainvoke(invocation_state, config)
+    
+    async def astream(self, input_state, config):
+        """Streams node-level state updates from the compiled graph."""
+        invocation_state = (
+            None
+            if self._cfg.rag_pipeline.persistence.resume_from_checkpoint
+            else input_state
+        )
+        async for chunk in self._graph.astream(invocation_state, config, stream_mode="updates"):
+            yield chunk
 
     async def close_connection(self):
         if self._connection:
             await self._connection.close()
 
+# this is used for running the code without chainlit
 @track_token_use
 async def run_fashion_agent(cfg, callback_config):
     log.debug("running fashion agent")

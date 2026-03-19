@@ -6,7 +6,10 @@ What I am looking to achieve:
     - [x] get it to handle image inputs
     - [x] track token usage since Mistral has token limits
     - [x] enforce rate limits (1 request / second)
-    - [ ] how many 256x256 images can the model handle together?
+    - [x] how many 256x256 images can the model handle together? - about 6 - but
+        this might depend on server load since it is possible the load balancer
+        is a general shared pool one, rather than per person resources.
+    - [x] how to do streaming - with streaming=True in get_llm_model
 """
 
 import logging
@@ -276,6 +279,7 @@ def get_llm_model(cfg):
         model=cfg.models.vlm_agent.name,
         temperature=cfg.models.vlm_agent.temp,
         rate_limiter=get_rate_limiter(cfg),
+        streaming=True,
     )
     return model
 
@@ -290,3 +294,11 @@ def check_multi_image_input(cfg, callback_config):
     )
     response = model.invoke(msg, config=callback_config)
     log.debug(response.content)
+
+@track_token_use
+def check_streaming(cfg, callback_config):
+    """To see how to do streaming with the Mistral model."""
+    model = get_llm_model(cfg)
+    prompt = "Please explain why the sky is blue in short"
+    for chunk in model.stream(prompt, config=callback_config):
+        log.debug(chunk)

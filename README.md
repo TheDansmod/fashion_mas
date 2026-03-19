@@ -107,6 +107,7 @@ This is just a first pass version of the agentic system.
 36. 2026-03-16 17:24 I was fretting with Mistral requiring only text input as tool call results, but that is not the case - as I had expected. Even if we pass it a list of dicts with keys text and type (and should work with images identically), then it still works.
 37. 2026-03-16 20:51 I was able to get the code running with the MCP server. Now I just need to make a few changes - the self-correction loop, human interaction, and the UI.
 38. 2026-03-18 15:29 I am desperately trying to figure out how to integrate chainlit with the langgraph setup that I currently have, but there seems to be no end to the trouble. It either does not run or it runs multiple times messing up the langgraph loop. It also does not play well with hydra since it wants to have control over the launch. For the moment, I am going to go back to simple while loop and check if everything is working fine.
+39. 2026-03-19 08:07 Things seem to be working fine with chainlit now, but the recommendations are still not very good, perhaps you need to add a critique node after all? It took around 10k total tokens for a single run with mistral.
 
 # Library Dependency and their purpose
 1. `langgraph` - agent orchestration. needed for the multi-agent system
@@ -200,6 +201,7 @@ diff -yr /mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas_
 4. Langsmith API enabled / not (.env)
 5. Ensure podman container running (podman ps)
 6. If using mcp client, ensure server is running
+7. If not doing testing, ensure that no mocking of `create_agent` is present in rag agent
 
 # Qdrant with Docker / Podman
 After I fixed the issue where only a small number of points were constantly being over-written while creating the qdrant collection, the size of the collection ballooned to 4 GB. I also got a warning saying that I should use Qdrant on docker or cloud with so many points / vectors.
