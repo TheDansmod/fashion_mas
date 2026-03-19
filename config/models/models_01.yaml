@@ -7,7 +7,8 @@
 # 5. mistral-large-latest
 vlm_agent:
   _target_: src.utils.model_factory.get_llm_provider
-  name: mistral-large-latest
+  # name: mistral-large-latest
+  name: mock
   temp: 0.6
   use_rate_limiter: true
 

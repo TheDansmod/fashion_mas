@@ -12,6 +12,7 @@ from omegaconf import DictConfig
 from hydra.core.global_hydra import GlobalHydra
 from langchain_core.callbacks import UsageMetadataCallbackHandler
 from langgraph.types import Command
+from src.utils.ui_node_updates import NODE_META
 
 from src.rag_pipeline.rag_agent import FashionAgent
 from src.utils.common_utils import validate_hydra_config
@@ -46,34 +47,20 @@ if not GlobalHydra.instance().is_initialized():
 # this is to prevent a loop of watch files creating a log and hydra logging it and watchfiles logging that
 logging.getLogger("watchfiles.main").setLevel(logging.WARNING)
 
-# TODO: move this elsewhere
-# Human-readable labels and output summaries per node
-NODE_META = {
-    "quantifier_node": (
-        "🔢 Counting recommendations",
-        lambda u: f"Looking for **{u.get('num_recommendations', '?')}** item(s).",
-    ),
-    "intent_node": (
-        "🎯 Analysing intent",
-        lambda u: "Extracted visual focus instructions.",
-    ),
-    "vision_node": (
-        "👁️ Processing images",
-        lambda u: f"Described **{len(u.get('input_images_descriptions', []))}** input image(s).",
-    ),
-    "modifier_node": (
-        "✏️ Generating item descriptions",
-        lambda u: f"Produced **{len(u.get('required_clothes_descriptions', []))}** target descriptions.",
-    ),
-    "recommender_node": (
-        "🔍 Searching catalogue",
-        lambda u: f"Matched **{len(u.get('recommended_clothes_image_paths', []))}** item(s) from the database.",
-    ),
-    "explanation_node": (
-        "💬 Preparing explanations",
-        lambda u: "Generated recommendation rationales.",
-    ),
-}
+
+@cl.on_chat_start
+async def start_chat():
+    print('in start')
+    await agent.compile_graph(cfg.rag_pipeline.persistence.db_path)
+
+    config = {"configurable": {"thread_id": cl.context.session.id}}
+    cl.user_session.set("config", config)
+
+    await cl.Message(
+        content="Starting chat loop... type 'quit' to exit. You can attach images directly to your messages!"
+    ).send()
+
+    result = await agent.ainvoke({"is_chat_start": True}, config=config)
 
 @cl.on_message
 async def on_message(message: cl.Message):
@@ -84,11 +71,29 @@ async def on_message(message: cl.Message):
             "input_images_path": [img.path for img in images],
             "input_text": message.content,
     }
-    result = await agent.ainvoke(Command(resume=resume_payload), config=config)
-    if 'recommended_clothes_image_paths' in result:
-        for expl, path in zip(result['recommended_clothes_image_paths'], result['recommended_clothes_image_paths']):
+    accumulated_state = {}
+    async for chunk in agent.astream(Command(resume=resume_payload), config=config):
+        for node_name, update in chunk.items():
+            if node_name == '__interrupt__':
+                continue
+            accumulated_state.update(update)
+            if node_name in NODE_META:
+                label, summary_fn = NODE_META[node_name]
+                async with cl.Step(name=label) as step:
+                    step.output = summary_fn(update)
+            else:
+                async with cl.Step(name=f"⚙️ {node_name}") as step:
+                    step.output = f"unknown node {node_name}"
+
+    paths = accumulated_state.get("recommended_clothes_image_paths", [])
+    explanations = accumulated_state.get("recommended_clothes_explanation", [])
+
+    if paths and explanations:
+        for expl, path in zip(explanations, paths):
             image = cl.Image(path=path, name='image 1', display='inline')
             await cl.Message(content=expl, elements=[image]).send()
+    else:
+        await cl.Message(content="No recommendations could be found for your request.").send()
 
 @cl.on_chat_end
 async def end_chat():

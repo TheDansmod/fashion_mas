@@ -9,7 +9,6 @@ from omegaconf import DictConfig
 
 from src.rag_pipeline.rag_agent import run_fashion_agent
 from src.utils.common_utils import validate_hydra_config
-from src.exploration.mistral_exploration import check_streaming
 
 # The .env file should contain `HYDRA_FULL_ERROR=1` to see a full stacktrace in case
 # of error.
@@ -26,7 +25,7 @@ log = logging.getLogger(__name__)
 def main(cfg: DictConfig):
     """Launch the current main task for the project."""
     validate_hydra_config(cfg)
-    check_streaming(cfg)
+    asyncio.run(run_fashion_agent(cfg))
 
 
 if __name__ == "__main__":

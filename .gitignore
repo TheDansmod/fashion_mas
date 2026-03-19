@@ -26,3 +26,5 @@ src/exploration/prices.txt
 src/exploration/random_images/
 # can ignore .chainlit folder for now - it unnecessarily clutters the tracked files with the translations
 .chainlit/
+# ignore chainlit.md that somehow keeps getting created every run
+chainlit.md

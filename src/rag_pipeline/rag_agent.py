@@ -6,8 +6,9 @@ from typing import Literal
 from uuid import uuid4
 
 import aiosqlite
-from langchain.agents import create_agent
-# from src.utils.mock_llm_agent_03 import mock_create_agent as create_agent
+# TODO: fix in test
+# from langchain.agents import create_agent
+from src.utils.mock_llm_agent_03 import mock_create_agent as create_agent
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph import END, START, StateGraph
@@ -23,6 +24,7 @@ from src.rag_pipeline.llm_schemas import (
     RequiredClothes,
     SingleImageDescription,
     UpdatedUserRequest,
+    CriticalEvaluation,
     AgentState,
 )
 from src.utils.common_utils import (
@@ -34,6 +36,7 @@ from src.utils.common_utils import (
     save_image_url_to_folder,
     make_mistral_compatible,
     track_token_use,
+    get_multi_image_multi_prompt_message,
 )
 
 log = logging.getLogger(__name__)
@@ -118,7 +121,7 @@ class FashionAgent:
             # create and invoke agent
             log.debug("Invoking agent")
             agent = create_agent(model=self._model, response_format=UpdatedUserRequest, debug=True)
-            response = agent.invoke({"messages": msg}, config=self._callback_config)
+            response = await agent.ainvoke({"messages": msg}, config=self._callback_config)
             log.debug("Got agent response")
             # update the user input so that the normal state update (which assumes first chat, can also serve for non-first chat situations
             updated_user_request = response["structured_response"]
@@ -275,11 +278,13 @@ class FashionAgent:
                 reference_descriptions=ref_descr,
                 user_request=state.input_text,
                 num_recommendations=state.num_recommendations,
+                critique_node_correction=state.critique_text,
             )
         else:
             prompt = self._cfg.prompts.modifier_node.images_absent_prompt.format(
                 user_request=state.input_text,
                 num_recommendations=state.num_recommendations,
+                critique_node_correction=state.critique_text,
             )
         structured_model = self._model.with_structured_output(RequiredClothes)
         for attempt_num in range(self._cfg.rag_pipeline.num_recommendation_attempts):
@@ -374,8 +379,30 @@ class FashionAgent:
             AgentState: The updated state dictionary containing the
                 `recommended_clothes_explanation` array.
         """
-        # This node is not yet for use
-        pass
+        # check if we are done with critiquing
+        log.debug("Entered critique node.")
+        if state.num_times_critiqued >= self._cfg.rag_pipeline.max_num_critiques:
+            return {"num_times_critiqued": state.num_times_critiqued, "critique_text": ""}
+        # generate the prompt
+        prompts = []
+        for img_path in state.input_images_path:
+            prompts.append(("image", img_path))
+        prompts.append(("text", f"All the above are user input images.\nThe user request is\n{state.input_text}."))
+        for img_path, img_descr in zip(state.recommended_clothes_image_paths, state.recommended_clothes_descriptions):
+            prompts.append(("image", img_path))
+            prompts.append(("text", f"The above image is a recommended item of clothing. Its description is: {img_descr}."))
+        prompts.append(("text", self._cfg.prompts.critique_node.critique_prompt))
+        msg = get_multi_image_multi_prompt_message(prompts)
+        # make and invoke the model
+        structured_model = self._model.with_structured_output(CriticalEvaluation)
+        log.debug("Invoking model")
+        response = structured_model.invoke(msg)
+        log.debug(f"Got model response: {response}")
+        if response.satisfactory == "Yes":
+            # don't change the number of times critique happened - we are only counting wrong recommendations
+            return {"critique_text": ""}
+        else:
+            return {"num_times_critiqued": state.num_times_critiqued + 1, "critique_text": response.correction}
 
     def explanation_node(self, state: AgentState) -> AgentState:
         """Formulates analytical justifications elucidating the retrieval congruence.
@@ -446,6 +473,13 @@ class FashionAgent:
         """
         return "intent_node" if state.has_input_images else "modifier_node"
 
+    def critique_node_router(self, state: AgentState) -> Literal["explanation_node", "modifier_node"]:
+        """If the recommendation was good, we move on to explanation node, else modifier."""
+        if (not state.critique_text.strip()) or state.num_times_critiqued > self._cfg.rag_pipeline.max_num_critiques:
+            return "explanation_node"
+        else:
+            return "modifier_node"
+
     async def compile_graph(self, conn_string):
         self._connection = await aiosqlite.connect(conn_string)
         checkpointer = AsyncSqliteSaver(self._connection)
@@ -458,16 +492,16 @@ class FashionAgent:
         builder.add_node("modifier_node", self.modifier_node)
         builder.add_node("recommender_node", self.recommender_node)
         builder.add_node("explanation_node", self.explanation_node)
+        builder.add_node("critique_node", self.critique_node)
         # edges
         builder.add_edge(START, "human_node")
         builder.add_edge("human_node", "quantifier_node")
-        builder.add_conditional_edges(
-            "quantifier_node", self.quantifier_node_router
-        )
+        builder.add_conditional_edges("quantifier_node", self.quantifier_node_router)
         builder.add_edge("intent_node", "vision_node")
         builder.add_edge("vision_node", "modifier_node")
         builder.add_edge("modifier_node", "recommender_node")
-        builder.add_edge("recommender_node", "explanation_node")
+        builder.add_edge("recommender_node", "critique_node")
+        builder.add_conditional_edges("critique_node", self.critique_node_router)
         builder.add_edge("explanation_node", "human_node")
         # compile and run
         self._graph = builder.compile(checkpointer=checkpointer)

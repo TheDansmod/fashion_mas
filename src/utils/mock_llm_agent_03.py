@@ -35,6 +35,9 @@ class MockStructuredOutput:
         elif self.schema_name == "RequiredClothes":
             # for modifier node
             return self.schema(required_clothes_descriptions=["Dard wash denim jeans", "blue shorts", "black office shoe"])
+        elif self.schema_name == "CriticalEvaluation":
+            # for critique node
+            return self.schema(satisfactory="No", correction="Some correction")
         else:
             raise NotImplementedError(f"structured mock not implemented for {self.schema_name}")
 

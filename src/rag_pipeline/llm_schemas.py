@@ -106,6 +106,10 @@ class MatchedImageId(BaseModel):
     """The id of the image which was matched to the input description."""
     image_id: int = Field(..., description="Id of the best matched image")
 
+class CriticalEvaluation(BaseModel):
+    """Class to hold evaluation of recommendations and their improvement."""
+    satisfactory: Literal["Yes", "No"] = Field(..., description="Yes, if the recommendations satisfy the user request. No, if the recommendations don't satisfy the user request.")
+    correction: str = Field(..., default_factory=str, description="The correction to make if the recommendations do not satisfy the user request.")
 
 class UpdatedUserRequest(BaseModel):
     """Ids of the relevant images and the updated text for the user input."""
@@ -145,11 +149,15 @@ class AgentState(BaseModel):
         recommended_clothes_descriptions (list[str]): List of string descriptions of
             the recommended clothing items. These descriptions are fetched from the
             database rather than generated.
+        critique_text (str): The text received from the critique node when the
+            recommendation is not satisfactory - this is for the modifier node to
+            accomodate.
     """
 
     is_chat_start: bool
     has_input_images: Optional[bool] = Field(default_factory=bool)
     num_times_critiqued: Optional[int] = Field(default_factory=int)
+    critique_text: Optional[str] = Field(default_factory=str)
     input_images_path: Optional[list[str]] = Field(default_factory=list)
     input_text: Optional[str] = Field(default_factory=str)
     num_recommendations: Optional[int] = Field(default_factory=int)
