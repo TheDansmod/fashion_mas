@@ -10,4 +10,9 @@ defaults:
 
 
 hydra:
-  verbose: true
+  verbose:
+    - src.rag_piepline.rag_agent
+    - src.data_manager.vector_db_writer
+    - src.data_manager.vector_db_reader
+    - src.mcp_server.mcp_client
+    - src.utils.common_utils
