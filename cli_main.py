@@ -17,7 +17,7 @@ from src.data_manager.vector_db_writer import populate_vector_db
 # access.
 # The .env file should populate langsmith endpoints like `LANGSMITH_TRACING=true`,
 # `LANGSMITH_PROJECT=<project_name>`, `LANGSMITH_API_KEY`, `LANGSMITH_ENDPOINT=<eu/us>`.
-# The .env file should have a key for google AI api calls: `GOOGLE_API_KEY=<key>`
+# The .env file should have a key for mistral AI api key: `MISTRAL_API_KEY=<key>`
 load_dotenv()
 log = logging.getLogger(__name__)
 
