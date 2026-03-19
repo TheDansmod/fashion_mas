@@ -1,94 +1,73 @@
-"""Generate Mock LLM to make each dev run cheaper when not testing the LLMs."""
-
-import logging
-import random
-from typing import Any, Type
-
 from langchain_core.messages import AIMessage
-from pydantic import BaseModel
+import random
 
-log = logging.getLogger(__name__)
+class MockAgent:
+    def __init__(self, schema):
+        self.schema = schema
+        self.schema_name = schema.__name__
 
+    def invoke(self, *args, **kwargs):
+        if self.schema_name == "UpdatedUserRequest":
+            # for human node
+            return {'structured_response': self.schema(relevant_image_indexes=[0, 2], updated_user_query="Mock updated user query.")}
+        else:
+            raise NotImplementedError(f"invoking agent for this schema name {self.schema_name} is not implemented")
+
+    async def ainvoke(self, *args, **kwargs):
+        if self.schema_name == "MatchedImageId":
+            # for recommender node
+            return {'structured_response': self.schema(image_id=random.randint(0, 260400))}
+        else:
+            raise NotImplementedError(f"async invoking agent for this schema name {self.schema_name} is not implemented")
 
 class MockStructuredOutput:
-    """Mock Outputs for Structured LLM calls."""
-
-    def __init__(self, schema: Type[BaseModel]):
-        """Get the schema or class used to structure the call."""
+    def __init__(self, schema):
         self.schema = schema
+        self.schema_name = schema.__name__
 
-    def invoke(self, prompt: Any, *args, **kwargs) -> BaseModel:
-        """Respond when the structured llm is called."""
-        schema_name = self.schema.__name__
-
-        if schema_name == "NumRecommendations":
+    def invoke(self, *args, **kwargs):
+        if self.schema_name == "NumRecommendations":
+            # for the quantifier node
             return self.schema(num_recommendations=3)
-        elif schema_name == "SingleImageDescription":
-            return self.schema(
-                image_description="A rigorous representation of a blue cotton shirt."
-            )
-        elif schema_name == "RequiredClothes":
-            return self.schema(
-                required_clothes_descriptions=[
-                    "Dark wash denim jeans",
-                    "Blue shorts",
-                    "Black office shoe",
-                ]
-            )
-        elif schema_name == "ValidCategories":
-            if "jeans" in prompt:
-                return self.schema(categories=["JEANS", "PANTS"])
-            elif "shorts" in prompt:
-                return self.schema(categories=["SHORTS"])
-            elif "shoe" in prompt:
-                return self.schema(categories=["BOOTS", "LOAFERS", "SNEAKERS"])
-            else:
-                return self.schema(categories=["JEANS", "PANTS"])
+        elif self.schema_name == "SingleImageDescription":
+            # for the vision node
+            return self.schema(image_description="A blue cotton shirt with short sleeves.")
+        elif self.schema_name == "RequiredClothes":
+            # for modifier node
+            return self.schema(required_clothes_descriptions=["Dard wash denim jeans", "blue shorts", "black office shoe"])
+        elif self.schema_name == "CriticalEvaluation":
+            # for critique node
+            return self.schema(satisfactory="No", correction="Some correction")
         else:
-            raise NotImplementedError(
-                f"Mock configuration for schema {schema_name} is unresolved."
-            )
+            raise NotImplementedError(f"structured mock not implemented for {self.schema_name}")
 
 
 class ChatMockLLM:
-    """The Mocked LLM itself."""
-
     def __init__(self, *args, **kwargs):
-        """Setup the substrings that appear in unstructured input prompts."""
-        self.intent_node_prompt_substring = (
-            "Your goal is to analyse the user request"
-            " (provided below) and determine what the focus of the VLM should be."
-        )
-        self.explanation_node_prompt_substring = (
-            "to explain how the recommended image "
-            "successfully satisfies a concrete part or all of the user's request."
-        )
-        self.filtration_node_prompt_substring = (
-            "assign one or more of following categories to it:"
-        )
+        self.intent_node_prompt_substring = "Ensure the instructions are concise (No more than 5 sentences) and only relate to what aspect of the image should be described / extracted."
+        self.intent_node_return = AIMessage(content="Mock response: Focus on the stylistic coherence of the lower body garments.")
+        self.explanation_node_prompt_substring = "Please explain how the recommended products successfully satisfy the user's request."
+        self.explanation_node_return = AIMessage(content="The properties of the input image synergize with the input image")
 
-    def invoke(self, prompt: Any, *args, **kwargs) -> AIMessage:
-        """Respond to unstructured llm invocations."""
-        prompt_str = str(prompt).lower()
+    def invoke(self, prompt, *args, **kwargs):
+        if isinstance(prompt, str):
+            prompt_str = prompt.lower()
+            if self.intent_node_prompt_substring.lower() in prompt_str:
+                # for intent node
+                return self.intent_node_return
+            else:
+                raise NotImplementedError(f"Invoking model for this string prompt: {prompt} is not implemented")
+        elif isinstance(prompt, list):
+            for content in prompt[0].content:
+                # for explanation node
+                if content['type'] == 'text' and self.explanation_node_prompt_substring.lower() in content['text'].lower():
+                    return self.explanation_node_return
+            raise NotImplementedError(f"Mock LLM in list prompt could not find the right text: {prompt}")
+        else:
+            raise NotImplementedError(f"Mock LLM got input that was neither list nor string: {prompt}")
 
-        if self.intent_node_prompt_substring.lower() in prompt_str:
-            return AIMessage(
-                content="Focus on the stylistic coherence of the lower-body garments."
-            )
-        elif self.explanation_node_prompt_substring.lower() in prompt_str:
-            return AIMessage(
-                content="The properties of this garment synergize with the input image."
-            )
-        elif self.filtration_node_prompt_substring.lower() in prompt_str:
-            cats = random.choices(
-                ["JEANS", "SCARVES", "SANDALS", "SKIRTS", "TOPS", "DRESSES"],
-                k=random.randint(1, 3),
-            )
-            return AIMessage(content=f"The matching categories are {', '.join(cats)}")
-        return AIMessage(content="Default mocked unstructured output.")
-
-    def with_structured_output(
-        self, schema: Type[BaseModel], **kwargs
-    ) -> MockStructuredOutput:
-        """Respond to structured llm invocations."""
+    def with_structured_output(self, schema, **kwargs):
         return MockStructuredOutput(schema)
+
+def mock_create_agent(model, response_format, tools=None, **kwargs):
+    return MockAgent(response_format)

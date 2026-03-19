@@ -24,3 +24,6 @@ mcp:
   db_tool_name: get_datapoint_by_index
 
 temporary_images_folder: data/temp_images/
+
+# this is where the agent's langgraph orchestration diagram is stored
+node_diagram_path: fashion_agent_diagram.png

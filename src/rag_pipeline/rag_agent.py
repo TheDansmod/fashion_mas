@@ -7,7 +7,7 @@ from uuid import uuid4
 
 import aiosqlite
 from langchain.agents import create_agent
-# from src.utils.mock_llm_agent_03 import mock_create_agent as create_agent
+# from src.utils.mock_llm_agent import mock_create_agent as create_agent
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph import END, START, StateGraph
@@ -480,6 +480,7 @@ class FashionAgent:
         builder.add_edge("explanation_node", "human_node")
         # compile and run
         self._graph = builder.compile(checkpointer=checkpointer)
+        draw_langraph_topology(self._graph, self._cfg.rag_pipeline.node_diagram_path)
 
     async def ainvoke(self, initial_state, config):
         invocation_state = (
