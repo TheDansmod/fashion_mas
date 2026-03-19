@@ -2,6 +2,7 @@
 A multi-modal, multi-agent RAG framework for getting clothing item recommendations from a product catalogue.
 
 # Demo
+https://github.com/user-attachments/assets/cc40f339-4bd2-4075-aea9-9388405977f5
 
 # Features
 1. A stateful multi-agent pipeline using LangGraph with conditional branching and specialised nodes for intent parsing, visual feature extraction, retrieval, self-correction, and explanation.
