@@ -1,7 +1,11 @@
 import os
 import json
+from pathlib import Path
 import logging
 from uuid import uuid4
+
+import asyncio
+import hydra
 
 from src.rag_pipeline.rag_agent import FashionAgent
 from src.utils.common_utils import track_token_use
@@ -19,9 +23,9 @@ def get_evaluation_inputs(cfg):
             image_name = f'{group_idx + 1:0>2}_{query_idx + 1:0>2}.jpg'
             if image_name in input_images:
                 input_image_path = cfg.eval.query_images_path.format(image_filename=image_name)
-                query_input = {'input_text': input_text, 'input_images_path': [input_image_path]}
+                query_input = {'input_text': input_text, 'input_images_path': [input_image_path], 'group_num': group_idx + 1, 'query_num_in_group': query_idx + 1}
             else:
-                query_input = {'input_text': input_text, 'input_images_path': []}
+                query_input = {'group_num': group_idx + 1, 'query_num_in_group': query_idx + 1, 'input_text': input_text, 'input_images_path': []}
             eval_inputs.append(query_input)
     return eval_inputs
 
@@ -50,13 +54,48 @@ async def run_fashion_agent_single_input(cfg, eval_input, callback_config):
         await agent.close_connection()
         return recommended_clothes_image_paths, recommended_clothes_descriptions
 
+def write_result(cfg, result):
+    # we want to write the results after each run so as not to lose any information
+    # json file can't simply be appended to, so we first load the json, modify it and write it back
+    # the paths in the above files are relative, need to make the full
+    absolute_image_paths = []
+    for image_path in result['recommended_clothes_image_paths']:
+        absolute_path = hydra.utils.to_absolute_path(image_path)
+        absolute_image_paths.append(absolute_path)
+    result['recommended_clothes_image_paths'] = absolute_image_paths
+    path = Path(cfg.eval.eval_response_file_path)
+    if not (path.exists() and path.is_file()):
+        path.write_text('[]')
+    with open(cfg.eval.eval_response_file_path, 'r') as f:
+        data = json.load(f)
+    data.append(result)
+    with open(cfg.eval.eval_response_file_path, 'w') as f:
+        json.dump(data, f, indent=2)
 
 async def run_evaluation_set(cfg):
     log.debug("Running evaluation set")
-    results = []
-    for eval_input in get_evaluation_inputs(cfg)[:2]:
+    for eval_input in get_evaluation_inputs(cfg):
         log.debug(f"eval input: {eval_input}")
         paths, descr = await run_fashion_agent_single_input(cfg, eval_input)
-        results.append({'recommended_clothes_image_paths': paths, 'recommended_clothes_descriptions': descr, **eval_input})
-    with open(cfg.eval.eval_response_file_path, 'w') as f:
-        json.dump(results, f, indent=2)
+        result = {'recommended_clothes_image_paths': paths, 'recommended_clothes_descriptions': descr, **eval_input}
+        write_result(cfg, result)
+        await asyncio.sleep(5)
+
+# TODO: def can remove this function later
+def check_evaluation_output(cfg):
+    # the goal of this function is to check how many evaluations actually produced valid outputs
+    no_paths, no_descr, no_both = 0, 0, 0
+    with open(cfg.eval.eval_response_file_path, 'r') as f:
+        data = json.load(f)
+    total = len(data)
+    for eval_run in data:
+        if len(eval_run['recommended_clothes_image_paths']) == 0:
+            no_paths += 1
+        if len(eval_run['recommended_clothes_descriptions']) == 0:
+            no_descr += 1
+        if len(eval_run['recommended_clothes_image_paths']) == 0 and len(eval_run['recommended_clothes_descriptions']) == 0:
+            no_both += 1
+    log.info(f"Out of {total} runs, {no_paths} produced no paths.")
+    log.info(f"Out of {total} runs, {no_descr} produced no descriptions.")
+    log.info(f"Out of {total} runs, {no_both} produced neither descriptions nor paths.")
+

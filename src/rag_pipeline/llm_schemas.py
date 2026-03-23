@@ -21,7 +21,7 @@ class NumRecommendations(BaseModel):
     """Constrains LLM output when getting the no. of reco's in the user request."""
 
     num_recommendations: int = Field(
-        ge=1,
+        ge=0,
         le=10,
         description=(
             "Number of recommendations specified by the user, 0 if no"

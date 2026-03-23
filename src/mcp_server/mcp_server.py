@@ -81,7 +81,7 @@ class ProductCatalogueMCPServer:
             keys of `price`, `category`, `description`, `id`, and `score`. The score
             tells how good of a match (to the input text) the returned item is.
         """
-        log.info("DANISH: in semantic search.")
+        log.info("in semantic search.")
         for category in categories:
             if category not in self._connector.get_valid_categories():
                 return {"error": f"{category} is not a valid category."}
@@ -89,7 +89,7 @@ class ProductCatalogueMCPServer:
         matches = self._connector.get_image_matches(
             embedding, categories=categories, num_matches=num_matches
         )
-        log.info("DANISH: returning some matches.")
+        log.info("returning some matches.")
         return self._reformat_image_data(matches)
 
     @tool
@@ -101,7 +101,7 @@ class ProductCatalogueMCPServer:
     @tool
     def get_product_categories(self) -> list[str]:
         """Returns a list of valid product categories."""
-        log.info("DANISH: in get product categories.")
+        log.info("in get product categories.")
         return [
             "CLUTCHES & POUCHES",
             "POUCHES & DOCUMENT HOLDERS",
@@ -156,7 +156,7 @@ class ProductCatalogueMCPServer:
 class QdrantConnector:
     def __init__(self, url, collection_name):
         self._client = QdrantClient(url=url, prefer_grpc=True)
-        log.info("DANISH: connected to qdrant.")
+        log.info("connected to qdrant.")
         # validate collection existence
         if not self._client.collection_exists(collection_name):
             raise ValueError(f"Collection {collection_name} does not exist.")

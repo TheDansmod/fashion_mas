@@ -23,6 +23,7 @@ mcp:
     - get_product_categories
   db_tool_name: get_datapoint_by_index
 
+# this is where the images fetched from the fashion gen database for evaluation are stored. the folder is deleted at the end when running the app, but not deleted when running the cli_main.py file
 temporary_images_folder: data/temp_images/
 
 # this is where the agent's langgraph orchestration diagram is stored

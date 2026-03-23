@@ -427,7 +427,7 @@ class FashionAgent:
         # invoke model
         log.debug("Invoking model")
         response = self._model.invoke(msg)
-        log.debug("Got response: {response.content}")
+        log.debug(f"Got response: {response.content}")
         return {"recommended_clothes_explanation": response.content}
 
     def quantifier_node_router(
