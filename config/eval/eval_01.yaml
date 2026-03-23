@@ -1,0 +1,4 @@
+json_queries_path: '/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_queries.json'
+query_images_path: '/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/{image_filename}'
+query_images_folder_path: '/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images'
+eval_response_file_path: '/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_soln.json'

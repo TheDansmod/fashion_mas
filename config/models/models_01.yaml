@@ -14,7 +14,7 @@ vlm_agent:
 
 # for the langchain InMemoryRateLimiter - it uses a token (not LLM tokens) bucket model
 rate_limiter:
-  # this is the rate at which tokens get added to the bucket - it is kept far below the actual threshold to decrease risk of rate limiting even further and because there is also a 500k tokens per minute rate limit which is not captured
+  # this is the rate at which tokens get added to the bucket - it is kept far below the actual threshold to decrease risk of rate limiting even further and because there is also a 500k tokens per minute rate limit which is not captured. The limit for mistral-medium-latest is 375k tokens per min while for mistral-large-latest is 50k
   requests_per_second: 0.5
   # this sets the frequency with which it checks if tokens are available to make a request
   check_every_n_seconds: 1

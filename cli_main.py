@@ -10,6 +10,7 @@ from omegaconf import DictConfig
 from src.rag_pipeline.rag_agent import run_fashion_agent
 from src.utils.common_utils import validate_hydra_config
 from src.data_manager.vector_db_writer import populate_vector_db
+from src.evaluation.llm_as_judge import run_evaluation_set
 
 # The .env file should contain `HYDRA_FULL_ERROR=1` to see a full stacktrace in case
 # of error.
@@ -29,7 +30,7 @@ def main(cfg: DictConfig):
     if cfg.data.vector_db.recreate:
         populate_vector_db(cfg)
     else:
-        asyncio.run(run_fashion_agent(cfg))
+        asyncio.run(run_evaluation_set(cfg))
 
 
 if __name__ == "__main__":

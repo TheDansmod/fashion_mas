@@ -28,3 +28,5 @@ src/exploration/random_images/
 .chainlit/
 # ignore chainlit.md that somehow keeps getting created every run
 chainlit.md
+# I moved the location where the fashion agent diagram was generated - since the exploration folder no longer exists
+fashion_agent_diagram.png

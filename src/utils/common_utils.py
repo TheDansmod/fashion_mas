@@ -302,6 +302,8 @@ def track_token_use(func):
             kwargs["callback_config"] = callback_config
             try:
                 result = await func(cfg, *args, **kwargs)
+            except Exception as e:
+                log.exception("Exception caught inside track_token_use function.")
             finally:
                 update_token_use(cfg, callback.usage_metadata)
             return result
