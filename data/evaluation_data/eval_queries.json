@@ -1,0 +1,72 @@
+[
+    [
+         "Suggest one pant and one pair of shoes that will go well with the uploaded shirt.",
+         "Suggest one pant and one pair of shoes that will go well with the uploaded shirt.",
+         "Suggest 2 shoes that will go well with the uploaded pant.",
+         "Suggest 2 footwear options that will go well with the uploaded skirt.",
+         "Suggest one bag and one skirt that will go well with the uploaded top.",
+         "I want to wear this jacket for a casual weekend outing. What one top and one bottom would complete the look?",
+         "Suggest one pair of heels and one clutch bag that would complement this gown for a black-tie event.",
+         "Suggest 2 bottoms that would pair well with this hoodie for a streetwear-inspired look.",
+         "What one top would go well with these trousers for a night out? Keep it edgy.",
+         "Suggest one bottom and one pair of shoes to complete a smart-casual outfit with this blazer."
+    ],
+    [
+         "Suggest a similar formal shirt but in a soft pastel colour like blush or sky blue.",
+         "Show me similar trousers but in a darker shade — something that works for an autumn evening.",
+         "Suggest 2 similar dresses but with a more muted, earthy colour palette instead of bright florals.",
+         "Find me a similar jacket style but made from a non-leather or vegan-friendly material.",
+         "Suggest something with a similar silhouette but lighter weight for transitional spring weather.",
+         "Show me similar jeans but with a straight-leg cut rather than a tapered one.",
+         "Suggest a similar dress but more modest — longer hem and with sleeves, suitable for the office.",
+         "Find me 2 similar cardigans but strictly in neutral, monochrome tones — no patterns.",
+         "Suggest a similar blazer but double-breasted, in any dark colour.",
+         "Find me similar shorts but in a longer inseam length, around 7 to 9 inches.",
+         "Suggest a similar skirt in the same silhouette but in a solid colour with no print.",
+         "Show me 2 similar t-shirts — same oversized fit — but completely plain with no graphics or logos.",
+         "Suggest a coat with a similar cut but shorter, hitting around the knee rather than mid-calf.",
+         "Find me a sandal with a similar open-toe strappy design but on a block heel for more comfort and stability.",
+         "Suggest a similar pleated midi skirt but in a velvet or satin fabric, appropriate for a formal dinner.",
+         "Show me 2 similar utility-style pants but with a slimmer fit and fewer pockets for a cleaner look.",
+         "Suggest a similar shirt in the same relaxed linen fabric but with short sleeves, suitable for a beach holiday.",
+         "Find me a puffer jacket with the same quilted style but cropped at the waist.",
+         "Show me something similar but with a zip-up front instead of a pullover.",
+         "Suggest something similar but with an asymmetric hem or a raw-edge detail for a more fashion-forward look."
+    ],
+    [
+         "Suggest one top and one bottom from the catalogue that would work well for a smart-casual office environment given her style and build.",
+         "Suggest one shirt and one pair of trousers that would flatter his frame for a smart dinner.",
+         "What 2 pieces from the catalogue would fit naturally into her existing style?",
+         "Suggest one top and one bottom for a stylish, put-together streetwear look that suits his physique.",
+         "Suggest one dress from the catalogue that would suit her for a daytime social event, keeping it elegant and comfortable.",
+         "Find one jacket and one pair of trousers that would look proportionate and sharp on his frame.",
+         "Suggest 2 pieces — a top and a skirt — that would help elongate her silhouette visually.",
+         "Suggest one outfit piece that would be both flattering and stylish for an evening occasion.",
+         "What one catalogue item best aligns with his current style?",
+         "Suggest one casual daywear piece that would transition her look from gym to a brunch setting."
+    ],
+    [
+         "Suggest one dress from the catalogue that fits within this warm, earthy colour palette.",
+         "Find me one blazer that uses only black, white, or a mix of both.",
+         "Suggest one top that uses these soft, cool pastel tones.",
+         "Suggest one pair of trousers in these tones that would work for a minimalist capsule wardrobe.",
+         "Find me one evening dress that fits within this rich colour palette.",
+         "Suggest one top and one bottom that both work within this neutral palette and could be worn together.",
+         "Find me one clothing piece and one bag or shoe in these colours.",
+         "Suggest 2 clothing items — any category — that fit this seasonal palette and could be layered together.",
+         "Suggest one dress and one pair of shoes in this blush-toned colour palette.",
+         "Find 2 casual pieces that incorporate these colours, either one each or both in a single piece."
+    ],
+    [
+        "I'm looking for a slim-fit navy blazer suitable for business casual wear.",
+        "Find me a floral wrap dress perfect for a summer garden party — knee length, lightweight fabric.",
+        "I need a pair of clean, minimalist white leather sneakers with no branding or logos visible.",
+        "I want a cozy, oversized cable-knit sweater in a neutral tone — think oatmeal, cream, or warm grey — something to lounge in at home during winter.",
+        "I'm after a little black dress that's versatile enough to wear to a work event and then a night out — ideally knee-length, fitted but not tight, with a modest neckline.",
+        "Show me wide-leg linen trousers in light beige or off-white, relaxed enough for a beach vacation but structured enough to look intentional.",
+        "I need a structured leather crossbody bag in brown or tan, compact but big enough to hold a phone, wallet, and keys.",
+        "Looking for a men's formal white dress shirt — slim collar, plain front, suitable for pairing under a dark suit. No patterns.",
+        "Find me a pair of high-waisted black skinny jeans with some stretch in the fabric for comfort.",
+        "I want a statement winter coat — something bold like a plaid, houndstooth, or colour-blocked design that makes the outfit. Mid-length preferred."
+    ]
+]

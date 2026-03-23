@@ -1,0 +1,746 @@
+[
+  {
+    "recommended_clothes_image_paths": [
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/e96ac002-2353-4a5d-8329-d6f9646c1349.png",
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/b81cfcf8-a1e8-4575-8409-b07b97d48e73.png"
+    ],
+    "recommended_clothes_descriptions": [
+      "Slim-fit stretch cotton twill trousers in 'bunker' green.  Five-pocket styling. Logo patch at back pocket. Topstitched detailing in orange at back waistband. Zip-fly. Tonal stitching.",
+      "Ankle-high buffed calfskin Chelsea boots in brown. Almond toe. Elasticized gusset at sides. Grosgrain pull-loops at collar. Creased leather lining in tan. Tonal rubber sole. Tonal stitching."
+    ],
+    "input_text": "Suggest one pant and one pair of shoes that will go well with the uploaded shirt.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/01_01.jpg"
+    ],
+    "group_num": 1,
+    "query_num_in_group": 1
+  },
+  {
+    "recommended_clothes_image_paths": [
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/06afb69a-171d-4498-8d69-27cbe7ce93a5.png",
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/44e6a2a0-9382-4e2a-85c1-1608c3ebc81c.png"
+    ],
+    "recommended_clothes_descriptions": [
+      "Slim-fit cotton trousers in 'sage' green. Five-pocket styling. Button-fly. Tonal stitching.",
+      "Low-top perforated leather sneakers in white. Round toe. Tonal lace-up closure. Padded tongue and collar. Series number stamp in gold-tone at outer heel. Tonal leather lining. Tonal rubber sole. Tonal stitching."
+    ],
+    "input_text": "Suggest one pant and one pair of shoes that will go well with the uploaded shirt.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/01_02.jpg"
+    ],
+    "group_num": 1,
+    "query_num_in_group": 2
+  },
+  {
+    "recommended_clothes_image_paths": [
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/fa405216-2e1d-4fc0-b65d-54b9a515a2cc.png",
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/492d9f8f-ff15-499f-b1b5-b58ae3bf7f50.png"
+    ],
+    "recommended_clothes_descriptions": [
+      "Suede loafers in tan. Square moc toe. Suede tassels at vamp. Leather piping at collar. Leather and rubber sole in brown. Tonal stitching.",
+      "Ankle-high distressed nubuck boots in 'nocce' tan. Square toe. Zip closure at heel. Tonal block heel. Tonal leather sole. Gunmetal-tone hardware. Tonal stitching. Approx. 1.5\" heel."
+    ],
+    "input_text": "Suggest 2 shoes that will go well with the uploaded pant.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/01_03.jpg"
+    ],
+    "group_num": 1,
+    "query_num_in_group": 3
+  },
+  {
+    "recommended_clothes_image_paths": [
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/7417206b-e5c6-4076-9a59-aa2ef2a24cda.png",
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/6e15d68e-a8fd-4ed9-85ed-1c6edd7b1ea1.png"
+    ],
+    "recommended_clothes_descriptions": [
+      "Handcrafted supple kidskin heels in 'sand' beige. Round toe. Covered block heel. Leather sole in tan. Tonal stitching. Approx. 1.5\" heel.",
+      "Low-top canvas sneakers in white. Leather trim throughout. Round toe. Lace-up closure. Series number stamp in gold-tone at outer heel. Tonal treaded rubber sole. Tonal stitching."
+    ],
+    "input_text": "Suggest 2 footwear options that will go well with the uploaded skirt.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/01_04.jpg"
+    ],
+    "group_num": 1,
+    "query_num_in_group": 4
+  },
+  {
+    "recommended_clothes_image_paths": [
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/a7987678-3b96-4ea1-bf3b-0ae883d6aeab.png",
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/5cf44342-d1cf-4201-ac5a-6ddc087e0e4e.png"
+    ],
+    "recommended_clothes_descriptions": [
+      "Mid-length cotton twill skirt in 'milk' off-white. High-rise. Four-pocket styling. Vented front hem. Zip-fly. Antiqued brass-tone hardware. Tonal stitching.",
+      "Structured 'shark-embossed' leather satchel in 'caramel' tan and 'cognac' brown. Twin carry handles with post-stud fastener at top. Detachable and adjustable shoulder strap with lanyard clasp fastening. Zippered expansion panels at face. Foldover flap with press-release fastening. Zippered pocket at interior. Textile lining in black. Gold-tone hardware. Tonal stitching. Approx. 9\" length x 7\" heig"
+    ],
+    "input_text": "Suggest one bag and one skirt that will go well with the uploaded top.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/01_05.jpg"
+    ],
+    "group_num": 1,
+    "query_num_in_group": 5
+  },
+  {
+    "recommended_clothes_image_paths": [
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/f7df5846-da2a-4d45-ba47-b4d76fab7d64.png",
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/b4483419-94ea-48c3-9871-a5c63f5e2979.png"
+    ],
+    "recommended_clothes_descriptions": [
+      "Short sleeve cotton jersey t-shirt in white. Rib knit jersey underlay at rib knit crewneck collar. Dropped shoulders. Rib knit cuffs. Raw edge at hem. Tonal stitching.",
+      "Relaxed-fit tapered trousers in grey. Four-pocket styling. Unfinished ankle cuffs. Tonal stitching. Zip-fly."
+    ],
+    "input_text": "I want to wear this jacket for a casual weekend outing. What one top and one bottom would complete the look?",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/01_06.jpg"
+    ],
+    "group_num": 1,
+    "query_num_in_group": 6
+  },
+  {
+    "recommended_clothes_image_paths": [
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/afc71124-0285-48cb-8f82-24ee40ad731b.png",
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/42137913-ea03-4027-abe0-b76ed8eb8f2d.png"
+    ],
+    "recommended_clothes_descriptions": [
+      "Metallic calfskin heels in silver-tone. Pointed toe. Crystal-cut detailing at stiletto heel. Leather sole in tan. Tonal stitching. Approx. 4\" heel.",
+      "Velvet zip pouch in navy. Zip closure. Logo plaque in silver-tone at face. Patch pockets at interior. Leather lining. Silver-tone hardware. Tonal stitching. Approx. 10.5\" lenght x 8.25\" height."
+    ],
+    "input_text": "Suggest one pair of heels and one clutch bag that would complement this gown for a black-tie event.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/01_07.jpg"
+    ],
+    "group_num": 1,
+    "query_num_in_group": 7
+  },
+  {
+    "recommended_clothes_image_paths": [
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/39d9244f-8157-4ee6-a3f3-5816db88778f.png",
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/7dbdb3b8-ffa4-48fd-90d7-1d71faddf5d5.png"
+    ],
+    "recommended_clothes_descriptions": [
+      "Cropped slim-fit wool twill trousers in black. Four-pocket styling. Pleated at front. Pleated central seams at back. Unlined. Zip-fly. Tonal stitching.",
+      "Skinny-fit jeans in 'stone wash' blue. Mid-rise. Fading and distressing throughout. Six-pocket styling. Signature graphics embroidered in orange at back pocket. Logo graphic printed in orange at back leg. Button-fly. Antiqued silver-tone hardware. Contrast stitching in beige. Approx. 5.75\" leg opening.\r\n\r\nPart of the Ksubi x Travis Scott collaboration.\r\n\r\n"
+    ],
+    "input_text": "Suggest 2 bottoms that would pair well with this hoodie for a streetwear-inspired look.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/01_08.jpg"
+    ],
+    "group_num": 1,
+    "query_num_in_group": 8
+  },
+  {
+    "recommended_clothes_image_paths": [
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/be275e43-32e0-4a02-9a77-25296741c6df.png"
+    ],
+    "recommended_clothes_descriptions": [
+      "Long sleeve stretch mesh blouse in black. V-neck collar. Hook-eye fastening at front. Elasticized silk satin waistband. Tonal stitching."
+    ],
+    "input_text": "What one top would go well with these trousers for a night out? Keep it edgy.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/01_09.jpg"
+    ],
+    "group_num": 1,
+    "query_num_in_group": 9
+  },
+  {
+    "recommended_clothes_image_paths": [
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/bde39977-463e-466e-86cd-914b910399a1.png",
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/148bd29e-89c9-4479-9565-ad73da80136f.png"
+    ],
+    "recommended_clothes_descriptions": [
+      "Slim-fit cotton-blend trousers in black. Four-pocket styling. Notched at back waistband. Central pleats. Partially lined. Zip-fly. Tonal stitching.",
+      "Ankle-high grained leather Chelsea boots in 'lava' brown. Zippered trim throughout. Round toe. Silver-tone logo plaque at vamp. Elasticized gusset at sides. Black rubber sole. Gunmetal-tone hardware. Tonal stitching."
+    ],
+    "input_text": "Suggest one bottom and one pair of shoes to complete a smart-casual outfit with this blazer.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/01_10.jpg"
+    ],
+    "group_num": 1,
+    "query_num_in_group": 10
+  },
+  {
+    "recommended_clothes_image_paths": [],
+    "recommended_clothes_descriptions": [],
+    "input_text": "Suggest a similar formal shirt but in a soft pastel colour like blush or sky blue.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/02_01.jpg"
+    ],
+    "group_num": 2,
+    "query_num_in_group": 1
+  },
+  {
+    "recommended_clothes_image_paths": [],
+    "recommended_clothes_descriptions": [],
+    "input_text": "Show me similar trousers but in a darker shade \u2014 something that works for an autumn evening.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/02_02.jpg"
+    ],
+    "group_num": 2,
+    "query_num_in_group": 2
+  },
+  {
+    "recommended_clothes_image_paths": [
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/47099f18-5406-48a4-b83f-4a1ab39024c8.png",
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/e584478a-5b29-47ac-86ee-a1953c5a926c.png"
+    ],
+    "recommended_clothes_descriptions": [
+      "Satin slip dress in black. Camisole neckline. Frayed hem. Adjustable shoulder straps. Tonal stitching.",
+      "Sleeveless cotton poplin dress in white. Gathered boatneck collar. Self-tie shoulder straps. Seam pockets at waist. Ruffled trim at hem. Tonal detachable slip lining. Tonal stitching."
+    ],
+    "input_text": "Suggest 2 similar dresses but with a more muted, earthy colour palette instead of bright florals.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/02_03.jpg"
+    ],
+    "group_num": 2,
+    "query_num_in_group": 3
+  },
+  {
+    "recommended_clothes_image_paths": [],
+    "recommended_clothes_descriptions": [],
+    "input_text": "Find me a similar jacket style but made from a non-leather or vegan-friendly material.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/02_04.jpg"
+    ],
+    "group_num": 2,
+    "query_num_in_group": 4
+  },
+  {
+    "recommended_clothes_image_paths": [],
+    "recommended_clothes_descriptions": [],
+    "input_text": "Suggest something with a similar silhouette but lighter weight for transitional spring weather.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/02_05.jpg"
+    ],
+    "group_num": 2,
+    "query_num_in_group": 5
+  },
+  {
+    "recommended_clothes_image_paths": [],
+    "recommended_clothes_descriptions": [],
+    "input_text": "Show me similar jeans but with a straight-leg cut rather than a tapered one.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/02_06.jpg"
+    ],
+    "group_num": 2,
+    "query_num_in_group": 6
+  },
+  {
+    "recommended_clothes_image_paths": [],
+    "recommended_clothes_descriptions": [],
+    "input_text": "Suggest a similar dress but more modest \u2014 longer hem and with sleeves, suitable for the office.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/02_07.jpg"
+    ],
+    "group_num": 2,
+    "query_num_in_group": 7
+  },
+  {
+    "recommended_clothes_image_paths": [
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/51c6f6be-8539-4ec1-bfa1-a17ab27d3983.png",
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/c1bf0e09-b4a1-4809-87b0-c5ea9f3f0a90.png"
+    ],
+    "recommended_clothes_descriptions": [
+      "Long sleeve rib knit cashmere cardigan in 'white' ivory. Y-neck collar. Concealed button closure at front. Raglan sleeves. Tonal stitching.",
+      "Long sleeve fine-knit cardigan in black. V-neck collar. Button closure at front. Rolled hem at sleeve cuffs and waist. Tonal stitching."
+    ],
+    "input_text": "Find me 2 similar cardigans but strictly in neutral, monochrome tones \u2014 no patterns.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/02_08.jpg"
+    ],
+    "group_num": 2,
+    "query_num_in_group": 8
+  },
+  {
+    "recommended_clothes_image_paths": [],
+    "recommended_clothes_descriptions": [],
+    "input_text": "Suggest a similar blazer but double-breasted, in any dark colour.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/02_09.jpg"
+    ],
+    "group_num": 2,
+    "query_num_in_group": 9
+  },
+  {
+    "recommended_clothes_image_paths": [],
+    "recommended_clothes_descriptions": [],
+    "input_text": "Find me similar shorts but in a longer inseam length, around 7 to 9 inches.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/02_10.jpg"
+    ],
+    "group_num": 2,
+    "query_num_in_group": 10
+  },
+  {
+    "recommended_clothes_image_paths": [],
+    "recommended_clothes_descriptions": [],
+    "input_text": "Suggest a similar skirt in the same silhouette but in a solid colour with no print.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/02_11.jpg"
+    ],
+    "group_num": 2,
+    "query_num_in_group": 11
+  },
+  {
+    "recommended_clothes_image_paths": [],
+    "recommended_clothes_descriptions": [],
+    "input_text": "Show me 2 similar t-shirts \u2014 same oversized fit \u2014 but completely plain with no graphics or logos.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/02_12.jpg"
+    ],
+    "group_num": 2,
+    "query_num_in_group": 12
+  },
+  {
+    "recommended_clothes_image_paths": [],
+    "recommended_clothes_descriptions": [],
+    "input_text": "Suggest a coat with a similar cut but shorter, hitting around the knee rather than mid-calf.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/02_13.jpg"
+    ],
+    "group_num": 2,
+    "query_num_in_group": 13
+  },
+  {
+    "recommended_clothes_image_paths": [],
+    "recommended_clothes_descriptions": [],
+    "input_text": "Find me a sandal with a similar open-toe strappy design but on a block heel for more comfort and stability.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/02_14.jpg"
+    ],
+    "group_num": 2,
+    "query_num_in_group": 14
+  },
+  {
+    "recommended_clothes_image_paths": [],
+    "recommended_clothes_descriptions": [],
+    "input_text": "Suggest a similar pleated midi skirt but in a velvet or satin fabric, appropriate for a formal dinner.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/02_15.jpg"
+    ],
+    "group_num": 2,
+    "query_num_in_group": 15
+  },
+  {
+    "recommended_clothes_image_paths": [
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/2604c2b4-4fc6-46aa-9f8c-b5a661aa6c0e.png",
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/1ba561ff-9dd3-4593-8d3d-b8644639f161.png"
+    ],
+    "recommended_clothes_descriptions": [
+      "Slim-fit cargo trousers in khaki green. Six-pocket styling. Tonal stitching. Zip-fly.",
+      "Slim-fit panelled stretch cotton twill cargo pants in black. Fading and honeycombing throughout. Six-pocket styling. Zip-fly. Brass-tone hardware. Tonal stitching."
+    ],
+    "input_text": "Show me 2 similar utility-style pants but with a slimmer fit and fewer pockets for a cleaner look.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/02_16.jpg"
+    ],
+    "group_num": 2,
+    "query_num_in_group": 16
+  },
+  {
+    "recommended_clothes_image_paths": [],
+    "recommended_clothes_descriptions": [],
+    "input_text": "Suggest a similar shirt in the same relaxed linen fabric but with short sleeves, suitable for a beach holiday.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/02_17.jpg"
+    ],
+    "group_num": 2,
+    "query_num_in_group": 17
+  },
+  {
+    "recommended_clothes_image_paths": [],
+    "recommended_clothes_descriptions": [],
+    "input_text": "Find me a puffer jacket with the same quilted style but cropped at the waist.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/02_18.jpg"
+    ],
+    "group_num": 2,
+    "query_num_in_group": 18
+  },
+  {
+    "recommended_clothes_image_paths": [],
+    "recommended_clothes_descriptions": [],
+    "input_text": "Show me something similar but with a zip-up front instead of a pullover.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/02_19.jpg"
+    ],
+    "group_num": 2,
+    "query_num_in_group": 19
+  },
+  {
+    "recommended_clothes_image_paths": [],
+    "recommended_clothes_descriptions": [],
+    "input_text": "Suggest something similar but with an asymmetric hem or a raw-edge detail for a more fashion-forward look.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/02_20.jpg"
+    ],
+    "group_num": 2,
+    "query_num_in_group": 20
+  },
+  {
+    "recommended_clothes_image_paths": [
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/239766de-948d-444c-b89e-e44b5a5a42fe.png",
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/89605a31-5169-4b96-acb6-395e8e7a2a8f.png"
+    ],
+    "recommended_clothes_descriptions": [
+      "Slim-fit wool-cotton blend trousers in navy. Four-pocket styling. Tonal stitching. Zip-fly.",
+      "Long sleeve cr\u00eape de chine shirt in 'cold' grey. Tonal detachable scarf at spread collar. Concealed button closure at front. Buttoned cuffs. Box pleat at back. Tonal stitching."
+    ],
+    "input_text": "Suggest one top and one bottom from the catalogue that would work well for a smart-casual office environment given her style and build.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/03_01.jpg"
+    ],
+    "group_num": 3,
+    "query_num_in_group": 1
+  },
+  {
+    "recommended_clothes_image_paths": [
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/998338a7-e677-4b79-a8cd-75db9d0b9324.png",
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/fecd330a-36f1-4f8d-8112-c9c429caed76.png"
+    ],
+    "recommended_clothes_descriptions": [
+      "Long sleeve cotton twill shirt in navy. Pale blue twill trim throughout. Pointed spread collar. Button closure at front. Flap pockets at chest. Single-button barrel cuffs. Collar, pocket flaps, and cuffs lined in woven white cotton. Tonal stitching.",
+      "Slim-fit chinos in black. Four-pocket styling. Tonal embroidered logo at back waistband. Tonal stitching. Zip-fly."
+    ],
+    "input_text": "Suggest one shirt and one pair of trousers that would flatter his frame for a smart dinner.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/03_02.jpg"
+    ],
+    "group_num": 3,
+    "query_num_in_group": 2
+  },
+  {
+    "recommended_clothes_image_paths": [
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/514aa01c-2989-4126-9218-3a64dcd710f0.png",
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/e6998c86-efa1-4972-8ffe-6d34efc272a2.png"
+    ],
+    "recommended_clothes_descriptions": [
+      "Mid-length cotton canvas skirt in green. Fading throughout. Six-pocket styling. Webbing straps at back pockets. Button detailing at waistband. Cinch straps at back waistband. Central vent at back hem. Zip-fly. Unlined. Brass-tone hardware. Tonal stitching.",
+      "Long sleeve gauze jersey blouse in 'natural' off-white. Drawstring at scoop neck collar. Smocking at cuffs. Detachable cotton slip lining. Tonal stitching."
+    ],
+    "input_text": "What 2 pieces from the catalogue would fit naturally into her existing style?",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/03_03.jpg"
+    ],
+    "group_num": 3,
+    "query_num_in_group": 3
+  },
+  {
+    "recommended_clothes_image_paths": [],
+    "recommended_clothes_descriptions": [],
+    "input_text": "Suggest one top and one bottom for a stylish, put-together streetwear look that suits his physique.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/03_04.jpg"
+    ],
+    "group_num": 3,
+    "query_num_in_group": 4
+  },
+  {
+    "recommended_clothes_image_paths": [
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/772be76c-cf86-4e1b-8327-f9396273e30f.png"
+    ],
+    "recommended_clothes_descriptions": [
+      "Three-quarter sleeve crepe dress in 'peony' pink. V-neck collar. Self-tie bow at flared cuffs. Zip closure with hoop pull-tab at back. Gold-tone hardware. Tonal stitching."
+    ],
+    "input_text": "Suggest one dress from the catalogue that would suit her for a daytime social event, keeping it elegant and comfortable.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/03_05.jpg"
+    ],
+    "group_num": 3,
+    "query_num_in_group": 5
+  },
+  {
+    "recommended_clothes_image_paths": [
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/d8e22fd5-ea62-4ae5-82ba-1f097acab0df.png",
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/4e316bce-4607-4f11-bfc4-9e3b19231c60.png"
+    ],
+    "recommended_clothes_descriptions": [
+      "Long sleeve wool tuxedo blazer in navy. Shawl collar with black faux-leather trim at underside. Breast pocket. Single-button closure. Flap pockets at waist. Single vent at back. Welt pocket at interior. Fully lined. Tonal stitching.",
+      "Tapered woven cotton trousers in black. Four-pocket styling. Zip-fly. Unlined. Tonal stitching."
+    ],
+    "input_text": "Find one jacket and one pair of trousers that would look proportionate and sharp on his frame.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/03_06.jpg"
+    ],
+    "group_num": 3,
+    "query_num_in_group": 6
+  },
+  {
+    "recommended_clothes_image_paths": [
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/a7811045-e055-4cc7-bbfe-9383045cd6ba.png",
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/cab63b55-e6e0-4ca5-9e14-c276195e8450.png"
+    ],
+    "recommended_clothes_descriptions": [
+      "Long sleeve 'fluid' wool and cashmere-blend jersey bodysuit in 'jet' black. Crossover v-neck collar. Press-stud fastening at bottom. Tonal stitching.",
+      "Mid-length skirt in 'midnight' heather navy. Zip and button closure at front. Seam pockets at sides. Tonal stitching."
+    ],
+    "input_text": "Suggest 2 pieces \u2014 a top and a skirt \u2014 that would help elongate her silhouette visually.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/03_07.jpg"
+    ],
+    "group_num": 3,
+    "query_num_in_group": 7
+  },
+  {
+    "recommended_clothes_image_paths": [
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/971ef3b1-313b-49be-8ab1-c9c731160461.png"
+    ],
+    "recommended_clothes_descriptions": [
+      "Sleeveless poplin dress in ivory. Panelled construction. Adjustable shoulder straps. Concealed zip closure at back. Unlined. Silver-tone hardware. Tonal stitching."
+    ],
+    "input_text": "Suggest one outfit piece that would be both flattering and stylish for an evening occasion.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/03_08.jpg"
+    ],
+    "group_num": 3,
+    "query_num_in_group": 8
+  },
+  {
+    "recommended_clothes_image_paths": [
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/c020dfcf-3ce3-4d1e-9489-3060692fab66.png"
+    ],
+    "recommended_clothes_descriptions": [
+      "Long sleeve knit cardigan in navy blue. Button closure at front. Tonal quilted paneling at yoke. Signature logo patch at upper sleeve. Tonal stitching."
+    ],
+    "input_text": "What one catalogue item best aligns with his current style?",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/03_09.jpg"
+    ],
+    "group_num": 3,
+    "query_num_in_group": 9
+  },
+  {
+    "recommended_clothes_image_paths": [
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/9053b55b-5f6a-4046-8542-6c8cada81bd0.png"
+    ],
+    "recommended_clothes_descriptions": [
+      "Long sleeve Japanese denim jacket in blue with brown overdye. Fading and distressing throughout. Spread collar. Button closure and flap pockets at front. Cinch belts at side waistband. Single-button barrel cuffs. Contrast stitching in tan."
+    ],
+    "input_text": "Suggest one casual daywear piece that would transition her look from gym to a brunch setting.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/03_10.jpg"
+    ],
+    "group_num": 3,
+    "query_num_in_group": 10
+  },
+  {
+    "recommended_clothes_image_paths": [
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/18ea4cd1-5554-414d-8692-6cb12e699bec.png"
+    ],
+    "recommended_clothes_descriptions": [
+      "Sleeveless jersey dress in 'rusty red' orange. Crewneck collar. Overlay at front and back. Unlined. Tonal stitching."
+    ],
+    "input_text": "Suggest one dress from the catalogue that fits within this warm, earthy colour palette.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/04_01.jpg"
+    ],
+    "group_num": 4,
+    "query_num_in_group": 1
+  },
+  {
+    "recommended_clothes_image_paths": [
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/c9db3fa7-f655-4d14-9f7b-10b464ed829b.png"
+    ],
+    "recommended_clothes_descriptions": [
+      "Long sleeve wool-blend gabardine blazer in black. Signature 'super skinny' fit. Pointed lapel collar featuring detachable metal and enamel pin accents in black and silver-tone. Button closure at front. Welt pocket at chest featuring detachable pocket square in white. Flap pockets at waist. Four-button surgeon's cuffs. Vents at back hem. Welt pockets at fully lined interior. Tonal stitching."
+    ],
+    "group_num": 4,
+    "query_num_in_group": 2,
+    "input_text": "Find me one blazer that uses only black, white, or a mix of both.",
+    "input_images_path": []
+  },
+  {
+    "recommended_clothes_image_paths": [
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/bbc970c9-c805-4062-82ca-b0438b8b72a4.png"
+    ],
+    "recommended_clothes_descriptions": [
+      "Three-quarter sleeve blouse in pale seafoam. Spread collar. Button closure at front. Rolled cuffs at kimono sleeves. Tonal stitching."
+    ],
+    "input_text": "Suggest one top that uses these soft, cool pastel tones.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/04_03.jpg"
+    ],
+    "group_num": 4,
+    "query_num_in_group": 3
+  },
+  {
+    "recommended_clothes_image_paths": [
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/46742421-e314-4441-84cc-fa1ff6c17191.png"
+    ],
+    "recommended_clothes_descriptions": [
+      "Slim-fit wool flannel trousers in 'camel' brown. Four-pocket styling. Zip-fly. Silver-tone hardware. Tonal stitching."
+    ],
+    "input_text": "Suggest one pair of trousers in these tones that would work for a minimalist capsule wardrobe.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/04_04.jpg"
+    ],
+    "group_num": 4,
+    "query_num_in_group": 4
+  },
+  {
+    "recommended_clothes_image_paths": [
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/7cc1a27a-71d6-4cf2-ac96-eb98266ab2e7.png"
+    ],
+    "recommended_clothes_descriptions": [
+      "Fitted strapless dress in eggplant purple. Tonal paneling throughout. Sweetheart neckline. Zip closure at back. Light boning throughout bodice. Slash pockets at sides. Pleating at back skirt. Partially lined. Tonal stitching."
+    ],
+    "input_text": "Find me one evening dress that fits within this rich colour palette.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/04_05.jpg"
+    ],
+    "group_num": 4,
+    "query_num_in_group": 5
+  },
+  {
+    "recommended_clothes_image_paths": [
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/96e5ee7a-7778-4f30-b5d2-38b79ad7effe.png",
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/a5a3e400-b67d-4a27-b32d-8ee807b475a4.png"
+    ],
+    "recommended_clothes_descriptions": [
+      "lightweight jersey t-shirt in grey. Accent seams throughout. Raw-edged funnel collar with gathered effect at back. Raw-edged trim at hem. Ribbed sleeve cuffs. Tonal stitching.",
+      "Wide-leg 'fluid' wool trousers in 'tobacco' brown. High-rise. Five-pocket styling. Darts and pleats at front. Tonal stitching."
+    ],
+    "input_text": "Suggest one top and one bottom that both work within this neutral palette and could be worn together.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/04_06.jpg"
+    ],
+    "group_num": 4,
+    "query_num_in_group": 6
+  },
+  {
+    "recommended_clothes_image_paths": [
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/b38c87fa-9a2c-4838-a436-b1f9abba3a65.png",
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/a3c697e0-3b88-4745-96a9-713774594dd9.png"
+    ],
+    "recommended_clothes_descriptions": [
+      "Sleeveless layered poplin dress in blue. Scoopneck collar. Integrated self-tie belt at waist. Mock flap pocket at sides. Vent at side-seams featuring exposed underlay. Unlined. Tonal stitching.",
+      "Cotton canvas tote in 'ecru' beige. Speckling throughout. Twin carry handles. Shoulder strap. Logo printed in black at front and back faces. Textile logo patch and zippered pocket at interior. Tonal textile lining. Tonal stitching. Approx. 16.5\" length x 17.5\" height x 7.5\" width."
+    ],
+    "input_text": "Find me one clothing piece and one bag or shoe in these colours.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/04_07.jpg"
+    ],
+    "group_num": 4,
+    "query_num_in_group": 7
+  },
+  {
+    "recommended_clothes_image_paths": [],
+    "recommended_clothes_descriptions": [],
+    "input_text": "Suggest 2 clothing items \u2014 any category \u2014 that fit this seasonal palette and could be layered together.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/04_08.jpg"
+    ],
+    "group_num": 4,
+    "query_num_in_group": 8
+  },
+  {
+    "recommended_clothes_image_paths": [
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/350f9eae-3c79-41a8-9471-4b02b47dec88.png",
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/c29453bd-2535-4ddc-9d52-0d795e7b215f.png"
+    ],
+    "recommended_clothes_descriptions": [
+      "Cropped-sleeve sleeve waisted crepe dress in dark dusty pink. Off-shoulder collar. Zip closure at back. Gathered and pleated effect at front waist. Single plasticized shoulder strap with tonal flower cut-outs throughout. Gold-tone metallic studs at each flower. Vented at front hem. Waistband at interior body with hook-eye closure. Partially lined. Tonal stitching. Zippered sleeve cuffs.",
+      "Suede ballerina flats in 'antique' pink. Square toe. Adjustable pin-buckle ankle strap. Zip closure at heel. Leather lining in beige. Leather sole. Pale gold-tone hardware. Tonal stitching."
+    ],
+    "input_text": "Suggest one dress and one pair of shoes in this blush-toned colour palette.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/04_09.jpg"
+    ],
+    "group_num": 4,
+    "query_num_in_group": 9
+  },
+  {
+    "recommended_clothes_image_paths": [
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/834facd9-c6bb-4823-b6f3-ea3b32559a12.png",
+      "/mnt/windows/Users/lordh/Documents/LibraryOfBabel/Projects/fashion_mas/data/temp_images/764810bc-5c43-4b2b-aa9c-8d6e4213e2df.png"
+    ],
+    "recommended_clothes_descriptions": [
+      "Long sleeve brushed knit sweater in black. Scarf-style overlay at rib knit crewneck collar. Rib knit cuffs and hem. Cut-out at back hem. Tonal stitching.",
+      "Slim-fit woven cotton and linen-blend trousers in yellow. Panelled construction and raw edges throughout. Four-pocket styling. Zip-fly. Fully lined. Tonal stitching."
+    ],
+    "input_text": "Find 2 casual pieces that incorporate these colours, either one each or both in a single piece.",
+    "input_images_path": [
+      "/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/eval_images/04_10.jpg"
+    ],
+    "group_num": 4,
+    "query_num_in_group": 10
+  },
+  {
+    "recommended_clothes_image_paths": [],
+    "recommended_clothes_descriptions": [],
+    "group_num": 5,
+    "query_num_in_group": 1,
+    "input_text": "I'm looking for a slim-fit navy blazer suitable for business casual wear.",
+    "input_images_path": []
+  },
+  {
+    "recommended_clothes_image_paths": [],
+    "recommended_clothes_descriptions": [],
+    "group_num": 5,
+    "query_num_in_group": 2,
+    "input_text": "Find me a floral wrap dress perfect for a summer garden party \u2014 knee length, lightweight fabric.",
+    "input_images_path": []
+  },
+  {
+    "recommended_clothes_image_paths": [],
+    "recommended_clothes_descriptions": [],
+    "group_num": 5,
+    "query_num_in_group": 3,
+    "input_text": "I need a pair of clean, minimalist white leather sneakers with no branding or logos visible.",
+    "input_images_path": []
+  },
+  {
+    "recommended_clothes_image_paths": [],
+    "recommended_clothes_descriptions": [],
+    "group_num": 5,
+    "query_num_in_group": 4,
+    "input_text": "I want a cozy, oversized cable-knit sweater in a neutral tone \u2014 think oatmeal, cream, or warm grey \u2014 something to lounge in at home during winter.",
+    "input_images_path": []
+  },
+  {
+    "recommended_clothes_image_paths": [],
+    "recommended_clothes_descriptions": [],
+    "group_num": 5,
+    "query_num_in_group": 5,
+    "input_text": "I'm after a little black dress that's versatile enough to wear to a work event and then a night out \u2014 ideally knee-length, fitted but not tight, with a modest neckline.",
+    "input_images_path": []
+  },
+  {
+    "recommended_clothes_image_paths": [],
+    "recommended_clothes_descriptions": [],
+    "group_num": 5,
+    "query_num_in_group": 6,
+    "input_text": "Show me wide-leg linen trousers in light beige or off-white, relaxed enough for a beach vacation but structured enough to look intentional.",
+    "input_images_path": []
+  },
+  {
+    "recommended_clothes_image_paths": [],
+    "recommended_clothes_descriptions": [],
+    "group_num": 5,
+    "query_num_in_group": 7,
+    "input_text": "I need a structured leather crossbody bag in brown or tan, compact but big enough to hold a phone, wallet, and keys.",
+    "input_images_path": []
+  },
+  {
+    "recommended_clothes_image_paths": [],
+    "recommended_clothes_descriptions": [],
+    "group_num": 5,
+    "query_num_in_group": 8,
+    "input_text": "Looking for a men's formal white dress shirt \u2014 slim collar, plain front, suitable for pairing under a dark suit. No patterns.",
+    "input_images_path": []
+  },
+  {
+    "recommended_clothes_image_paths": [],
+    "recommended_clothes_descriptions": [],
+    "group_num": 5,
+    "query_num_in_group": 9,
+    "input_text": "Find me a pair of high-waisted black skinny jeans with some stretch in the fabric for comfort.",
+    "input_images_path": []
+  },
+  {
+    "recommended_clothes_image_paths": [],
+    "recommended_clothes_descriptions": [],
+    "group_num": 5,
+    "query_num_in_group": 10,
+    "input_text": "I want a statement winter coat \u2014 something bold like a plaid, houndstooth, or colour-blocked design that makes the outfit. Mid-length preferred.",
+    "input_images_path": []
+  }
+]

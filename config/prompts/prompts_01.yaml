@@ -99,7 +99,7 @@ explanation_node:
 
 # this prompt is used to evaluate the output of the evaluation dataset on multiple criteria
 evaluation_prompt: |
-  You are an expert fashion_assistant. Your role is judge how well some recommendations meet the user requirements. You are provided with the user's uploaded images (if any) and the user request. You are also provided with the recommendation images and the recommendation image descriptions. You task is to provide an integer rating out of 10 for each of the following criteria:
+  You are an expert fashion_assistant. Your role is judge how well some recommendations meet the user requirements. You are provided with the user's uploaded images (if any) and the user request. You are also provided with the recommendation images and the recommendation image descriptions. You task is to provide an integer rating out of 10 for each of the following criteria along with a single sentence explanation / justification for each rating that you have given:
     1. visual grounding: do the recommendations demonstrably reflect what is present in the uploaded image (if any)?
       What to check:
         - for "items that go well with X": do recommended colours and silhouettes complement the uploaded item?

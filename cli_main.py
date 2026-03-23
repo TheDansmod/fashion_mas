@@ -10,8 +10,7 @@ from omegaconf import DictConfig
 from src.rag_pipeline.rag_agent import run_fashion_agent
 from src.utils.common_utils import validate_hydra_config
 from src.data_manager.vector_db_writer import populate_vector_db
-from src.evaluation.llm_as_judge import run_evaluation_set
-from src.evaluation.llm_as_judge import check_evaluation_output
+from src.evaluation.llm_as_judge import run_full_evaluation_pipeline
 
 # The .env file should contain `HYDRA_FULL_ERROR=1` to see a full stacktrace in case
 # of error.
@@ -29,11 +28,14 @@ def main(cfg: DictConfig):
     """Launch the current main task for the project."""
     validate_hydra_config(cfg)
     if cfg.data.vector_db.recreate:
+        log.info("Creating / re-creating Vector DB.")
         populate_vector_db(cfg)
+    elif cfg.eval.eval_mode:
+        log.info("Running full evaluation pipeline.")
+        asyncio.run(run_full_evaluation_pipeline(cfg))
     else:
-        # asyncio.run(run_evaluation_set(cfg))
-        check_evaluation_output(cfg)
-
+        log.info("Running the CLI fashion recommendation agent.")
+        asyncio.run(run_fashion_agent(cfg))
 
 if __name__ == "__main__":
     main()

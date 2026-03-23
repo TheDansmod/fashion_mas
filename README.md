@@ -11,6 +11,7 @@ https://github.com/user-attachments/assets/cc40f339-4bd2-4075-aea9-9388405977f5
 4. A production-grade **MCP server** (with streamable HTTP transport) exposing a Qdrant vector database as LLM-consumable tools, following the Model Context Protocol standard."
 5. Incorporates stateful multi-turn conversation with cross-turn image reference tracking and SQLite-backed checkpoint persistence for session resumability.
 6. Async-first agentic backend with real-time streaming updates to a **Chainlit UI**, including per-session token usage monitoring for API rate limit management, along with **LangSmith observability** for enhanced debugging.
+7. Evaluation pipeline which uses the **LLM-as-a-judge framework** to evaluate the agent across multiple different query types including "items that go well with X", "same item, different style", "items that look good on me", and "aesthetic from image"; then judges the output of the agent on various criteria like visual grounding, individual item suitability, completeness, and coverage; then assigns a weighted final score and produces the mean and standard deviation of all final scores across the entire evaluation dataset.
 
 # Agent Orchestration Diagram
 <p align="center">
@@ -31,4 +32,5 @@ https://github.com/user-attachments/assets/cc40f339-4bd2-4075-aea9-9388405977f5
 9. The project uses the Mistral API by default, so need to have a `.env` file at root level with `MISTRAL_API_KEY=<key>`
 10. Start the mcp server: `uv run src/mcp_server/mcp_server.py --datapath DATAPATH`
 11. Start the chainlit UI: `uv run chainlit run app.py` or run the application in the terminal - without chainlit: `uv run cli_main.py`. If using the UI, it should start up in your default browser.
+12. If instead, you want to run the evaluation pipeline - which evaluates the agent across multiple different query types using 60 queries and then, through the llm-as-a-judge framework, judges those queries across multiple critiera, and finally provides the mean score out of 10 and the standard deviation: `uv run cli_main.py eval.eval_mode=true`
 

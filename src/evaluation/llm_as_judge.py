@@ -6,10 +6,12 @@ from uuid import uuid4
 
 import asyncio
 import hydra
+import numpy as np
 
 from src.rag_pipeline.rag_agent import FashionAgent
-from src.utils.common_utils import track_token_use
+from src.utils.common_utils import track_token_use, get_llm_model, get_multi_image_multi_prompt_message
 from langgraph.types import interrupt, Command
+from src.rag_pipeline.llm_schemas import RecommendationEvaluation
 
 log = logging.getLogger(__name__)
 
@@ -54,7 +56,14 @@ async def run_fashion_agent_single_input(cfg, eval_input, callback_config):
         await agent.close_connection()
         return recommended_clothes_image_paths, recommended_clothes_descriptions
 
-def write_result(cfg, result):
+def write_result(cfg, result, solution=True, judgement=False):
+    # if solution = True (default), we assume that we are just doing evaluation
+    # - not judgement writes - so we write to the solution file
+    # if judgement is true - we write to the judegement file
+    if judgement and not solution:
+        file_path = cfg.eval.judgement_file_path
+    else:
+        file_path = cfg.eval.eval_response_file_path
     # we want to write the results after each run so as not to lose any information
     # json file can't simply be appended to, so we first load the json, modify it and write it back
     # the paths in the above files are relative, need to make the full
@@ -63,13 +72,13 @@ def write_result(cfg, result):
         absolute_path = hydra.utils.to_absolute_path(image_path)
         absolute_image_paths.append(absolute_path)
     result['recommended_clothes_image_paths'] = absolute_image_paths
-    path = Path(cfg.eval.eval_response_file_path)
+    path = Path(file_path)
     if not (path.exists() and path.is_file()):
         path.write_text('[]')
-    with open(cfg.eval.eval_response_file_path, 'r') as f:
+    with open(file_path, 'r') as f:
         data = json.load(f)
     data.append(result)
-    with open(cfg.eval.eval_response_file_path, 'w') as f:
+    with open(file_path, 'w') as f:
         json.dump(data, f, indent=2)
 
 async def run_evaluation_set(cfg):
@@ -81,21 +90,70 @@ async def run_evaluation_set(cfg):
         write_result(cfg, result)
         await asyncio.sleep(5)
 
-# TODO: def can remove this function later
-def check_evaluation_output(cfg):
-    # the goal of this function is to check how many evaluations actually produced valid outputs
-    no_paths, no_descr, no_both = 0, 0, 0
+def get_final_score(cfg, reco_eval: RecommendationEvaluation, has_input_image: bool):
+    vis_wt = cfg.eval.weights.visual_grounding
+    vis_score = reco_eval.visual_grounding_score
+    suit_wt = cfg.eval.weights.item_suitability
+    suit_score = reco_eval.item_suitability_score
+    comp_wt = cfg.eval.weights.completeness_coverage
+    comp_score = reco_eval.completeness_coverage_score
+    if has_input_image:
+        wt_sum = vis_wt + suit_wt + comp_wt
+        return vis_wt * vis_score + suit_wt * suit_score + comp_wt * comp_score / wt_sum
+    else:
+        wt_sum = suit_wt + comp_wt
+        return suit_wt * suit_score + comp_wt * comp_score / wt_sum
+
+# this judges the outputs that are present - ignores those that have no outputs
+@track_token_use
+def judge_evaluation_outputs(cfg, callback_config):
+    # setup llm
+    model = get_llm_model(cfg)
+    structured_model = model.with_structured_output(RecommendationEvaluation)
+    # get the evaluation outputs
     with open(cfg.eval.eval_response_file_path, 'r') as f:
         data = json.load(f)
-    total = len(data)
+    # iterate through the evaluation outputs
     for eval_run in data:
-        if len(eval_run['recommended_clothes_image_paths']) == 0:
-            no_paths += 1
-        if len(eval_run['recommended_clothes_descriptions']) == 0:
-            no_descr += 1
-        if len(eval_run['recommended_clothes_image_paths']) == 0 and len(eval_run['recommended_clothes_descriptions']) == 0:
-            no_both += 1
-    log.info(f"Out of {total} runs, {no_paths} produced no paths.")
-    log.info(f"Out of {total} runs, {no_descr} produced no descriptions.")
-    log.info(f"Out of {total} runs, {no_both} produced neither descriptions nor paths.")
+        # ignore runs with no outputs
+        if len(eval_run['recommended_clothes_image_paths']) == 0 or len(eval_run['recommended_clothes_descriptions']) == 0:
+            continue
+        # generate the prompt
+        has_input_image = len(eval_run['input_images_path']) > 0
+        prompts = []
+        for img_path in eval_run['input_images_path']:  # we want error if the key is not in the dict
+            prompts.append(("image", img_path))
+        prompt_prefix = "All the above are user input images.\n\n" if has_input_image else ""
+        prompts.append(("text", f"{prompt_prefix}The user request is: {eval_run['input_text']}\n\n"))
+        for idx, img_descr in enumerate(eval_run['recommended_clothes_descriptions']):
+            prompts.append(("image", eval_run['recommended_clothes_image_paths'][idx]))
+            prompts.append(("text", f"Above is Recommended Image {idx + 1}.\nDescription of Item {idx + 1}: {img_descr}\n\n"))
+        prompts.append(("text", cfg.prompts.evaluation_prompt))
+        msg = get_multi_image_multi_prompt_message(prompts)
+        # invoke model, get response
+        try:
+            log.debug("Invoking model")
+            response = structured_model.invoke(msg, config=callback_config)
+        except Exception as e:
+            log.exception("For group: {eval_run['group_num']}, query: {eval_run['query_num_in_group']} There was an exception while invoking the structured model for judgement.")
+            continue
+        log.debug(f"For group: {eval_run['group_num']}, query: {eval_run['query_num_in_group']} Got response from model:\n{response}")
+        # compute final score
+        final_score = get_final_score(cfg, response, has_input_image)
+        # write final score
+        result = {**eval_run, **response.model_dump(), 'final_score': f'{final_score:.2f}'}
+        write_result(cfg, result, solution=False, judgement=True)
 
+def print_average_score(cfg):
+    scores = []
+    with open(cfg.eval.judgement_file_path, 'r') as f:
+        data = json.load(f)
+    for judgement in data:
+        scores.append(float(judgement['final_score']))
+    mean, std = np.mean(scores), np.std(scores)
+    log.info(f"Mean = {mean}; Std = {std}")
+
+async def run_full_evaluation_pipeline(cfg):
+    await run_evaluation_set(cfg)
+    judge_evaluation_outputs(cfg)
+    print_average_score(cfg)
