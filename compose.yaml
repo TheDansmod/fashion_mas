@@ -1,0 +1,44 @@
+services:
+  postgres:
+    # using alpine for smaller image size
+    image: docker.io/library/postgres:16-alpine
+    container_name: fashion_agent_db
+    restart: unless-stopped
+    # with rootless podman, the bind mount directory on your host is owned by the user (e.g. UID 1000), so postgres will get a permission denied error when it tries to chown the data directory - I was still facing issues with the bind mount, so I just switched to using named volumes and commented out the below line
+    # userns_mode: "keep-id:uid=70,gid=70"
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - type: volume
+        source: postgresql_data
+        target: /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  qdrant:
+    image: docker.io/qdrant/qdrant:latest
+    container_name: qdrant-server
+    restart: unless-stopped
+    ports:
+      - "6333:6333"  # HTTP API
+      - "6334:6334"  # gRPC API
+    volumes:
+      - type: bind
+        source: ./data/qdrant_storage
+        target: /qdrant/storage:z
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 5s bash -c ':> /dev/tcp/127.0.0.1/6333' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgresql_data:
+# TODO: for production convert both volumes to be named volumes rather than bind mounts - use bind mounts when you need to access the content of the volumes - or equivalently, when humans need visibility into it. For production scenarios - named volumes are better for databases since they grant lesser permissions and there is less path coupling. There is also less chance of you accidentally messing with it

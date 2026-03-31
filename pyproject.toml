@@ -6,6 +6,8 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "aiosqlite>=0.22.1",
+    "awscli>=1.44.68",
+    "boto3>=1.42.78",
     "chainlit>=2.10.0",
     "fastmcp>=3.1.0",
     "h5py>=3.15.1",
@@ -17,11 +19,14 @@ dependencies = [
     "langchain-mistralai>=1.1.1",
     "langchain-ollama>=1.0.1",
     "langgraph>=1.0.10",
+    "langgraph-checkpoint-postgres>=3.0.5",
     "langgraph-checkpoint-sqlite>=3.0.3",
     "open-clip-torch>=3.3.0",
     "pillow>=12.1.1",
+    "psycopg[binary]>=3.3.3",
     "python-dotenv>=1.2.2",
     "qdrant-client>=1.17.0",
+    "s3fs>=0.4.2",
     "torch>=2.10.0",
     "transformers>=5.2.0",
 ]

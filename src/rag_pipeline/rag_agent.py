@@ -3,15 +3,11 @@
 import json
 import logging
 from typing import Literal
-from uuid import uuid4
 
-import aiosqlite
 from langchain.agents import create_agent
 # from src.utils.mock_llm_agent import mock_create_agent as create_agent
 from langchain_mcp_adapters.client import MultiServerMCPClient
-from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph import END, START, StateGraph
-from pydantic import BaseModel, Field
 from langgraph.types import interrupt, Command
 
 from src.rag_pipeline.llm_schemas import (
@@ -34,6 +30,7 @@ from src.utils.common_utils import (
     track_token_use,
     get_multi_image_multi_prompt_message,
 )
+from src.rag_pipeline.checkpointer import create_checkpointer_provider
 
 log = logging.getLogger(__name__)
 
@@ -52,7 +49,7 @@ class FashionAgent:
             and prompt templates.
     """
 
-    def __init__(self, cfg, callback_config):
+    def __init__(self, cfg, callback_config, checkpointer_provider):
         """Inits the agentic state representations and external client integrations.
 
         Instantiates the underlying generative models, the specialized SigLIP embedding
@@ -71,7 +68,7 @@ class FashionAgent:
         # setup embeddings
         self._cfg = cfg
         self._callback_config = callback_config
-        self._connection = None
+        self._checkpointer_provider = checkpointer_provider
         self._graph = None
         self._client = MultiServerMCPClient(
             {
@@ -149,7 +146,8 @@ class FashionAgent:
                 "input_text": user_input.get("input_text", ""),
                 "input_images_descriptions": user_input.get("input_images_descriptions", [""] * num_input_images)
         }
-        log.debug(f"State update: {json.dumps(state_update, indent=2)}")
+        # prevent eager evaluation in log calls that might not be printed by using %s instead of f-strings
+        log.debug("State update: %s", {json.dumps(state_update, indent=2)})
         return state_update
 
     def quantifier_node(self, state: AgentState) -> AgentState:
@@ -227,7 +225,7 @@ class FashionAgent:
         """
         log.debug("Entered vision node.")
         structured_model = self._model.with_structured_output(SingleImageDescription)
-        descr = state.input_images_descriptions
+        descr = state.input_images_descriptions[:] # create copy rather then reference
         for idx, image_path in enumerate(state.input_images_path):
             # if the image path already has a description - which might happen if this is not the first loop, then we skip generating the description - this only happens for images from the fashion database - not for user images since the intent capture for user images might be different, but for the fashion database image descriptions - they often capture things that are not apparent visually
             if state.input_images_descriptions[idx].strip():
@@ -303,7 +301,6 @@ class FashionAgent:
         return {"required_clothes_descriptions": response.required_clothes_descriptions}
 
     async def recommender_node(self, state: AgentState) -> AgentState:
-        # TODO: adjust description - we no longer use recommended_clothes_images
         """Executes semantic similarity search within the vector embedding space.
 
         Transforms the target apparel descriptions into dense vector embeddings
@@ -318,6 +315,7 @@ class FashionAgent:
             AgentState: The updated state dictionary containing a deduplicated set of
                 `recommended_clothes_images` indices.
         """
+        # TODO: adjust description - we no longer use recommended_clothes_images
         # clothing items
         recommended_clothes_images = []
         log.debug("Entered recommender node.")
@@ -345,7 +343,7 @@ class FashionAgent:
         recommended_clothes_descriptions = []
         for img_index in recommended_clothes_images:
             response = await tool.ainvoke({"index": img_index})
-            image_url = None
+            image_url, image_descr = None, None
             for block in response:
                 if 'base64' in block:
                     image_url = block['base64']
@@ -391,7 +389,7 @@ class FashionAgent:
         # make and invoke the model
         structured_model = self._model.with_structured_output(CriticalEvaluation)
         log.debug("Invoking model")
-        response = structured_model.invoke(msg)
+        response = structured_model.invoke(msg, config=self._callback_config)
         log.debug(f"Got model response: {response}")
         if response.satisfactory == "Yes":
             # don't change the number of times critique happened - we are only counting wrong recommendations
@@ -455,9 +453,8 @@ class FashionAgent:
         else:
             return "modifier_node"
 
-    async def compile_graph(self, conn_string):
-        self._connection = await aiosqlite.connect(conn_string)
-        checkpointer = AsyncSqliteSaver(self._connection)
+    async def compile_graph(self):
+        checkpointer = await self._checkpointer_provider.start()
         builder = StateGraph(AgentState)
         # nodes
         builder.add_node("human_node", self.human_node)
@@ -501,16 +498,16 @@ class FashionAgent:
             yield chunk
 
     async def close_connection(self):
-        if self._connection:
-            await self._connection.close()
+        await self._checkpointer_provider.stop()
 
 # this is used for running the code without chainlit
 @track_token_use
 async def run_fashion_agent(cfg, callback_config):
     log.debug("running fashion agent")
-    agent = FashionAgent(cfg, callback_config)
+    checkpointer_provider = create_checkpointer_provider(cfg)
+    agent = FashionAgent(cfg, callback_config, checkpointer_provider)
     try:
-        await agent.compile_graph(cfg.rag_pipeline.persistence.db_path)
+        await agent.compile_graph()
         config = {"configurable": {"thread_id": cfg.rag_pipeline.persistence.thread_id}}
         result = await agent.ainvoke({"is_chat_start": True}, config)
         while True:
@@ -528,7 +525,7 @@ async def run_fashion_agent(cfg, callback_config):
             if 'recommended_clothes_image_paths' in result:
                 for path in result['recommended_clothes_image_paths']:
                     log.info(f"Recommended Image Path: {path}")
-                log.info("Explanation: {result['recommended_clothes_explanation']}")
+                log.info(f"Explanation: {result['recommended_clothes_explanation']}")
             else:
                 log.error("ERROR: recommended_clothes_image_paths not in result, but expected")
     finally:

@@ -4,6 +4,7 @@ defaults:
   - prompts: prompts_01
   - rag_pipeline: rag_pipeline_01
   - tracking: tracking_01
+  - exploration: exploration_01
   - eval: eval_01
   - _self_
   - override hydra/job_logging: colorlog
@@ -12,9 +13,11 @@ defaults:
 
 hydra:
   verbose:
+    - app
     - src.rag_pipeline.rag_agent
     - src.data_manager.vector_db_writer
     - src.data_manager.vector_db_reader
     - src.mcp_server.mcp_client
     - src.utils.common_utils
     - src.evaluation.llm_as_judge
+    - src.exploration.aws_upload_download_s3

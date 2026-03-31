@@ -1,6 +1,14 @@
 persistence:
-  # this is the sqlite db used for checkpoint persistence
-  db_path: data/pipeline_checkpoints.db
+  # this defines what checkpointer backend to use - postgres or sqlite
+  backend: postgres
+  sqlite:
+    # this is the sqlite db used for checkpoint persistence
+    db_path: data/pipeline_checkpoints.db
+  postgres:
+    # this is the connection string used for postgres
+    db_connection_string: postgresql://${oc.env:POSTGRES_USER}:${oc.env:POSTGRES_PASSWORD}@localhost:5432/${oc.env:POSTGRES_DB}
+    # max simultaneous connections - this is for the postgres connection pool
+    max_pool_size: 20
   # this is the name / id of the thread used for persistence (if you change the thread name, it becomes a new session)
   # need to create new thread id every time the schema changes
   thread_id: dev_run_001

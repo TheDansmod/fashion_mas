@@ -12,6 +12,7 @@ from src.rag_pipeline.rag_agent import FashionAgent
 from src.utils.common_utils import track_token_use, get_llm_model, get_multi_image_multi_prompt_message
 from langgraph.types import interrupt, Command
 from src.rag_pipeline.llm_schemas import RecommendationEvaluation
+from src.rag_pipeline.checkpointer import create_checkpointer_provider
 
 log = logging.getLogger(__name__)
 
@@ -34,11 +35,12 @@ def get_evaluation_inputs(cfg):
 @track_token_use
 async def run_fashion_agent_single_input(cfg, eval_input, callback_config):
     log.debug("Running single evaluation")
-    agent = FashionAgent(cfg, callback_config)
+    checkpointer_provider = create_checkpointer_provider(cfg)
+    agent = FashionAgent(cfg, callback_config, checkpointer_provider)
     recommended_clothes_image_paths = []
     recommended_clothes_descriptions = []
     try:
-        await agent.compile_graph(cfg.rag_pipeline.persistence.db_path)
+        await agent.compile_graph()
         config = {"configurable": {"thread_id": uuid4()}}
         result = await agent.ainvoke({"is_chat_start": True}, config)
         # single run

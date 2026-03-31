@@ -26,12 +26,54 @@ https://github.com/user-attachments/assets/cc40f339-4bd2-4075-aea9-9388405977f5
     1. `uv remove chainlit`
     2. `uv add chainlit --link-mode copy`
 4. Create the folder for the vector db: `mkdir -p data/qdrant_storate/`
-5. Install podman / docker and run `podman run -d --name qdrant-server -p 6333:6333 -p 6334:6334 -v "$(pwd)/data/qdrant_storage:/qdrant/storage:z" docker.io/qdrant/qdrant:latest` to download and setup the docker container. This is only needed when creating the container for the first time.
-6. If the container already exists, just need to run `podman start qdrant-server` in order to start it.
+5. Install podman / docker and podman-compose / docker-compose, and run `podman-compose up -d` to download and setup the docker containers.
+6. Run `podman-compose down` to terminate the containers when done.
 7. Download the dataset using the kaggle CLI: `kaggle datasets download -d bothin/fashiongen-validation` or download from [here](https://www.kaggle.com/datasets/bothin/fashiongen-validation) and save to `DATAPATH`.
 8. Setup the Qdrant Vector DB: `uv run cli_main.py data.vector_db.recreate=true data.fashion_gen.hdf5_path=DATAPATH`. (Say YES when it asks if you want to create / re-create the Vector DB. This should take around 30 minutes with a GPU.
 9. The project uses the Mistral API by default, so need to have a `.env` file at root level with `MISTRAL_API_KEY=<key>`
 10. Start the mcp server: `uv run src/mcp_server/mcp_server.py --datapath DATAPATH`
-11. Start the chainlit UI: `uv run chainlit run app.py` or run the application in the terminal - without chainlit: `uv run cli_main.py`. If using the UI, it should start up in your default browser.
+    The MCP server runs on port 9000
+11. Start the chainlit UI: `uv run chainlit run app.py` or run the application in the terminal - without chainlit: `uv run cli_main.py`. If using the UI, it should start up in your default browser (`http://localhost:8000`).
 12. If instead, you want to run the evaluation pipeline - which evaluates the agent across multiple different query types using 60 queries and then, through the llm-as-a-judge framework, judges those queries across multiple critiera, and finally provides the mean score out of 10 and the standard deviation: `uv run cli_main.py eval.eval_mode=true`
 
+
+# AWS Deployment Considerations
+1. KNOWN: Embedding model - lives on the EC2 t3.large - can use Amazon Nova Embedding - but quality might be lower
+2. KNOWN: MCP server - AWS Lambda + API Gateway - each tool is a lambda function - use API Gateway to be called by agent - The core flow would be: API Gateway HTTP API → Lambda (FastMCP + Mangum) → External services. Might not actually need API Gateway since you are invoking the lambda internally from EC2
+3. Agent Orchestration - this runs on the EC2 t3.large
+4. Chainlit UI - this runs on the EC2 t3.large - points 3. 4. are being suggested to run together EC2 t3.small - which will cost around 15 / month - for always on. But perhaps you can have it on demand in some way - if you are willing to wait for the launch time. - also need to see how to setup static IP - that might cost extra
+6. KNOWN: Qdrant Docker Container - Can run on ECS Fargate 0.25vCPU and 1 GB RAM (or EC2 t4g.micro) - it will have 90 second startup time and 1-2 second query fetch time
+7. KNOWN: Qdrant Vector DB - this can live on an EBS, although EFS is better (more support with Fargate) but more expensive
+8. KNOWN: Fashion-Gen 14 GB database - use a single file (hdf5) entry on AWS S3 Standard - this supports random access with an object - see exploration folder
+9. KNOWN: Sqlite checkpointer db - use dynamo DB
+10. KNOWN: LLM Calls - AWS Bedrock - this is a very in-demand service - might have to use Mistral Medium directly for now since Bedrock does not have this model and others cost money - there is a simple ChatBedrockConverse API on LangChain which allows easy switching from Mistral to any Bedrock model
+11. .env - AWS Secrets Manager / Parameter Store
+
+Can use Qdrant Cloud Free Tier to host the docker container and the Qdrant DB - they have 0.5vCPU, 1 GB RAM, 4 GB disk space free forever
+
+## Changes to MCP Server
+1. Need to switch out code components that assume local stuff
+```python
+# Replace FashionSigLIPEmbedding with:
+class RemoteEmbedder:
+    def get_text_embedding_batch(self, texts):
+        response = httpx.post("https://your-embedding-api/embed", json={"texts": texts})
+        return response.json()["embeddings"]
+
+# Replace get_fashion_gen_data with:
+def get_fashion_gen_data(from_idx, to_idx):
+    response = httpx.get(f"https://your-data-api/fashiongen?from={from_idx}&to={to_idx}")
+    return response.json()
+
+# Change Qdrant URL from localhost to your external instance:
+QdrantConnector(url="https://your-qdrant-cloud-url", collection_name="fashion_gen")
+
+# Replace mcp.run() at the bottom with:
+from mangum import Mangum
+app = mcp.http_app()   # FastMCP exposes the underlying Starlette app
+handler = Mangum(app)  # this is your Lambda handler
+```
+2. Use asyncio.gather for all the matches together rather than each match sequentially
+
+
+TODO: you have added psycopg[binary] as a dependency - but the binary is not recommended for production - please libpq on the system in a production environment.
