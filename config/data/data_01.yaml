@@ -58,3 +58,9 @@ data_processing:
   upload_batch_size: 512
   # this is the number of parallel workers used during collection upload
   upload_parallel: 4
+
+session_data:
+  table_name: SessionData
+
+dynamo_db:
+  endpoint_url: ${oc.env:DYNAMODB_ENDPOINT_URL}

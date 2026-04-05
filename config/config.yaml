@@ -10,6 +10,14 @@ defaults:
   - override hydra/job_logging: colorlog
   - override hydra/hydra_logging: colorlog
 
+# this is the mode in which the application is running - development, staging, production
+app_env: ${oc.env:APP_ENV}
+
+# this is the value of APP_ENV when the application is in development mode
+dev_env: development
+
+# this is the value of APP_ENV when the application is in production mode
+prod_env: production
 
 hydra:
   verbose:

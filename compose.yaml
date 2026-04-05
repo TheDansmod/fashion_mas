@@ -39,6 +39,31 @@ services:
       timeout: 5s
       retries: 5
 
+  dynamodb-local:
+    image: amazon/dynamodb-local:latest
+    container_name: dynamodb-local
+    command: "-jar DynamoDBLocal.jar -sharedDb -dbPath ./data"
+    working_dir: /home/dynamodblocal
+    ports:
+      - "8000:8000"          # exposes to host for local Python scripts
+    volumes:
+      - type: volume
+        source: dynamodb-data
+        target: /home/dynamodblocal/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:8000 > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
 volumes:
   postgresql_data:
+  dynamodb-data:
 # TODO: for production convert both volumes to be named volumes rather than bind mounts - use bind mounts when you need to access the content of the volumes - or equivalently, when humans need visibility into it. For production scenarios - named volumes are better for databases since they grant lesser permissions and there is less path coupling. There is also less chance of you accidentally messing with it
