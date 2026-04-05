@@ -50,10 +50,6 @@ def encode_image(image_path=None, numpy_image=None):
 def validate_hydra_config(cfg):
     """Runs some checks to ensure validity of hydra config."""
     log.debug(f"Recreating the vector db: {cfg.data.vector_db.recreate}")
-    log.debug(
-        "Resuming from previous checkpoint: "
-        f"{cfg.rag_pipeline.persistence.resume_from_checkpoint}"
-    )
     log.debug(f"Running model: {cfg.models.vlm_agent.name}")
     if cfg.data.vector_db.recreate:
         confirmation = input(
@@ -61,12 +57,6 @@ def validate_hydra_config(cfg):
         )
         if confirmation != "YES":
             raise ValueError("Cannot recreate vector db without confirmation.")
-    if cfg.rag_pipeline.persistence.resume_from_checkpoint:
-        confirmation = input(
-            "Please enter `YES` if you wish to resume from previous checkpoint: "
-        )
-        if confirmation != "YES":
-            raise ValueError("Cannot resume from checkpoint without confirmation.")
     if (
         cfg.data.data_processing.embedding_batch_size
         > cfg.data.data_processing.data_fetch_batch_size

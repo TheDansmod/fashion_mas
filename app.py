@@ -50,7 +50,8 @@ async def start_chat():
 
     await agent.compile_graph()
 
-    config = {"configurable": {"thread_id": cl.context.session.id}}
+    # we use thread_id since that is stable across reconnects - the session.id is just the websocket id which will change on refresh / re-connect - when we switch to adding users - we should use user_id:conversation_id
+    config = {"configurable": {"thread_id": cl.context.session.thread_id}}
     cl.user_session.set("config", config)
 
     await cl.Message(

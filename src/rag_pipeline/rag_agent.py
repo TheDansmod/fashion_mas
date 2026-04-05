@@ -3,6 +3,7 @@
 import json
 import logging
 from typing import Literal
+from uuid import uuid4
 
 from langchain.agents import create_agent
 # from src.utils.mock_llm_agent import mock_create_agent as create_agent
@@ -480,27 +481,20 @@ class FashionAgent:
         draw_langraph_topology(self._graph, self._cfg.rag_pipeline.node_diagram_path)
 
     async def ainvoke(self, initial_state, config):
-        invocation_state = (
-            None
-            if self._cfg.rag_pipeline.persistence.resume_from_checkpoint
-            else initial_state
-        )
-        return await self._graph.ainvoke(invocation_state, config)
+        return await self._graph.ainvoke(initial_state, config)
     
     async def astream(self, input_state, config):
         """Streams node-level state updates from the compiled graph."""
-        invocation_state = (
-            None
-            if self._cfg.rag_pipeline.persistence.resume_from_checkpoint
-            else input_state
-        )
-        async for chunk in self._graph.astream(invocation_state, config, stream_mode="updates"):
+        async for chunk in self._graph.astream(input_state, config, stream_mode="updates"):
             yield chunk
 
     async def close_connection(self):
         await self._checkpointer_provider.stop()
 
 # this is used for running the code without chainlit
+# there is no resume from checkpoint for this - you always start fresh
+# chainlit handles the resume when required
+# here we use uuid to have fresh start everytime
 @track_token_use
 async def run_fashion_agent(cfg, callback_config):
     log.debug("running fashion agent")
@@ -508,7 +502,7 @@ async def run_fashion_agent(cfg, callback_config):
     agent = FashionAgent(cfg, callback_config, checkpointer_provider)
     try:
         await agent.compile_graph()
-        config = {"configurable": {"thread_id": cfg.rag_pipeline.persistence.thread_id}}
+        config = {"configurable": {"thread_id": str(uuid4())}}
         result = await agent.ainvoke({"is_chat_start": True}, config)
         while True:
             input_text = input("Enter `quit` to exit gracefully. Please provide input text: ")
