@@ -75,6 +75,10 @@ class PostgresCheckpointerProvider(CheckpointerProvider):
             self._pool = None
 
 
+# class DynamoDBCheckpointerProvider(CheckpointerProvider):
+#     """Async AWS checkpointer"""
+#     def __init__(self, table_name: str, 
+
 def create_checkpointer_provider(cfg) -> CheckpointerProvider:
     """Factory: reads cfg and returns the correct provider.
 

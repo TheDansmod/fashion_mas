@@ -18,16 +18,6 @@ from src.utils.common_utils import validate_hydra_config
 from src.utils.common_utils import update_token_use
 from src.rag_pipeline.checkpointer import create_checkpointer_provider
 
-# The .env file should contain `HYDRA_FULL_ERROR=1` to see a full stacktrace in case
-# of error.
-# The .env file should also have the HF_TOKEN value from huggingface for vision model
-# access - not mandatory.
-# The .env file should populate langsmith endpoints like `LANGSMITH_TRACING=true`,
-# `LANGSMITH_PROJECT=<project_name>`, `LANGSMITH_API_KEY`, `LANGSMITH_ENDPOINT=<eu/us>`.
-# The .env file should have a key for mistral api key: `MISTRAL_API_KEY=<key>`
-# The .env file should have keys POSTGRES_USER, POSTGRES_DB, POSTGRES_PASSWORD
-# "postgresql://myuser:mypassword@localhost:5432/fashion_agent"
-
 # having to do this since chainlit and hydra both want to start the app and I have
 # decided to get chainlit to do the startup. Chainlit loads the run file as a module
 # which means __name__ != '__main__', thus, the hydra initialization is global

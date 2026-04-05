@@ -12,6 +12,8 @@ from datetime import datetime
 from io import BytesIO
 
 import hydra
+from dotenv import load_dotenv
+from hydra.core.global_hydra import GlobalHydra
 from langchain_core.tools import StructuredTool
 from langchain_core.callbacks import UsageMetadataCallbackHandler
 from langchain_core.messages import HumanMessage
@@ -22,6 +24,14 @@ from qdrant_client import QdrantClient, models
 
 log = logging.getLogger(__name__)
 
+def get_global_config():
+    cfg = None
+    if not GlobalHydra.instance().is_initialized():
+        load_dotenv()
+        hydra.initialize(version_base=None, config_path="config/")
+    cfg: DictConfig = hydra.compose(config_name="config", overrides=[], return_hydra_config=True)
+    hydra.core.utils.configure_log(cfg.hydra.job_logging, cfg.hydra.verbose)
+    return cfg
 
 def encode_image(image_path=None, numpy_image=None):
     """Encode an image to base64 from file path or numpy ndarray."""
