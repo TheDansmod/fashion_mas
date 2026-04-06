@@ -37,25 +37,6 @@ def encode_image(image_path=None, numpy_image=None):
         img.save(buffer, format="png")
         return base64.b64encode(buffer.getvalue()).decode("utf-8")
 
-@inject
-def validate_hydra_config(
-    recreate_vector_db: bool = PV[cfg.data.vector_db.recreate],
-    llm_model_name: str = PV[cfg.models.vlm_agent.name],
-    embedding_batch_size: int = PV[cfg.data.data_processing.embedding_batch_size],
-    data_fetch_batch_size: int = PV[cfg.data.data_processing.data_fetch_batch_size],
-):
-    """Runs some checks to ensure validity of hydra config."""
-    log.debug(f"Recreating the vector db: {recreate_vector_db}")
-    log.debug(f"Running model: {llm_model_name}")
-    if recreate_vector_db:
-        confirmation = input(
-            "Please enter `YES` if you want to create / re-create the vector db: "
-        )
-        if confirmation != "YES":
-            raise ValueError("Cannot recreate vector db without confirmation.")
-    if embedding_batch_size > data_fetch_batch_size:
-        raise ValueError("The embedding_batch_size should be <= data_fetch_batch_size.")
-
 
 def get_image_prompt_message(image_path=None, text_prompt=None, numpy_image=None):
     """Get langgraph compatible prompt containing an image and some text."""

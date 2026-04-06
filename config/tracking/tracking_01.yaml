@@ -1,5 +1,0 @@
-# for langsmith observability and traces
-project_name: ${oc.env:LANGSMITH_PROJECT}
-
-# for local token usage tracking
-token_usage_tracker_path: data/token_usage.csv

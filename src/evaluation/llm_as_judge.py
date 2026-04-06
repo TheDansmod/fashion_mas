@@ -4,7 +4,6 @@ from pathlib import Path
 from uuid import uuid4
 
 import asyncio
-import hydra
 import numpy as np
 from loguru import logger as log
 from dependency_injector.wiring import inject, Provide as PV
@@ -83,8 +82,7 @@ def write_result(
     # the paths in the above files are relative, need to make the full
     absolute_image_paths = []
     for image_path in result['recommended_clothes_image_paths']:
-        absolute_path = hydra.utils.to_absolute_path(image_path)
-        absolute_image_paths.append(absolute_path)
+        absolute_image_paths.append(image_path)
     result['recommended_clothes_image_paths'] = absolute_image_paths
     path = Path(file_path)
     if not (path.exists() and path.is_file()):
