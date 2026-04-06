@@ -1,41 +1,43 @@
 """This is the starting point for the project."""
 
 import asyncio
-import logging
+from loguru import logger as log
 
-import hydra
-from dotenv import load_dotenv
-from omegaconf import DictConfig
+from dependency_injector.wiring import inject, Provide as PV
+
+# dependency wiring must be done before src imports
+from src.config.container import Container
+container = Container()
 
 from src.rag_pipeline.rag_agent import run_fashion_agent
-from src.utils.common_utils import validate_hydra_config
 from src.data_manager.vector_db_writer import populate_vector_db
 from src.evaluation.llm_as_judge import run_full_evaluation_pipeline
+# from src.exploration.wired_config import check_wiring
 
-# The .env file should contain `HYDRA_FULL_ERROR=1` to see a full stacktrace in case
-# of error.
-# The .env file should also have the HF_TOKEN value from huggingface for vision model
-# access.
-# The .env file should populate langsmith endpoints like `LANGSMITH_TRACING=true`,
-# `LANGSMITH_PROJECT=<project_name>`, `LANGSMITH_API_KEY`, `LANGSMITH_ENDPOINT=<eu/us>`.
-# The .env file should have a key for mistral AI api key: `MISTRAL_API_KEY=<key>`
-load_dotenv()
-log = logging.getLogger(__name__)
+cfg = Container.config.provided
 
-
-@hydra.main(version_base=None, config_path="config", config_name="config")
-def main(cfg: DictConfig):
+@inject
+async def main(
+    recreate_vector_db: bool = PV[cfg.data.vector_db.recreate],
+    eval_mode: bool = PV[cfg.evaluation.eval_mode],
+):
     """Launch the current main task for the project."""
-    validate_hydra_config(cfg)
-    if cfg.data.vector_db.recreate:
-        log.info("Creating / re-creating Vector DB.")
-        populate_vector_db(cfg)
-    elif cfg.eval.eval_mode:
-        log.info("Running full evaluation pipeline.")
-        asyncio.run(run_full_evaluation_pipeline(cfg))
-    else:
-        log.info("Running the CLI fashion recommendation agent.")
-        asyncio.run(run_fashion_agent(cfg))
+    # check_wiring()
+    try:
+        await container.init_resources()
+        if recreate_vector_db:
+            log.info("Creating / re-creating Vector DB.")
+            populate_vector_db()
+        elif eval_mode:
+            log.info("Running full evaluation pipeline.")
+            await run_full_evaluation_pipeline()
+        else:
+            log.info("Running the CLI fashion recommendation agent.")
+            await run_fashion_agent()
+    except Exception as e:
+        log.exception("Some Exception in cli_main.py")
+    finally:
+        await container.shutdown_resources()
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

@@ -7,31 +7,22 @@ import asyncio
 import base64
 import csv
 import functools
-import logging
 from datetime import datetime
 from io import BytesIO
 
-import hydra
-from dotenv import load_dotenv
-from hydra.core.global_hydra import GlobalHydra
 from langchain_core.tools import StructuredTool
 from langchain_core.callbacks import UsageMetadataCallbackHandler
 from langchain_core.messages import HumanMessage
-from langchain_core.rate_limiters import InMemoryRateLimiter
 from langchain_core.runnables.graph import MermaidDrawMethod
 from PIL import Image
 from qdrant_client import QdrantClient, models
+from loguru import logger as log
+from dependency_injector.wiring import inject, Provide as PV
 
-log = logging.getLogger(__name__)
+from src.config.container import Container
 
-def get_global_config():
-    cfg = None
-    if not GlobalHydra.instance().is_initialized():
-        load_dotenv()
-        hydra.initialize(version_base=None, config_path="config/")
-    cfg: DictConfig = hydra.compose(config_name="config", overrides=[], return_hydra_config=True)
-    hydra.core.utils.configure_log(cfg.hydra.job_logging, cfg.hydra.verbose)
-    return cfg
+cfg = Container.config.provided
+
 
 def encode_image(image_path=None, numpy_image=None):
     """Encode an image to base64 from file path or numpy ndarray."""
@@ -46,21 +37,23 @@ def encode_image(image_path=None, numpy_image=None):
         img.save(buffer, format="png")
         return base64.b64encode(buffer.getvalue()).decode("utf-8")
 
-
-def validate_hydra_config(cfg):
+@inject
+def validate_hydra_config(
+    recreate_vector_db: bool = PV[cfg.data.vector_db.recreate],
+    llm_model_name: str = PV[cfg.models.vlm_agent.name],
+    embedding_batch_size: int = PV[cfg.data.data_processing.embedding_batch_size],
+    data_fetch_batch_size: int = PV[cfg.data.data_processing.data_fetch_batch_size],
+):
     """Runs some checks to ensure validity of hydra config."""
-    log.debug(f"Recreating the vector db: {cfg.data.vector_db.recreate}")
-    log.debug(f"Running model: {cfg.models.vlm_agent.name}")
-    if cfg.data.vector_db.recreate:
+    log.debug(f"Recreating the vector db: {recreate_vector_db}")
+    log.debug(f"Running model: {llm_model_name}")
+    if recreate_vector_db:
         confirmation = input(
             "Please enter `YES` if you want to create / re-create the vector db: "
         )
         if confirmation != "YES":
             raise ValueError("Cannot recreate vector db without confirmation.")
-    if (
-        cfg.data.data_processing.embedding_batch_size
-        > cfg.data.data_processing.data_fetch_batch_size
-    ):
+    if embedding_batch_size > data_fetch_batch_size:
         raise ValueError("The embedding_batch_size should be <= data_fetch_batch_size.")
 
 
@@ -137,26 +130,17 @@ def draw_langraph_topology(app, path):
         f.write(png_bytes)
 
 
-def get_categories_from_string(cfg, search_string):
-    """Gets which categories might be mentioned in the search string."""
-    categories = [cat.lower() for cat in cfg.data.fashion_gen.product_categories]
-    search_string = search_string.lower()
-    matched_categories = []
-    for cat in categories:
-        if cat in search_string:
-            matched_categories.append(cat.upper())
-    return matched_categories
-
-
-def get_qdrant_points_by_id(cfg, ids=None):
+@inject
+def get_qdrant_points_by_id(
+    ids=None,
+    collection_name: str = PV[cfg.data.vector_db.collection_name],
+    url: str = PV[cfg.data.vector_db.vector_store_network_path],
+    prefer_grpc: bool = PV[cfg.data.vector_db.prefer_grpc],
+):
     """Logs payload information for Qdrant points using provided IDs."""
     if len(ids) < 1:
         raise ValueError("ids should be a list of ids of length at least 1")
-    collection_name = cfg.data.vector_db.collection_name
-    client = QdrantClient(
-        url=cfg.data.vector_db.vector_store_network_path,
-        prefer_grpc=cfg.data.vector_db.prefer_grpc,
-    )
+    client = QdrantClient(url=url, prefer_grpc=prefer_grpc)
     # returned values are list of Records, it has an attribute called payload
     points = client.retrieve(
         collection_name=collection_name, ids=ids, with_payload=True, with_vectors=False
@@ -167,117 +151,17 @@ def get_qdrant_points_by_id(cfg, ids=None):
         log.debug(point.payload.keys())
 
 
-def migrate_local_to_docker(cfg):
-    """Moves qdrant data from local setup to a docker setup."""
-    log.debug("Starting migration process.")
-    src_client = QdrantClient(
-        url=cfg.data.vector_db.vector_store_network_path,
-        prefer_grpc=cfg.data.vector_db.prefer_grpc,
-    )
-    log.debug("Loaded source client.")
-    dst_client = QdrantClient(
-        path=cfg.data.vector_db.vector_store_network_path,
-        prefer_grpc=cfg.data.vector_db.prefer_grpc,
-    )
-    log.debug("Loaded destination client. Starting migration")
-
-    src_client.migrate(
-        dest_client=dst_client,
-        collection_names=[cfg.data.vector_db.collection_name],
-        recreate_on_collision=True,
-        batch_size=cfg.data.data_processing.migration_batch_size,
-    )
-
-
-def batch_update_vector_db(cfg):
-    """Update the index in the vector db.
-
-    I have previously made the mistake of using the index key from the hdf5 dataset to
-    index the qdrant database entries under the assumption of one-to-one equivalence
-    between the sequential index and the value of the index key for any given element
-    of the hdf5 dataset. I have later determined that this equivalence does not exist
-    with the index key, but actually with the index_2 key. So, now I will be replacing
-    the `"index": wrong-val` element in the qdrant payload with `"index_2": right-val`.
-
-    Since we are using a scroll filter that restricts the updates only to those points
-    which still have the wrong key, we can safely re-execute the code when there is a
-    failure.
-    """
-    import h5py
-
-    # get the mapping dictionary between old and new values
-    log.debug("Getting old to new mappings.")
-    num_datapoints = cfg.data.fashion_gen.num_datapoints
-    index_val_to_index_2_val = dict()
-    with h5py.File(cfg.data.fashion_gen.hdf5_path, "r") as file:
-        for idx in range(num_datapoints):
-            index = file["index"][idx][0].item()
-            index_2 = file["index_2"][idx].item()  # don't need [0]
-            index_val_to_index_2_val[index] = index_2
-    log.debug("Obtained the mapping from old to new index values.")
-    # get the qdrant client
-    qdrant_url = cfg.data.vector_db.vector_store_network_path
-    collection_name = cfg.data.vector_db.collection_name
-    client = QdrantClient(url=qdrant_url, prefer_grpc=cfg.data.vector_db.prefer_grpc)
-    # get the filter - only points which have the wrong key (index)
-    scroll_filter = models.Filter(
-        must_not=[models.IsEmptyCondition(is_empty=models.PayloadField(key="index"))]
-    )
-    # perform the batch updates sequentially
-    offset = None
-    batch_size = cfg.data.data_processing.payload_update_batch_size
-    max_num_iter = (num_datapoints // batch_size) + 2  # 2 for safety
-    log.debug("Performing batch updates.")
-    for iter_num in range(max_num_iter):
-        records, offset = client.scroll(
-            collection_name=collection_name,
-            scroll_filter=scroll_filter,
-            limit=batch_size,
-            offset=offset,
-            with_payload=True,
-            with_vectors=False,
-        )
-        operations = []
-        for record in records:
-            new_value = index_val_to_index_2_val[record.payload.get("index")]
-            # insertion - set payload only does update not overwrite
-            operations.append(
-                models.SetPayloadOperation(
-                    set_payload=models.SetPayload(
-                        payload={"index_2": new_value}, points=[record.id]
-                    )
-                )
-            )
-            # deletion
-            operations.append(
-                models.DeletePayloadOperation(
-                    delete_payload=models.DeletePayload(
-                        keys=["index"], points=[record.id]
-                    )
-                )
-            )
-        # perform the update
-        # wait=False ensures that the commands are sent to the container long before
-        # it tries to perform the actual updates
-        if operations:
-            client.batch_update_points(
-                collection_name=collection_name,
-                update_operations=operations,
-                wait=False,
-            )
-        if offset is None:
-            break
-        log.debug(f"Done iter {iter_num + 1} of at most {max_num_iter} iterations.")
-
-
-def update_token_use(cfg, usage_metadata):
+@inject
+def update_token_use(
+    usage_metadata,
+    tracker_path = PV[cfg.tracking.token_usage_tracker_path],
+):
     """Updates the token usage tracking csv file with the data from the callback."""
-    csv_path = hydra.utils.to_absolute_path(cfg.tracking.token_usage_tracker_path)
     log.info(
         f"Saving token use data for {len(usage_metadata)} models. "
         "Should be invoked just once every full run."
     )
-    with open(csv_path, "a", newline="") as csv_file:
+    with open(tracker_path, "a", newline="") as csv_file:
         writer = csv.writer(csv_file)
         for model_name, metadata in usage_metadata.items():
             writer.writerow(
@@ -294,62 +178,34 @@ def update_token_use(cfg, usage_metadata):
 def track_token_use(func):
     """Decorator to track token usage for LLM calls - useful for Mistral."""
     if asyncio.iscoroutinefunction(func):
-
         @functools.wraps(func)
-        async def wrapper(cfg, *args, **kwargs):
+        async def wrapper(*args, **kwargs):
             callback = UsageMetadataCallbackHandler()
             callback_config = {"callbacks": [callback]}
             kwargs["callback_config"] = callback_config
             try:
-                result = await func(cfg, *args, **kwargs)
+                result = await func(*args, **kwargs)
             except Exception as e:
                 log.exception("Exception caught inside track_token_use function.")
             finally:
-                update_token_use(cfg, callback.usage_metadata)
+                update_token_use(callback.usage_metadata)
             return result
-
         return wrapper
     else:
-
         @functools.wraps(func)
-        def wrapper(cfg, *args, **kwargs):
+        def wrapper(*args, **kwargs):
             callback = UsageMetadataCallbackHandler()
             callback_config = {"callbacks": [callback]}
             kwargs["callback_config"] = callback_config
             try:
-                result = func(cfg, *args, **kwargs)
+                result = func(*args, **kwargs)
+            except Exception as e:
+                log.exception("Exception caught inside track_token_use function.")
             finally:
-                update_token_use(cfg, callback.usage_metadata)
+                update_token_use(callback.usage_metadata)
             return result
-
         return wrapper
 
-
-def get_rate_limiter(cfg):
-    """Sets up a rate limiter for the LLM agent."""
-    rps = cfg.models.rate_limiter.requests_per_second
-    check_int = cfg.models.rate_limiter.check_every_n_seconds
-    bucket_sz = cfg.models.rate_limiter.max_bucket_size
-    if cfg.models.vlm_agent.use_rate_limiter:
-        rate_limiter = InMemoryRateLimiter(
-            requests_per_second=rps,
-            check_every_n_seconds=check_int,
-            max_bucket_size=bucket_sz,
-        )
-    else:
-        rate_limiter = None
-    return rate_limiter
-
-
-def get_llm_model(cfg):
-    """Creates and returns an LLM model for use with appropriate rate limits."""
-    provider = hydra.utils.instantiate(cfg.models.vlm_agent)
-    model = provider(
-        model=cfg.models.vlm_agent.name,
-        temperature=cfg.models.vlm_agent.temp,
-        rate_limiter=get_rate_limiter(cfg),
-    )
-    return model
 
 def get_tool_with_name(tools, search_name):
     """Given a list of mcp tools, returns the tool with the search name, or errors."""

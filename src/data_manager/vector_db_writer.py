@@ -1,7 +1,5 @@
 """Read the fashion-gen dataset, generate embeddings, and write them to vector db."""
 
-import logging
-
 import h5py
 import numpy as np
 import open_clip
@@ -9,8 +7,12 @@ import torch
 from PIL import Image
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
+from loguru import logger as log
+from dependency_injector.wiring import inject, Provide as PV
 
-log = logging.getLogger(__name__)
+from src.config.container import Container
+
+cfg = Container.config.provided
 
 
 class FashionSigLIPEmbedding:

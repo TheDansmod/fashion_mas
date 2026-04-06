@@ -1,24 +1,32 @@
 """Read / extract vectors from vector database."""
 
-import logging
-
 from qdrant_client.models import FieldCondition, Filter, MatchValue
+from loguru import logger as log
+from dependency_injector.wiring import inject, Provide as PV
 
 from src.data_manager.vector_db_writer import get_vector_db_client
+from src.config.container import Container
 
-log = logging.getLogger(__name__)
+cfg = Container.config.provided
 
 
 class VectorDbReader:
     """Reads / extracts vectors from vector database."""
 
-    def __init__(self, cfg):
+    @inject
+    def __init__(
+        self,
+        collection_name: str = PV[cfg.data.vector_db.collection_name],
+        image_vectors_name: str = PV[cfg.data.vector_db.image_vectors_name],
+        categories_key: str = PV[cfg.data.fashion_gen.categories_key],
+        index_key: str = PV[cfg.data.fashion_gen.index_key],
+    ):
         """Setup the reader."""
-        self._client = get_vector_db_client(cfg)
-        self._collection_name = cfg.data.vector_db.collection_name
-        self._image_vectors_name = cfg.data.vector_db.image_vectors_name
-        self._category_key = cfg.data.fashion_gen.categories_key
-        self._index_key = cfg.data.fashion_gen.index_key
+        self._client = get_vector_db_client()
+        self._collection_name = collection_name
+        self._image_vectors_name = image_vectors_name
+        self._category_key = categories_key
+        self._index_key = index_key
 
     def get_image_matches(self, embedding, num_matches=1, categories=None):
         """Gets num_matches images that best match the embedding.

@@ -11,3 +11,4 @@
     And the output to the above command should be a list of parameters if you have any.
 6. You can also use `cfn-lint` to do deeper linting (rather than just syntax).
 7. You need to setup chainlit by first running `chainlit create-secret` and then writing the secret output to the .env file.
+8. If you do the delete for the cloudformation template - then the dynamo db table is deleted without you paying anything

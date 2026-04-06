@@ -1,50 +1,38 @@
 """This is the starting point for the project."""
 
-import logging
 from pathlib import Path
 import shutil
 
 import chainlit as cl
-import hydra
-from dotenv import load_dotenv
-from omegaconf import DictConfig
-from hydra.core.global_hydra import GlobalHydra
 from langchain_core.callbacks import UsageMetadataCallbackHandler
 from langgraph.types import Command
-from src.utils.ui_node_updates import NODE_META
+from loguru import logger as log
+from dependency_injector.wiring import inject, Provide as PV
+
+# dependency wiring must be done before src imports
+from src.config.container import Container
+container = Container()
 
 from src.rag_pipeline.rag_agent import FashionAgent
-from src.utils.common_utils import validate_hydra_config
 from src.utils.common_utils import update_token_use
-from src.rag_pipeline.checkpointer import create_checkpointer_provider
+from src.utils.ui_node_updates import NODE_META
 
-# having to do this since chainlit and hydra both want to start the app and I have
-# decided to get chainlit to do the startup. Chainlit loads the run file as a module
-# which means __name__ != '__main__', thus, the hydra initialization is global
-cfg = None
-if not GlobalHydra.instance().is_initialized():
-    load_dotenv()
-    # no with context since I need the initialization to persist for the life of the process
-    hydra.initialize(version_base=None, config_path="config/")
-    cfg: DictConfig = hydra.compose(config_name="config", overrides=[], return_hydra_config=True)
-    hydra.core.utils.configure_log(cfg.hydra.job_logging, cfg.hydra.verbose)
+cfg = Container.config.provided
 
-    # code start - this is here since we want to execute it just once
-    validate_hydra_config(cfg)
+@cl.on_app_startup
+async def startup():
+    await container.init_resources()
 
-log = logging.getLogger(__name__)
-
-# this is to prevent a loop of watch files creating a log and hydra logging it and watchfiles logging that
-logging.getLogger("watchfiles.main").setLevel(logging.WARNING)
-
+@cl.on_app_shutdown
+async def shutdown():
+    await container.shutdown_resources()
 
 @cl.on_chat_start
 async def start_chat():
     log.info('in start')
     # we want to have a separate callback handler and fashion agent object per connection
     metadata_callback = UsageMetadataCallbackHandler()
-    checkpointer_provider = create_checkpointer_provider(cfg)
-    agent = FashionAgent(cfg, {"callbacks": [metadata_callback]}, checkpointer_provider)
+    agent = FashionAgent({"callbacks": [metadata_callback]})
     cl.user_session.set("metadata_callback", metadata_callback)
     cl.user_session.set("agent", agent)
 
@@ -100,18 +88,14 @@ async def on_message(message: cl.Message):
         await cl.Message(content="No recommendations could be found for your request.").send()
 
 @cl.on_chat_end
-async def end_chat():
+@inject
+async def end_chat(temp_dir_path = PV[cfg.orchestration.temporary_images_folder]):
     log.info('in end chat')
 
     metadata_callback = cl.user_session.get("metadata_callback")
-    agent = cl.user_session.get("agent")
-
-    update_token_use(cfg, metadata_callback.usage_metadata)
+    update_token_use(metadata_callback.usage_metadata)
     log.info("updated token use")
-    if agent:
-        log.info("closed connection")
-        await agent.close_connection()
 
-    temp_dir_path = Path(cfg.rag_pipeline.temporary_images_folder)
+    temp_dir_path = Path(temp_dir_path)
     if temp_dir_path.exists() and temp_dir_path.is_dir():
         shutil.rmtree(temp_dir_path, ignore_errors=True)

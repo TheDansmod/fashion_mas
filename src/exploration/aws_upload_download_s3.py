@@ -6,10 +6,12 @@ import numpy as np
 import boto3
 from botocore.exceptions import ClientError
 from PIL import Image
+from dependency_injector.wiring import inject, Provide
+from src.config.container import Container
 
 log = logging.getLogger(__name__)
 
-def list_all_buckets(cfg):
+def list_all_buckets():
     log.info("listing all buckets")
     s3_client = boto3.client('s3')
     response = s3_client.list_buckets()
@@ -17,6 +19,7 @@ def list_all_buckets(cfg):
     for bucket in response['Buckets']:
         log.info(f'\t{bucket["Name"]}')
 
+# @inject
 def create_bucket(cfg):
     bucket_name = cfg.exploration.s3_bucket_name
     try:
@@ -70,20 +73,10 @@ def get_item_by_index(cfg, index=3):
     log.info('saved image')
     log.info(description)
 
-
 if __name__ == "__main__":
-    import hydra
-    from dotenv import load_dotenv
-    from omegaconf import DictConfig
-
-    # boiler-plate
-    load_dotenv()
-    with hydra.initialize(version_base=None, config_path="../../config/"):
-        cfg: DictConfig = hydra.compose(
-            config_name="config", overrides=[], return_hydra_config=True
-        )
-    hydra.core.utils.configure_log(cfg.hydra.job_logging, cfg.hydra.verbose)
+    pass
+    # from src.
     
     # file code
-    get_item_by_index(cfg, index=2)
+    # get_item_by_index(cfg, index=2)
 

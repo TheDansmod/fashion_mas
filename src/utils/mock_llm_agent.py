@@ -1,3 +1,4 @@
+from pydantic import BaseModel
 from langchain_core.messages import AIMessage
 import random
 
@@ -42,7 +43,7 @@ class MockStructuredOutput:
             raise NotImplementedError(f"structured mock not implemented for {self.schema_name}")
 
 
-class ChatMockLLM:
+class ChatMockLLM(BaseModel):
     def __init__(self, *args, **kwargs):
         self.intent_node_prompt_substring = "Ensure the instructions are concise (No more than 5 sentences) and only relate to what aspect of the image should be described / extracted."
         self.intent_node_return = AIMessage(content="Mock response: Focus on the stylistic coherence of the lower body garments.")

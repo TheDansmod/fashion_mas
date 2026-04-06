@@ -8,7 +8,6 @@ from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from psycopg_pool import AsyncConnectionPool
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
-
 class CheckpointerProvider(ABC):
     """Abstract lifecycle manager for a LangGraph checkpointer.
 
@@ -79,29 +78,27 @@ class PostgresCheckpointerProvider(CheckpointerProvider):
 #     """Async AWS checkpointer"""
 #     def __init__(self, table_name: str, 
 
-def create_checkpointer_provider(cfg) -> CheckpointerProvider:
-    """Factory: reads cfg and returns the correct provider.
+def create_checkpointer_provider(
+    backend: str,
+    sqlite_db_path: str,
+    postgres_dsn: str,
+    postgres_max_pool_size: int,
+) -> CheckpointerProvider:
+    """Factory: returns the correct provider based on configured backend.
 
-    Hydra config must contain:
-        rag_pipeline.persistence.backend: "sqlite" | "postgres"
+    backend: Literal['sqlite', 'postgres', 'dynamodb']
 
-    For sqlite:
-        rag_pipeline.persistence.sqlite.db_path: "./checkpoints.db"
+    For sqlite: need db_path
 
-    For postgres:
-        rag_pipeline.persistence.postgres.db_connection_string: "postgresql://..."
-        rag_pipeline.persistence.postgres.pool_max_size: 20
+    For postgres: need max_pool_size, dsn
     """
-    backend: str = cfg.rag_pipeline.persistence.backend
     match backend:
         case "sqlite":
-            return SqliteCheckpointerProvider(
-                db_path=cfg.rag_pipeline.persistence.db_path,
-            )
+            return SqliteCheckpointerProvider(db_path=sqlite_db_path)
         case "postgres":
             return PostgresCheckpointerProvider(
-                conn_string=cfg.rag_pipeline.persistence.postgres.db_connection_string,
-                max_size=cfg.rag_pipeline.persistence.postgres.max_pool_size,
+                conn_string=postgres_dsn,
+                max_size=postgres_max_pool_size,
             )
         case _:
             raise ValueError(

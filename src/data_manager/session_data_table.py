@@ -1,4 +1,7 @@
-"""This class will handle the table for the user session data."""
+"""This class will handle the table for the user session data.
+
+For now, we have discard the idea of a separate session.
+"""
 import logging
 
 from botocore.exceptions import ClientError
