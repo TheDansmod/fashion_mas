@@ -33,3 +33,5 @@ fashion_agent_diagram.png
 # I have manually curated an evaluation dataset and would like to include it in the repository - need to un-ignore both the directory and the files inside the directory - doing just one does not work since git wont go into a directory that is to be ignored
 !/data/evaluation_data/
 !/data/evaluation_data/**
+# when running pytest with coverage, a .coverage file is created. no need to track the file - it is only for development
+.coverage
