@@ -1,14 +1,30 @@
-"Config variables derived from .env file."""
+"Config variables derived from .env file."
+
+from enum import StrEnum
+
 from pydantic import HttpUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class AppEnv(StrEnum):
+    DEV = "development"
+    STG = "staging"
+    PROD = "production"
+
 
 class EnvSettings(BaseSettings):
     """Captures variables from .env file.
 
     This also helps enforce that these values must be present in the env.
     """
-    # TODO: do you want to do extra=forbid?
-    model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8', frozen=True, extra="ignore", env_ignore_empty=True)
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        frozen=True,
+        extra="ignore",
+        env_ignore_empty=True,
+    )
 
     # for fetching the embedding model
     hf_token: str
@@ -26,3 +42,6 @@ class EnvSettings(BaseSettings):
     postgres_user: str
     postgres_password: str
     postgres_db: str
+
+    # for env mode
+    app_env: AppEnv

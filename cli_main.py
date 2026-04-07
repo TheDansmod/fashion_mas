@@ -7,6 +7,7 @@ from dependency_injector.wiring import inject, Provide as PV
 
 # dependency wiring must be done before frag imports
 from frag.config.container import Container
+
 container = Container()
 
 from frag.rag_pipeline.rag_agent import run_fashion_agent
@@ -15,6 +16,7 @@ from frag.evaluation.llm_as_judge import run_full_evaluation_pipeline
 # from frag.exploration.wired_config import check_wiring
 
 cfg = Container.config.provided
+
 
 @inject
 async def main(
@@ -38,6 +40,7 @@ async def main(
         log.exception("Some Exception in cli_main.py")
     finally:
         await container.shutdown_resources()
+
 
 if __name__ == "__main__":
     asyncio.run(main())

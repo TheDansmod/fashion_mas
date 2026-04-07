@@ -4,6 +4,7 @@ from dependency_injector import providers
 
 from frag.config.container import Container
 
+
 @pytest_asyncio.fixture
 async def container(mocked_llm):
     c = Container()
@@ -18,10 +19,11 @@ async def container(mocked_llm):
         c.unwire()
         c.reset_singletons()
 
+
 @pytest.fixture
 def mock_input(monkeypatch):
     def _set_inputs(*inputs):
         answers = iter(inputs)
-        monkeypatch.setattr('builtins.input', lambda _: next(answers))
-    return _set_inputs
+        monkeypatch.setattr("builtins.input", lambda _: next(answers))
 
+    return _set_inputs

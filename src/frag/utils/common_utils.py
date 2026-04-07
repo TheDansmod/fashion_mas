@@ -78,6 +78,7 @@ def get_multi_image_prompt_message(image_paths, text_prompt):
     message = [HumanMessage(content=content)]
     return message
 
+
 def get_multi_image_multi_prompt_message(prompts):
     """Gets a langgraph compatible prompt containing a sequence of images and text.
 
@@ -88,19 +89,24 @@ def get_multi_image_multi_prompt_message(prompts):
     content = []
     for key, value in prompts:
         if key == "text":
-            content.append({
-                "type": "text",
-                "text": value,
-            })
+            content.append(
+                {
+                    "type": "text",
+                    "text": value,
+                }
+            )
         elif key == "image":
             image_data = encode_image(value)
-            content.append({
-                "type": "image_url",
-                "image_url": f"data:image/jpeg;base64,{image_data}",
-            })
+            content.append(
+                {
+                    "type": "image_url",
+                    "image_url": f"data:image/jpeg;base64,{image_data}",
+                }
+            )
         else:
             raise ValueError("Key should be either `text` or `image` only.")
     return [HumanMessage(content=content)]
+
 
 def draw_langraph_topology(app, path):
     r"""Given a langgraph app, draw the topology of the graph and save it to path."""
@@ -135,7 +141,7 @@ def get_qdrant_points_by_id(
 @inject
 def update_token_use(
     usage_metadata,
-    tracker_path = PV[cfg.tracking.token_usage_tracker_path],
+    tracker_path=PV[cfg.tracking.token_usage_tracker_path],
 ):
     """Updates the token usage tracking csv file with the data from the callback."""
     log.info(
@@ -159,6 +165,7 @@ def update_token_use(
 def track_token_use(func):
     """Decorator to track token usage for LLM calls - useful for Mistral."""
     if asyncio.iscoroutinefunction(func):
+
         @functools.wraps(func)
         async def wrapper(*args, **kwargs):
             callback = UsageMetadataCallbackHandler()
@@ -172,8 +179,10 @@ def track_token_use(func):
             finally:
                 update_token_use(callback.usage_metadata)
             return result
+
         return wrapper
     else:
+
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             callback = UsageMetadataCallbackHandler()
@@ -187,6 +196,7 @@ def track_token_use(func):
             finally:
                 update_token_use(callback.usage_metadata)
             return result
+
         return wrapper
 
 
@@ -212,6 +222,7 @@ def save_numpy_image_to_folder(folder_path: str, image_array: np.ndarray) -> Pat
     image.save(file_path)
     return file_path
 
+
 def save_image_url_to_folder(folder_path: str, image_url: str) -> Path:
     """Saves image_url to temporary folder, returns path."""
     directory = Path(folder_path)
@@ -223,9 +234,10 @@ def save_image_url_to_folder(folder_path: str, image_url: str) -> Path:
         image_data = base64.b64decode(base64_string)
     else:
         image_data = base64.b64decode(image_url)
-    with open(file_path, 'wb') as file:
+    with open(file_path, "wb") as file:
         file.write(image_data)
     return str(file_path)
+
 
 def make_mistral_compatible(tool):
     """Wraps an MCP tool to ensure it returns a plain string."""
@@ -273,4 +285,3 @@ def make_mistral_compatible(tool):
         description=tool.description,
         args_schema=tool.args_schema,
     )
-

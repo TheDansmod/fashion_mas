@@ -21,6 +21,7 @@ log = logging.getLogger(__name__)
 _sessions: dict[str, dict] = {}
 cfg = None
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global cfg
@@ -35,6 +36,7 @@ async def lifespan(app: FastAPI):
         await s["agent"].close_connection()
     _sessions.clear()
 
+
 app = FastAPI(lifespan=lifespan)
 
 # ── serve agent-saved images as static files ──────────────────────────────────
@@ -42,12 +44,12 @@ app = FastAPI(lifespan=lifespan)
 # instead of using a local path it cannot reach.
 TEMP_ROOT = None  # set during first request once cfg is available
 
+
 def _temp_dir(session_id: str) -> Path:
     root = Path(cfg.rag_pipeline.temporary_images_folder)
     d = root / session_id
     d.mkdir(parents=True, exist_ok=True)
     return d
-
 
 
 @app.post("/sessions", status_code=201)
@@ -69,7 +71,6 @@ async def create_session():
     # Runs START → human_node → interrupt(); returns immediately at the interrupt
     await agent.ainvoke({"is_chat_start": True}, config=langgraph_config)
     return {"session_id": session_id}
-
 
 
 @app.post("/sessions/{session_id}/messages")
@@ -108,8 +109,9 @@ async def send_message(
                         continue
                     # Convert image paths → server-accessible URLs before sending
                     update = _localise_image_paths(update, session_id)
-                    payload = json.dumps({"node": node_name, "update": update},
-                                         default=str)
+                    payload = json.dumps(
+                        {"node": node_name, "update": update}, default=str
+                    )
                     yield f"data: {payload}\n\n"
             yield "data: [DONE]\n\n"
         except Exception as exc:
@@ -121,7 +123,7 @@ async def send_message(
 
 def _localise_image_paths(update: dict, session_id: str) -> dict:
     """Replaces absolute server paths with relative URL paths the UI can fetch.
-    
+
     Converts e.g. /tmp/imgs/abc123/shirt.jpg
              → /images/abc123/shirt.jpg
     which FastAPI serves via the StaticFiles mount below.
@@ -137,8 +139,6 @@ def _localise_image_paths(update: dict, session_id: str) -> dict:
         return val
 
     return {k: fix(v) for k, v in update.items()}
-
-
 
 
 @app.delete("/sessions/{session_id}")

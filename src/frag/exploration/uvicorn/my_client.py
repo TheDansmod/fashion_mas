@@ -8,6 +8,7 @@ cfg = get_global_config()
 
 log = logging.getLogger(__name__)
 
+
 @cl.on_chat_start
 async def start_chat():
     async with httpx.AsyncClient() as client:

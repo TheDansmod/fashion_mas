@@ -48,7 +48,7 @@ class FashionAgent:
     def __init__(
         self,
         callback_config,
-        model = PV[Container.llm_model.provided],
+        model=PV[Container.llm_model.provided],
     ) -> None:
         """Inits the agentic state representations and external client integrations.
 
@@ -109,12 +109,23 @@ class FashionAgent:
                 resp_img_descr.append(f"Index {base_len + idx}: {descr}")
             resp_img_descr = "\n".join(resp_img_descr)
             # construct the input message for LLM agent
-            prompt = input_update_prompt.format(original_image_descriptions=org_img_descr, original_text_input=state.input_text, response_image_descriptions=resp_img_descr, new_text_input=user_input.get("input_text", ""))
-            msg = get_multi_image_prompt_message(user_input.get("input_images_path", []), text_prompt=prompt)
+            prompt = input_update_prompt.format(
+                original_image_descriptions=org_img_descr,
+                original_text_input=state.input_text,
+                response_image_descriptions=resp_img_descr,
+                new_text_input=user_input.get("input_text", ""),
+            )
+            msg = get_multi_image_prompt_message(
+                user_input.get("input_images_path", []), text_prompt=prompt
+            )
             # create and invoke agent
             log.debug("Invoking agent")
-            agent = create_agent(model=self._model, response_format=UpdatedUserRequest, debug=False)
-            response = await agent.ainvoke({"messages": msg}, config=self._callback_config)
+            agent = create_agent(
+                model=self._model, response_format=UpdatedUserRequest, debug=False
+            )
+            response = await agent.ainvoke(
+                {"messages": msg}, config=self._callback_config
+            )
             log.debug("Got agent response")
             # update the user input so that the normal state update (which assumes first chat, can also serve for non-first chat situations
             updated_user_request = response["structured_response"]
@@ -122,29 +133,39 @@ class FashionAgent:
             num_new_input_images = len(user_input.get("input_images_path", []))
             input_images_path = user_input.get("input_images_path", [])
             # we want to already populate the input image descriptions since although we would be able to obtain descriptions later on from the llm, the descriptions in the fashion dataset often include things that are not apparent visually - like the material
-            input_images_descriptions = [""] * num_new_input_images # the multiplication is because append the other values later
+            input_images_descriptions = (
+                [""] * num_new_input_images
+            )  # the multiplication is because append the other values later
             # save the input_images_path. some of the paths are for previously recommended images, so we take those from the state
             log.debug("Getting relevant images")
             for idx in updated_user_request.relevant_image_indexes:
                 if idx < base_len:
                     input_images_path.append(state.input_images_path[idx])
-                    input_images_descriptions.append("")  # we append empty strings so that we can figure out in later nodes, which images need a description - we don't re-use the description of the image that we have already - the llm generated one - since this loop, we might need a description of an aspect of the image that is different from the aspect described in the previous loop
+                    input_images_descriptions.append(
+                        ""
+                    )  # we append empty strings so that we can figure out in later nodes, which images need a description - we don't re-use the description of the image that we have already - the llm generated one - since this loop, we might need a description of an aspect of the image that is different from the aspect described in the previous loop
                 else:
-                    input_images_path.append(state.recommended_clothes_image_paths[idx - base_len])
-                    input_images_descriptions.append(state.recommended_clothes_descriptions[idx - base_len])
+                    input_images_path.append(
+                        state.recommended_clothes_image_paths[idx - base_len]
+                    )
+                    input_images_descriptions.append(
+                        state.recommended_clothes_descriptions[idx - base_len]
+                    )
             log.debug("Got relevant images")
             # we don't expect the user input to have input image descriptions
-            user_input['input_images_path'] = input_images_path
-            user_input['input_images_descriptions'] = input_images_descriptions
+            user_input["input_images_path"] = input_images_path
+            user_input["input_images_descriptions"] = input_images_descriptions
         num_input_images = len(user_input.get("input_images_path", []))
         state_update = {
-                "is_chat_start": False,
-                # we don't actually trust or require the user provided presence of input images
-                "has_input_images": num_input_images > 0,
-                "num_times_critiqued": 0,
-                "input_images_path": user_input.get("input_images_path", []),
-                "input_text": user_input.get("input_text", ""),
-                "input_images_descriptions": user_input.get("input_images_descriptions", [""] * num_input_images)
+            "is_chat_start": False,
+            # we don't actually trust or require the user provided presence of input images
+            "has_input_images": num_input_images > 0,
+            "num_times_critiqued": 0,
+            "input_images_path": user_input.get("input_images_path", []),
+            "input_text": user_input.get("input_text", ""),
+            "input_images_descriptions": user_input.get(
+                "input_images_descriptions", [""] * num_input_images
+            ),
         }
         # was using string substitution earlier, but since I switched to loguru, I am using their f-string string format equivalent
         log.debug("State update: {}", {json.dumps(state_update, indent=2)})
@@ -154,8 +175,12 @@ class FashionAgent:
     def quantifier_node(
         self,
         state: AgentState,
-        num_recommendations_prompt: str = PV[cfg.prompts.quantifier_node.num_recommendations_prompt],
-        default_num_recommendations: int = PV[cfg.orchestration.default_num_recommendations],
+        num_recommendations_prompt: str = PV[
+            cfg.prompts.quantifier_node.num_recommendations_prompt
+        ],
+        default_num_recommendations: int = PV[
+            cfg.orchestration.default_num_recommendations
+        ],
     ) -> AgentState:
         """Figures out how many recommendations need to be made to the user.
 
@@ -179,7 +204,8 @@ class FashionAgent:
         )  # text prompt - structured
         log.debug("Received response from model.")
         num_recommendations = (
-            default_num_recommendations if response.num_recommendations == 0
+            default_num_recommendations
+            if response.num_recommendations == 0
             else response.num_recommendations
         )
         log.debug(
@@ -234,14 +260,16 @@ class FashionAgent:
         """
         log.debug("Entered vision node.")
         structured_model = self._model.with_structured_output(SingleImageDescription)
-        descr = state.input_images_descriptions[:] # create copy rather then reference
+        descr = state.input_images_descriptions[:]  # create copy rather then reference
         for idx, image_path in enumerate(state.input_images_path):
             # if the image path already has a description - which might happen if this is not the first loop, then we skip generating the description - this only happens for images from the fashion database - not for user images since the intent capture for user images might be different, but for the fashion database image descriptions - they often capture things that are not apparent visually
             if state.input_images_descriptions[idx].strip():
                 continue
             msg = get_image_prompt_message(
                 image_path=image_path,
-                text_prompt=user_prompt.format(image_focus_instructions=state.vlm_instructions),
+                text_prompt=user_prompt.format(
+                    image_focus_instructions=state.vlm_instructions
+                ),
             )
             log.debug("Invoking model.")
             response = structured_model.invoke(
@@ -255,9 +283,13 @@ class FashionAgent:
     def modifier_node(
         self,
         state: AgentState,
-        images_present_prompt: str = PV[cfg.prompts.modifier_node.images_present_prompt],
+        images_present_prompt: str = PV[
+            cfg.prompts.modifier_node.images_present_prompt
+        ],
         images_absent_prompt: str = PV[cfg.prompts.modifier_node.images_absent_prompt],
-        num_recommendation_attempts: int = PV[cfg.orchestration.num_recommendation_attempts],
+        num_recommendation_attempts: int = PV[
+            cfg.orchestration.num_recommendation_attempts
+        ],
     ) -> AgentState:
         """Produces text descriptions of clothing items requested by user.
 
@@ -317,7 +349,9 @@ class FashionAgent:
         self,
         state: AgentState,
         llm_tool_names: list[str] = PV[cfg.orchestration.mcp.llm_tool_names],
-        match_clothes_prompt: str = PV[cfg.prompts.recommender_node.match_clothes_prompt],
+        match_clothes_prompt: str = PV[
+            cfg.prompts.recommender_node.match_clothes_prompt
+        ],
         db_tool_name: str = PV[cfg.orchestration.mcp.db_tool_name],
         temporary_images_folder: str = PV[cfg.orchestration.temporary_images_folder],
     ) -> AgentState:
@@ -340,7 +374,11 @@ class FashionAgent:
         recommended_clothes_images = []
         log.debug("Entered recommender node.")
         tools = await self._client.get_tools()
-        tools = [make_mistral_compatible(tool) for tool in tools if tool.name in llm_tool_names]
+        tools = [
+            make_mistral_compatible(tool)
+            for tool in tools
+            if tool.name in llm_tool_names
+        ]
         agent = create_agent(
             model=self._model,
             tools=tools,
@@ -353,7 +391,7 @@ class FashionAgent:
             response = await agent.ainvoke(
                 {"messages": prompt}, config=self._callback_config
             )
-            recommended_clothes_images.append(response['structured_response'].image_id)
+            recommended_clothes_images.append(response["structured_response"].image_id)
             log.debug("Received response from agent.")
         # saving the images to path and storing the path - this is a bit of a repeat from human node, but for now does not matter
         tools = await self._client.get_tools()
@@ -364,17 +402,22 @@ class FashionAgent:
             response = await tool.ainvoke({"index": img_index})
             image_url, image_descr = None, None
             for block in response:
-                if 'base64' in block:
-                    image_url = block['base64']
-                elif 'text' in block:
-                    image_descr = json.loads(block['text'])['description']
+                if "base64" in block:
+                    image_url = block["base64"]
+                elif "text" in block:
+                    image_descr = json.loads(block["text"])["description"]
             if (image_url is None) or (image_descr is None):
                 raise ValueError("Could not find either image or description")
             path = save_image_url_to_folder(temporary_images_folder, image_url)
             recommended_clothes_image_paths.append(path)
             recommended_clothes_descriptions.append(image_descr)
-        log.debug(f"recommended_clothes_image_paths: {recommended_clothes_image_paths}\n recommended_clothes_descriptions: {recommended_clothes_descriptions}")
-        return {"recommended_clothes_image_paths": recommended_clothes_image_paths, "recommended_clothes_descriptions": recommended_clothes_descriptions}
+        log.debug(
+            f"recommended_clothes_image_paths: {recommended_clothes_image_paths}\n recommended_clothes_descriptions: {recommended_clothes_descriptions}"
+        )
+        return {
+            "recommended_clothes_image_paths": recommended_clothes_image_paths,
+            "recommended_clothes_descriptions": recommended_clothes_descriptions,
+        }
 
     def critique_node(
         self,
@@ -400,12 +443,20 @@ class FashionAgent:
         # check if we are done with critiquing
         log.debug("Entered critique node.")
         if state.num_times_critiqued >= max_num_critiques:
-            return {"num_times_critiqued": state.num_times_critiqued, "critique_text": ""}
+            return {
+                "num_times_critiqued": state.num_times_critiqued,
+                "critique_text": "",
+            }
         # generate the prompt
         prompts = []
         for img_path in state.input_images_path:
             prompts.append(("image", img_path))
-        prompts.append(("text", f"All the above are user input images.\n\nThe user request is: {state.input_text}\n\n"))
+        prompts.append(
+            (
+                "text",
+                f"All the above are user input images.\n\nThe user request is: {state.input_text}\n\n",
+            )
+        )
         for idx, img_descr in enumerate(state.recommended_clothes_descriptions):
             prompts.append(("text", f"Description of Item {idx + 1}: {img_descr}\n\n"))
         prompts.append(("text", critique_prompt))
@@ -419,7 +470,10 @@ class FashionAgent:
             # don't change the number of times critique happened - we are only counting wrong recommendations
             return {"critique_text": ""}
         else:
-            return {"num_times_critiqued": state.num_times_critiqued + 1, "critique_text": response.correction}
+            return {
+                "num_times_critiqued": state.num_times_critiqued + 1,
+                "critique_text": response.correction,
+            }
 
     def explanation_node(
         self,
@@ -444,10 +498,20 @@ class FashionAgent:
         prompts = []
         for img_path in state.input_images_path:
             prompts.append(("image", img_path))
-        prompts.append(("text", f"All the above are user input images.\n\nThe user request is: {state.input_text}\n\n"))
+        prompts.append(
+            (
+                "text",
+                f"All the above are user input images.\n\nThe user request is: {state.input_text}\n\n",
+            )
+        )
         for idx, img_descr in enumerate(state.recommended_clothes_descriptions):
             prompts.append(("image", state.recommended_clothes_image_paths[idx]))
-            prompts.append(("text", f"Above is Recommended Image {idx + 1}.\nDescription of Item {idx + 1}: {img_descr}\n\n"))
+            prompts.append(
+                (
+                    "text",
+                    f"Above is Recommended Image {idx + 1}.\nDescription of Item {idx + 1}: {img_descr}\n\n",
+                )
+            )
         prompts.append(("text", explanation_prompt))
         msg = get_multi_image_multi_prompt_message(prompts)
         # invoke model
@@ -457,7 +521,8 @@ class FashionAgent:
         return {"recommended_clothes_explanation": response.content}
 
     def quantifier_node_router(
-        self, state: AgentState,
+        self,
+        state: AgentState,
     ) -> Literal["intent_node", "modifier_node"]:
         """Evaluates conditional branching logic within the LangGraph DAG topology.
 
@@ -476,11 +541,14 @@ class FashionAgent:
 
     @inject
     def critique_node_router(
-        self, state: AgentState,
+        self,
+        state: AgentState,
         max_num_critiques: int = PV[cfg.orchestration.max_num_critiques],
     ) -> Literal["explanation_node", "modifier_node"]:
         """If the recommendation was good, we move on to explanation node, else modifier."""
-        if (not state.critique_text.strip()) or state.num_times_critiqued > max_num_critiques:
+        if (
+            not state.critique_text.strip()
+        ) or state.num_times_critiqued > max_num_critiques:
             return "explanation_node"
         else:
             return "modifier_node"
@@ -488,7 +556,7 @@ class FashionAgent:
     @inject
     async def compile_graph(
         self,
-        checkpointer = PV[Container.checkpointer.provided],
+        checkpointer=PV[Container.checkpointer.provided],
         node_diagram_path: str = PV[cfg.orchestration.node_diagram_path],
     ):
         builder = StateGraph(AgentState)
@@ -517,11 +585,14 @@ class FashionAgent:
 
     async def ainvoke(self, initial_state, config):
         return await self._graph.ainvoke(initial_state, config)
-    
+
     async def astream(self, input_state, config):
         """Streams node-level state updates from the compiled graph."""
-        async for chunk in self._graph.astream(input_state, config, stream_mode="updates"):
+        async for chunk in self._graph.astream(
+            input_state, config, stream_mode="updates"
+        ):
             yield chunk
+
 
 # this is used for running the code without chainlit
 # there is no resume from checkpoint for this - you always start fresh
@@ -535,7 +606,9 @@ async def run_fashion_agent(callback_config):
     config = {"configurable": {"thread_id": str(uuid4())}}
     result = await fashion_agent.ainvoke({"is_chat_start": True}, config)
     while True:
-        input_text = input("Enter `quit` to exit gracefully. Please provide input text: ")
+        input_text = input(
+            "Enter `quit` to exit gracefully. Please provide input text: "
+        )
         if input_text.strip().lower() == "quit":
             log.info("Exiting gracefully.")
             break
@@ -544,11 +617,18 @@ async def run_fashion_agent(callback_config):
         for img_num in range(num_input_images):
             path = input(f"Please provide the path to the input image {img_num + 1}: ")
             input_images_path.append(path)
-        resume_payload = {"input_text": input_text, "input_images_path": input_images_path}
-        result = await fashion_agent.ainvoke(Command(resume=resume_payload), config=config)
-        if 'recommended_clothes_image_paths' in result:
-            for path in result['recommended_clothes_image_paths']:
+        resume_payload = {
+            "input_text": input_text,
+            "input_images_path": input_images_path,
+        }
+        result = await fashion_agent.ainvoke(
+            Command(resume=resume_payload), config=config
+        )
+        if "recommended_clothes_image_paths" in result:
+            for path in result["recommended_clothes_image_paths"]:
                 log.info(f"Recommended Image Path: {path}")
             log.info(f"Explanation: {result['recommended_clothes_explanation']}")
         else:
-            log.error("ERROR: recommended_clothes_image_paths not in result, but expected")
+            log.error(
+                "ERROR: recommended_clothes_image_paths not in result, but expected"
+            )

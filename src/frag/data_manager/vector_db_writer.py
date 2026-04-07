@@ -31,7 +31,9 @@ class FashionSigLIPEmbedding:
         """
         self._device_type = "cuda" if torch.cuda.is_available() else "cpu"
         self._device = torch.device(self._device_type)
-        self._model, _, self._preprocess_val = open_clip.create_model_and_transforms(embedding_model)
+        self._model, _, self._preprocess_val = open_clip.create_model_and_transforms(
+            embedding_model
+        )
         self._tokenizer = open_clip.get_tokenizer(embedding_model)
         self._model.to(self._device)
         self._embed_batch_size = embedding_batch_size
@@ -167,7 +169,8 @@ def get_vector_db_client(
 
 @inject
 def get_fashion_gen_data(
-    from_idx, to_idx,
+    from_idx,
+    to_idx,
     images_key: str = PV[cfg.data.fashion_gen.images_key],
     prices_key: str = PV[cfg.data.fashion_gen.prices_key],
     index_key: str = PV[cfg.data.fashion_gen.index_key],

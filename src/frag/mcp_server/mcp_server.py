@@ -37,6 +37,7 @@ log = logging.getLogger(__name__)
 
 mcp = FastMCP("Product Catalogue MCP Server")
 
+
 class ProductCatalogueMCPServer:
     def __init__(self, connector, embedder):
         self._connector = connector
@@ -51,7 +52,7 @@ class ProductCatalogueMCPServer:
                 "category": match["input_category"][0],
                 "description": match["input_description"][0],
                 "id": match["index_2"][0],
-                "score": match.get('score', 0),
+                "score": match.get("score", 0),
             }
             text_content = TextContent(type="text", text=json.dumps(metadata))
             image_content = ImageContent(
@@ -95,7 +96,7 @@ class ProductCatalogueMCPServer:
     @tool
     def get_datapoint_by_index(self, index: int):
         """Get a datapoint, including image and metadata, using index in db."""
-        data = get_fashion_gen_data(from_idx=index, to_idx=index+1)
+        data = get_fashion_gen_data(from_idx=index, to_idx=index + 1)
         return self._reformat_image_data([data])
 
     @tool
@@ -152,6 +153,7 @@ class ProductCatalogueMCPServer:
             "POCKET SQUARES & TIE BARS",
             "SHOULDER BAGS",
         ]
+
 
 class QdrantConnector:
     def __init__(self, url, collection_name):
@@ -395,11 +397,18 @@ class FashionSigLIPEmbedding:
         text_results = self.get_text_embedding_batch(texts)
         return list(zip(img_results, text_results))
 
+
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--datapath', type=str, default="/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/fashiongen_256_256_train.h5", help="Path to the hdf5 file for the fashion gen dataset")
+    parser.add_argument(
+        "--datapath",
+        type=str,
+        default="/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/fashiongen_256_256_train.h5",
+        help="Path to the hdf5 file for the fashion gen dataset",
+    )
     args = parser.parse_args()
     return args
+
 
 if __name__ == "__main__":
     args = get_args()

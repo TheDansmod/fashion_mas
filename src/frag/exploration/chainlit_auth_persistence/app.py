@@ -17,6 +17,7 @@ from chainlit.data.dynamodb import DynamoDBDataLayer
 def get_data_layer():
     return DynamoDBDataLayer(table_name="fashion_mas_table")
 
+
 @cl.oauth_callback
 def oauth_callback(
     provider_id: str,
@@ -24,10 +25,10 @@ def oauth_callback(
     raw_user_data: dict[str, str],
     default_user: cl.User,
 ) -> Optional[cl.User]:
-    if provider_id == 'aws-cognito':
-        sub = raw_user_data.get('sub')  # this is mandatory
-        email = raw_user_data.get('email', None)
-        username = raw_user_data.get('username', None)
+    if provider_id == "aws-cognito":
+        sub = raw_user_data.get("sub")  # this is mandatory
+        email = raw_user_data.get("email", None)
+        username = raw_user_data.get("username", None)
         return cl.User(
             identifier=sub,  # stable, unique per user even if they change email etc
             metadata={
@@ -35,9 +36,10 @@ def oauth_callback(
                 "provider": provider_id,
                 "username": username,
                 **default_user.metadata,
-            }
+            },
         )
     return default_user
+
 
 @cl.on_chat_start
 async def on_chat_start() -> None:
@@ -55,6 +57,7 @@ async def on_chat_start() -> None:
         )
     ).send()
 
+
 @cl.on_message
 async def on_message(message: cl.Message) -> None:
     """Fires every time the user sends a message."""
@@ -65,6 +68,7 @@ async def on_message(message: cl.Message) -> None:
     await cl.Message(
         content=f"**Echo #{count}** from `{user.metadata['username']}`: {message.content}"
     ).send()
+
 
 @cl.on_chat_resume
 async def on_chat_resume(thread: cl.types.ThreadDict) -> None:

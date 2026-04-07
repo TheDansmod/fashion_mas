@@ -18,6 +18,7 @@ def get_llm_provider(name, *args, **kwargs):
     else:
         raise ValueError("Unable to map name to LLM Provider")
 
+
 # we allow use of cfg here - this comes from the Container - since this is setup - not a leaf function
 def get_rate_limiter(cfg):
     """Sets up a rate limiter for the LLM agent."""
@@ -44,4 +45,3 @@ def get_llm_model(cfg):
         rate_limiter=get_rate_limiter(cfg),
     )
     return model
-

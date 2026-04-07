@@ -104,26 +104,71 @@ class ValidCategories(BaseModel):
 
 class MatchedImageId(BaseModel):
     """The id of the image which was matched to the input description."""
+
     image_id: int = Field(..., description="Id of the best matched image")
+
 
 class CriticalEvaluation(BaseModel):
     """Class to hold evaluation of recommendations and their improvement."""
-    satisfactory: Literal["Yes", "No"] = Field(..., description="Yes, if the recommendations satisfy the user request. No, if the recommendations don't satisfy the user request.")
-    correction: str = Field(..., default_factory=str, description="The correction to make if the recommendations do not satisfy the user request.")
+
+    satisfactory: Literal["Yes", "No"] = Field(
+        ...,
+        description="Yes, if the recommendations satisfy the user request. No, if the recommendations don't satisfy the user request.",
+    )
+    correction: str = Field(
+        ...,
+        default_factory=str,
+        description="The correction to make if the recommendations do not satisfy the user request.",
+    )
+
 
 class UpdatedUserRequest(BaseModel):
     """Ids of the relevant images and the updated text for the user input."""
-    relevant_image_indexes: list[int] = Field(min_length=0, description="The indexes of the images which are relevant. If none are relevant this can be left empty.")
-    updated_user_query: str = Field(..., description="The combined comprehensive and concise query that incorporates both the new user query, and, if relevant, the old user query.")
+
+    relevant_image_indexes: list[int] = Field(
+        min_length=0,
+        description="The indexes of the images which are relevant. If none are relevant this can be left empty.",
+    )
+    updated_user_query: str = Field(
+        ...,
+        description="The combined comprehensive and concise query that incorporates both the new user query, and, if relevant, the old user query.",
+    )
+
 
 class RecommendationEvaluation(BaseModel):
     """Class to evaluate the provided recommendations on various metrics."""
-    visual_grounding_score: int = Field(..., ge=0, le=10, description="An integer score between 1 and 10 checking if the recommendations demonstrably reflect what is present in the uploaded image(s) if they are present. If there are no images, give a score of 0 for visual grounding.")
-    visual_grounding_explanation: str = Field(..., description="A single sentence explanation justifying or explaining the score given for visual grounding.")
-    item_suitability_score: int = Field(..., ge=1, le=10, description="Average integer score for how well each recommended item satisfies its use case. 1, if most items are unsuitable. 10, if all items are well justified in their inclusion.")
-    item_suitability_explanation: str = Field(..., description="A single sentence explanation justifying or explaining the score given for item suitability.")
-    completeness_coverage_score: int = Field(..., ge=1, le=10, description="An integer score between 1 and 10 checking if the responses as a whole address the full scope of the request. 1, if major aspects of the request are unaddressed. 10, if every element of the request is covered.")
-    completeness_coverage_explanation: str = Field(..., description="A single sentence explanation justifying or explaining the score given for completeness and coverage.")
+
+    visual_grounding_score: int = Field(
+        ...,
+        ge=0,
+        le=10,
+        description="An integer score between 1 and 10 checking if the recommendations demonstrably reflect what is present in the uploaded image(s) if they are present. If there are no images, give a score of 0 for visual grounding.",
+    )
+    visual_grounding_explanation: str = Field(
+        ...,
+        description="A single sentence explanation justifying or explaining the score given for visual grounding.",
+    )
+    item_suitability_score: int = Field(
+        ...,
+        ge=1,
+        le=10,
+        description="Average integer score for how well each recommended item satisfies its use case. 1, if most items are unsuitable. 10, if all items are well justified in their inclusion.",
+    )
+    item_suitability_explanation: str = Field(
+        ...,
+        description="A single sentence explanation justifying or explaining the score given for item suitability.",
+    )
+    completeness_coverage_score: int = Field(
+        ...,
+        ge=1,
+        le=10,
+        description="An integer score between 1 and 10 checking if the responses as a whole address the full scope of the request. 1, if major aspects of the request are unaddressed. 10, if every element of the request is covered.",
+    )
+    completeness_coverage_explanation: str = Field(
+        ...,
+        description="A single sentence explanation justifying or explaining the score given for completeness and coverage.",
+    )
+
 
 class AgentState(BaseModel):
     """The stateful component of the agent orchestration in langgraph.
@@ -176,4 +221,3 @@ class AgentState(BaseModel):
     recommended_clothes_explanation: Optional[str] = Field(default_factory=str)
     recommended_clothes_descriptions: Optional[list[str]] = Field(default_factory=list)
     recommended_clothes_image_paths: Optional[list[str]] = Field(default_factory=list)
-

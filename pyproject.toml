@@ -50,9 +50,32 @@ build-backend = "hatchling.build"
 packages=["src/frag"]
 
 [tool.pytest.ini_options]
-# anything in add opts (options) gets added to the pytest command. the import mode controls how pytest imports modules. by default, the imports are done by adding the parent directory prepended to the sys.path. importlib means that sys.path is not touched and importlib module is used instead for imports. This (importlib) is the modern recommendation.
-# -ra: show short summary of all non-passing tests at the end
-# -v:  show each test name and its pass/fail status
-addopts = ["-ra", "-v", "--import-mode=importlib"]
+# anything in add opts (options) gets added to the pytest command.
+addopts = [
+    # -ra: show short summary of all non-passing tests at the end
+    "-ra",
+    # -v:  show each test name and its pass/fail status
+    "-v",
+    # the import mode controls how pytest imports modules. by default, the imports are done by adding the parent directory prepended to the sys.path. importlib means that sys.path is not touched and importlib module is used instead for imports. This (importlib) is the modern recommendation.
+    "--import-mode=importlib",
+    # --cov=frag: that tells pytest-cov to track coverage of my package
+    "--cov=frag",
+    # this creates a html report where you can actually look at the file and see which lines are covered and which not
+    "--cov-report=html:reports/htmlcov",
+    # this adds a terminal report with an extra column showing missing line numbers and it also skips files which are 100% covered
+    "--cov-report=term-missing:skip-covered"
+]
 # this tells pytest where to search for test files - by restricting to tests folder we ensure that things are a little faster - pytest does not spend time walking through src folder
 testpaths = ["tests"]
+filterwarnings = [
+    # langchain mcp server is throwing this internal warning and I am going to suppress it since I can't do anything about it until they fix it
+    'ignore:Use `streamable_http_client` instead:DeprecationWarning:contextlib',
+]
+
+[tool.coverage.run]
+omit = [
+    "src/frag/data_manager/dynamo_db_connector.py",
+    "src/frag/data_manager/session_data_table.py",
+    "src/frag/exploration/*",
+    "src/frag/mcp_server/mcp_client.py",
+]

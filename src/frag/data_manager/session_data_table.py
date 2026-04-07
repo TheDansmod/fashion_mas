@@ -2,6 +2,7 @@
 
 For now, we have discard the idea of a separate session.
 """
+
 import logging
 
 from botocore.exceptions import ClientError
@@ -9,6 +10,7 @@ from botocore.exceptions import ClientError
 from frag.data_manager.dynamo_db_connector import get_dynamodb_resource
 
 log = logging.getLogger(__name__)
+
 
 class SessionData:
     """Encapsulates a AWS Dynamo DB table for User Session Data.
@@ -23,7 +25,7 @@ class SessionData:
 
     def __init__(self, cfg):
         self.dynamodb_resource = get_dynamodb_resource(cfg)
-        self.table = None # populated by create_table_if_not_exists
+        self.table = None  # populated by create_table_if_not_exists
         self.table_name = cfg.data.session_data.table_name
         self.create_table_if_not_exists(self.table_name)
 
@@ -72,7 +74,4 @@ class SessionData:
             return table
 
     def add_entry(self, session_id, agent, metadata_callback):
-        self.table.put_item(
-            Item={
-            }
-        )
+        self.table.put_item(Item={})

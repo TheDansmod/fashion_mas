@@ -11,6 +11,7 @@ from dependency_injector.wiring import inject, Provide as PV
 
 # dependency wiring must be done before frag imports
 from frag.config.container import Container
+
 container = Container()
 
 from frag.rag_pipeline.rag_agent import FashionAgent
@@ -19,17 +20,20 @@ from frag.utils.ui_node_updates import NODE_META
 
 cfg = Container.config.provided
 
+
 @cl.on_app_startup
 async def startup():
     await container.init_resources()
+
 
 @cl.on_app_shutdown
 async def shutdown():
     await container.shutdown_resources()
 
+
 @cl.on_chat_start
 async def start_chat():
-    log.info('in start')
+    log.info("in start")
     # we want to have a separate callback handler and fashion agent object per connection
     metadata_callback = UsageMetadataCallbackHandler()
     agent = FashionAgent({"callbacks": [metadata_callback]})
@@ -48,21 +52,24 @@ async def start_chat():
 
     await agent.ainvoke({"is_chat_start": True}, config=config)
 
+
 @cl.on_message
 async def on_message(message: cl.Message):
     config = cl.user_session.get("config")
     agent = cl.user_session.get("agent")
 
-    input_images = [el for el in (message.elements or []) if "image" in getattr(el, "mime", "")]
+    input_images = [
+        el for el in (message.elements or []) if "image" in getattr(el, "mime", "")
+    ]
     resume_payload = {
-            "input_images_path": [img.path for img in input_images],
-            "input_text": message.content,
+        "input_images_path": [img.path for img in input_images],
+        "input_text": message.content,
     }
     accumulated_state = {}
     try:
         async for chunk in agent.astream(Command(resume=resume_payload), config=config):
             for node_name, update in chunk.items():
-                if node_name == '__interrupt__':
+                if node_name == "__interrupt__":
                     continue
                 accumulated_state.update(update)
                 if node_name in NODE_META:
@@ -82,15 +89,20 @@ async def on_message(message: cl.Message):
     if paths and expl:
         output_images = []
         for idx, path in enumerate(paths):
-            output_images.append(cl.Image(path=path, name=f'image {idx+1}', display='inline'))
+            output_images.append(
+                cl.Image(path=path, name=f"image {idx + 1}", display="inline")
+            )
         await cl.Message(content=expl, elements=output_images).send()
     else:
-        await cl.Message(content="No recommendations could be found for your request.").send()
+        await cl.Message(
+            content="No recommendations could be found for your request."
+        ).send()
+
 
 @cl.on_chat_end
 @inject
-async def end_chat(temp_dir_path = PV[cfg.orchestration.temporary_images_folder]):
-    log.info('in end chat')
+async def end_chat(temp_dir_path=PV[cfg.orchestration.temporary_images_folder]):
+    log.info("in end chat")
 
     metadata_callback = cl.user_session.get("metadata_callback")
     update_token_use(metadata_callback.usage_metadata)

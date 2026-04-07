@@ -11,13 +11,15 @@ from frag.config.container import Container
 
 log = logging.getLogger(__name__)
 
+
 def list_all_buckets():
     log.info("listing all buckets")
-    s3_client = boto3.client('s3')
+    s3_client = boto3.client("s3")
     response = s3_client.list_buckets()
-    log.info('Existing buckets:')
-    for bucket in response['Buckets']:
-        log.info(f'\t{bucket["Name"]}')
+    log.info("Existing buckets:")
+    for bucket in response["Buckets"]:
+        log.info(f"\t{bucket['Name']}")
+
 
 # @inject
 def create_bucket(cfg):
@@ -29,6 +31,7 @@ def create_bucket(cfg):
         log.exception("Some client error while trying to create bucket")
         return False
     return True
+
 
 def upload_hdf5_to_s3_bucket(cfg):
     s3_client = boto3.client("s3")
@@ -42,6 +45,7 @@ def upload_hdf5_to_s3_bucket(cfg):
     except ClientError as e:
         log.error(f"Upload failed: {e}")
         return False
+
 
 def get_item_by_index(cfg, index=3):
     # s3fs reads credentials from ~/.aws/credentials automatically
@@ -62,7 +66,9 @@ def get_item_by_index(cfg, index=3):
                 raise IndexError(f"Index {index} out of range (0–{total - 1})")
 
             # Only the relevant HDF5 chunk is fetched from S3 — not the whole file
-            image       = Image.fromarray(f[img_dset_name][index])       # numpy array, e.g. (H, W, C)
+            image = Image.fromarray(
+                f[img_dset_name][index]
+            )  # numpy array, e.g. (H, W, C)
             # TODO: when using actual dataset - you need to do f[dsc_dset_name][index][0] here
             description = f[dsc_dset_name][index]
 
@@ -70,13 +76,13 @@ def get_item_by_index(cfg, index=3):
                 # TODO: when using actual dataset - you need to use latin-1 here
                 description = description.decode("utf-8")
     image.save(img_path)
-    log.info('saved image')
+    log.info("saved image")
     log.info(description)
+
 
 if __name__ == "__main__":
     pass
     # from frag.
-    
+
     # file code
     # get_item_by_index(cfg, index=2)
-

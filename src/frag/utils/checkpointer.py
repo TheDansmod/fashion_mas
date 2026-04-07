@@ -8,6 +8,7 @@ from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from psycopg_pool import AsyncConnectionPool
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
+
 class CheckpointerProvider(ABC):
     """Abstract lifecycle manager for a LangGraph checkpointer.
 
@@ -76,7 +77,8 @@ class PostgresCheckpointerProvider(CheckpointerProvider):
 
 # class DynamoDBCheckpointerProvider(CheckpointerProvider):
 #     """Async AWS checkpointer"""
-#     def __init__(self, table_name: str, 
+#     def __init__(self, table_name: str,
+
 
 def create_checkpointer_provider(
     backend: str,

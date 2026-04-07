@@ -6,7 +6,7 @@ import chainlit as cl
 from frag.utils.ui_node_updates import NODE_META
 
 log = logging.getLogger(__name__)
-API_BASE = "http://localhost:8000"   # or read from env
+API_BASE = "http://localhost:8000"  # or read from env
 
 
 @cl.on_chat_start
@@ -17,17 +17,14 @@ async def start_chat():
         session_id = resp.json()["session_id"]
 
     cl.user_session.set("session_id", session_id)
-    await cl.Message(
-        content="Ready! Attach images directly to your messages."
-    ).send()
+    await cl.Message(content="Ready! Attach images directly to your messages.").send()
 
 
 @cl.on_message
 async def on_message(message: cl.Message):
     session_id = cl.user_session.get("session_id")
     input_images = [
-        el for el in (message.elements or [])
-        if "image" in getattr(el, "mime", "")
+        el for el in (message.elements or []) if "image" in getattr(el, "mime", "")
     ]
 
     # Build multipart payload: text field + one file entry per image
@@ -42,7 +39,8 @@ async def on_message(message: cl.Message):
     try:
         async with httpx.AsyncClient(timeout=None) as client:
             async with aconnect_sse(
-                client, "POST",
+                client,
+                "POST",
                 f"{API_BASE}/sessions/{session_id}/messages",
                 data=form_data,
                 files=files or None,
@@ -74,7 +72,7 @@ async def on_message(message: cl.Message):
         await cl.Message(content=f"An error occurred: {exc}").send()
         return
     finally:
-        for _, (_, fobj, _) in (files or []):
+        for _, (_, fobj, _) in files or []:
             fobj.close()
 
     url_paths = accumulated_state.get("recommended_clothes_image_paths", [])
@@ -91,7 +89,7 @@ async def on_message(message: cl.Message):
                 local = Path(f"/tmp/cl_img_{session_id}_{idx}.jpg")
                 local.write_bytes(resp.content)
                 output_images.append(
-                    cl.Image(path=str(local), name=f"image {idx+1}", display="inline")
+                    cl.Image(path=str(local), name=f"image {idx + 1}", display="inline")
                 )
         await cl.Message(content=expl, elements=output_images).send()
     else:

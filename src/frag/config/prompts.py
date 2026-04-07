@@ -1,8 +1,11 @@
 """Prompts for LLM models."""
+
 from pydantic import BaseModel, ConfigDict
+
 
 class HumanNodePrompts(BaseModel):
     """Prompts used in Human Node."""
+
     model_config = ConfigDict(frozen=True)
 
     # this is used to update the relevant images and to update the user prompt while taking into account the previous user prompt when the user gives some feedback or adjustment for the recommendations.
@@ -31,8 +34,10 @@ class HumanNodePrompts(BaseModel):
     {new_text_input}
     """
 
+
 class QuantifierNodePrompts(BaseModel):
     """Prompts used in Quantifier Node."""
+
     model_config = ConfigDict(frozen=True)
 
     # this is to obtain the number of recommendations the user has asked for (if any)
@@ -43,8 +48,10 @@ class QuantifierNodePrompts(BaseModel):
     {user_request}
     """
 
+
 class IntentNodePrompts(BaseModel):
     """Prompts used in Intent Node."""
+
     model_config = ConfigDict(frozen=True)
 
     # this is essentially guidance for the vision node - to determine what aspect of the image it should focus on
@@ -56,8 +63,10 @@ class IntentNodePrompts(BaseModel):
     {user_request}
     """
 
+
 class VisionNodePrompts(BaseModel):
     """Prompts used in Vision Node."""
+
     model_config = ConfigDict(frozen=True)
 
     user_prompt: str = """
@@ -67,8 +76,10 @@ class VisionNodePrompts(BaseModel):
     {image_focus_instructions}
     """
 
+
 class ModifierNodePrompts(BaseModel):
     """Prompts used in Modifier Node."""
+
     model_config = ConfigDict(frozen=True)
 
     # this prompt is for obtained clothing item descriptions when input images are present
@@ -94,8 +105,10 @@ class ModifierNodePrompts(BaseModel):
     {critique_node_correction}
     """
 
+
 class RecommenderNodePrompts(BaseModel):
     """Prompts for Recommender Node"""
+
     model_config = ConfigDict(frozen=True)
 
     match_clothes_prompt: str = """
@@ -110,26 +123,32 @@ class RecommenderNodePrompts(BaseModel):
     {item_description}
     """
 
+
 class CritiqueNodePrompts(BaseModel):
     """Prompts for Critique Node"""
+
     model_config = ConfigDict(frozen=True)
 
     critique_prompt: str = """
     You are an expert fashion assistant. You are provided with the user's uploaded images (if any) and the user request, along with descriptions of products intended to completely satisfy the user's request. Please carefully analyse the request and the recommendations and give a Yes or No answer as to whether the recommendations satisfy the request. If they don't, then give a concise 3 sentence or smaller fix of what was wrong with the recommendations and what not to do.
     """
 
+
 class ExplanationNodePrompts(BaseModel):
     """Prompts for Explanation Node"""
+
     model_config = ConfigDict(frozen=True)
 
     explanation_prompt: str = """
     You are a proficient fashion assistant. You are provided with the user's uploaded images (if any) and the user request, along with images of the recommended products and their descriptions. Please explain how the recommended products successfully satisfy the user's request.
     """
 
+
 class PromptsSetup(BaseModel):
     """Setup for LLM Prompts."""
+
     model_config = ConfigDict(frozen=True)
-    
+
     human_node: HumanNodePrompts = HumanNodePrompts()
     quantifier_node: QuantifierNodePrompts = QuantifierNodePrompts()
     intent_node: IntentNodePrompts = IntentNodePrompts()
