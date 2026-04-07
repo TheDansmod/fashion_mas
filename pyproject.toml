@@ -1,5 +1,5 @@
 [project]
-name = "fashion-mas"
+name = "frag"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -26,6 +26,7 @@ dependencies = [
     "pillow>=12.1.1",
     "psycopg[binary]>=3.3.3",
     "pydantic-settings>=2.13.1",
+    "pytest-cov>=7.1.0",
     "python-dotenv>=1.2.2",
     "qdrant-client>=1.17.0",
     "s3fs>=0.4.2",
@@ -35,5 +36,23 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "pytest>=9.0.2",
+    "pytest-asyncio>=1.3.0",
+    "pytest-mock>=3.15.1",
     "ruff>=0.15.4",
 ]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages=["src/frag"]
+
+[tool.pytest.ini_options]
+# anything in add opts (options) gets added to the pytest command. the import mode controls how pytest imports modules. by default, the imports are done by adding the parent directory prepended to the sys.path. importlib means that sys.path is not touched and importlib module is used instead for imports. This (importlib) is the modern recommendation.
+# -ra: show short summary of all non-passing tests at the end
+# -v:  show each test name and its pass/fail status
+addopts = ["-ra", "-v", "--import-mode=importlib"]
+# this tells pytest where to search for test files - by restricting to tests folder we ensure that things are a little faster - pytest does not spend time walking through src folder
+testpaths = ["tests"]

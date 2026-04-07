@@ -9,13 +9,13 @@ from langgraph.types import Command
 from loguru import logger as log
 from dependency_injector.wiring import inject, Provide as PV
 
-# dependency wiring must be done before src imports
-from src.config.container import Container
+# dependency wiring must be done before frag imports
+from frag.config.container import Container
 container = Container()
 
-from src.rag_pipeline.rag_agent import FashionAgent
-from src.utils.common_utils import update_token_use
-from src.utils.ui_node_updates import NODE_META
+from frag.rag_pipeline.rag_agent import FashionAgent
+from frag.utils.common_utils import update_token_use
+from frag.utils.ui_node_updates import NODE_META
 
 cfg = Container.config.provided
 

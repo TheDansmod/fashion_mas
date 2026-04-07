@@ -5,14 +5,14 @@ from loguru import logger as log
 
 from dependency_injector.wiring import inject, Provide as PV
 
-# dependency wiring must be done before src imports
-from src.config.container import Container
+# dependency wiring must be done before frag imports
+from frag.config.container import Container
 container = Container()
 
-from src.rag_pipeline.rag_agent import run_fashion_agent
-from src.data_manager.vector_db_writer import populate_vector_db
-from src.evaluation.llm_as_judge import run_full_evaluation_pipeline
-# from src.exploration.wired_config import check_wiring
+from frag.rag_pipeline.rag_agent import run_fashion_agent
+from frag.data_manager.vector_db_writer import populate_vector_db
+from frag.evaluation.llm_as_judge import run_full_evaluation_pipeline
+# from frag.exploration.wired_config import check_wiring
 
 cfg = Container.config.provided
 

@@ -78,6 +78,7 @@ handler = Mangum(app)  # this is your Lambda handler
 
 TODO: you have added psycopg[binary] as a dependency - but the binary is not recommended for production - please libpq on the system in a production environment.
 
+TODO: convert all model.invoke / structured model.invoke calls into async calls. ensure all agent calls are async as well
 
 
 ## Injection sites:
@@ -85,7 +86,7 @@ TODO: you have added psycopg[binary] as a dependency - but the binary is not rec
 2. rag pipeline create checkpointer provider - DONE
 3. inject the llm models and the checkpointer provider itself  - DONE
 4. and perhaps inject the callback config too? - NOT DOING
-5. perhaps the vector db client should also be a singleton
+5. perhaps the vector db client should also be a singleton - NO, IT DOES NOT
 
 
 
@@ -95,7 +96,7 @@ TODO: you have added psycopg[binary] as a dependency - but the binary is not rec
 3. `src/data_manager/dynamo_db_connector.py`                    NOT-FIXING
 4. `src/data_manager/session_data_table.py`                     NOT-FIXING
 5. `src/data_manager/vector_db_reader.py`                       DONE
-6. `src/data_manager/vector_db_writer.py`
+6. `src/data_manager/vector_db_writer.py`                       DONE
 7. `src/evaluation/llm_as_judge.py`                             DONE
 8. `src/exploration/aws_upload_download_s3.py`                  NOT-FIXING
 9. `src/exploration/chainlit_auth_persistence/app.py`           DONE
@@ -123,3 +124,16 @@ TODO: you have added psycopg[binary] as a dependency - but the binary is not rec
 5. prompts          DONE
 6. rag pipeline     DONE
 7. tracking         DONE
+
+
+# testing
+1. should have:
+    1. pytest - core testing framework
+    2. pytest-mock - applying and reverting patches using mocker fixture
+    3. pytest-cov - coverage reports
+    4. pytest-asyncio - needed for async components
+    5. factory-boy - generate realistic test data / objects without verbose code setup
+2. the tests folder should be at the top level with src and have the same internal structure as src
+
+## testing the rag pipeline
+1. i will be invoking the main method from cli main.py file.
