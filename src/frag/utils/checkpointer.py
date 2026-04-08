@@ -2,11 +2,14 @@
 
 from abc import ABC, abstractmethod
 
+import boto3
 import aiosqlite
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from psycopg_pool import AsyncConnectionPool
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+from langgraph_checkpoint_aws import DynamoDBSaver
+from botocore.config import Config
 
 
 class CheckpointerProvider(ABC):
@@ -75,16 +78,40 @@ class PostgresCheckpointerProvider(CheckpointerProvider):
             self._pool = None
 
 
-# class DynamoDBCheckpointerProvider(CheckpointerProvider):
-#     """Async AWS checkpointer"""
-#     def __init__(self, table_name: str,
+class DynamoDBCheckpointerProvider(CheckpointerProvider):
+    """Async AWS checkpointer"""
+    def __init__(self, profile_name: str, region_name: str, table_name: str, ttl_seconds: int, do_compression: bool, max_pool_size: int, retry_mode: str, max_retry_attempts: int):
+        self.session = boto3.Session(
+            profile_name=profile_name,
+            region_name=region_name,
+        )
+        self.table_name = table_name
+        self.ttl_seconds = ttl_seconds
+        self.do_compression = do_compression
+        self.max_pool_size = max_pool_size
+        self.retry_mode = retry_mode
+        self.max_retry_attempts = max_retry_attempts
+
+    async def start(self) -> BaseCheckpointSaver:
+        checkpointer = DynamoDBSaver(
+            table_name=self.table_name,
+            session=self.session,
+            ttl_seconds=self.ttl_seconds,
+            enable_checkpoint_compression=self.do_compression,
+            boto_config=Config(
+                retries={"mode": self.retry_mode, "max_attempts": self.max_retry_attempts},
+                max_pool_connections=self.max_pool_size
+            )
+        )
+        return checkpointer
+
+    async def stop(self) -> None:
+        pass
 
 
 def create_checkpointer_provider(
     backend: str,
-    sqlite_db_path: str,
-    postgres_dsn: str,
-    postgres_max_pool_size: int,
+    sqlite_config, postgres_config, dynamodb_config,
 ) -> CheckpointerProvider:
     """Factory: returns the correct provider based on configured backend.
 
@@ -96,11 +123,22 @@ def create_checkpointer_provider(
     """
     match backend:
         case "sqlite":
-            return SqliteCheckpointerProvider(db_path=sqlite_db_path)
+            return SqliteCheckpointerProvider(db_path=sqlite_config.db_path)
         case "postgres":
             return PostgresCheckpointerProvider(
-                conn_string=postgres_dsn,
-                max_size=postgres_max_pool_size,
+                conn_string=postgres_config.dsn,
+                max_size=postgres_config.max_pool_size,
+            )
+        case "dynamodb":
+            return DynamoDBCheckpointerProvider(
+                profile_name = dynamodb_config.profile_name,
+				region_name = dynamodb_config.region_name,
+				table_name = dynamodb_config.table_name,
+				ttl_seconds = dynamodb_config.ttl_seconds,
+				do_compression = dynamodb_config.do_compression,
+				max_pool_size = dynamodb_config.max_pool_size,
+				retry_mode = dynamodb_config.retry_mode,
+				max_retry_attempts = dynamodb_config.max_retry_attempts,
             )
         case _:
             raise ValueError(

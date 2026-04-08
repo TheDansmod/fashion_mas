@@ -2,9 +2,48 @@
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, FilePath, PostgresDsn, computed_field
+from pydantic import BaseModel, ConfigDict, FilePath, PostgresDsn, computed_field, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from frag.config.envs import AppEnv
+
+class DynamoDBCheckpointerConfig(BaseSettings):
+    """Config for dynamo db checkpointer."""
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        frozen=True,
+        extra="ignore",
+        env_ignore_empty=True,
+    )
+
+    # from the environment
+    app_env: AppEnv
+    # this value must match whatever is used when setting up the cloudformation table, so please ensure that we use the .env value when deploying the cloudformation template for the dynamo db langgraph checkpointer
+    table_name: str = Field(validation_alias='aws_dynamodb_checkpointer_table_name')
+
+    @computed_field
+    @property
+    def profile_name(self) -> str:
+        return self.app_env.value
+
+    region_name: str = "us-east-1"
+
+    # it stays for a week
+    ttl_seconds: int = 60 * 60 * 24 * 7
+
+    # whether or not to compress the entries in the dynamo db table
+    do_compression: bool = True
+
+    max_pool_size: int = 20
+
+    # legacy — The original boto3 behaviour. Uses a fixed exponential backoff with jitter. Has a narrower set of retryable error codes. This is the default if you set nothing at all.
+    # standard — A modernised, consistent retry policy that AWS introduced to align all SDKs. It retries on a wider set of transient errors and throttles. Defaults to 3 max attempts unless overridden. This is the recommended baseline for most production workloads.
+    # adaptive — Builds on standard but adds client-side rate limiting. The client tracks the rate of throttling responses from AWS and proactively slows down its own request rate before AWS starts rejecting calls — similar to a token bucket on the client side. This is what the DynamoDB checkpointer example uses because LangGraph agents can burst heavily, and adaptive mode prevents a thundering-herd of retries from making throttling worse.
+    retry_mode: Literal["legacy", "standard", "adaptive"] = "adaptive"
+
+    # max_attempts — The maximum number of retry attempts after the initial request.
+    max_retry_attempts: int = 3
 
 class PostgresCheckpointerConfig(BaseSettings):
     """Config for the postgres checkpointer."""
@@ -45,9 +84,10 @@ class CheckpointerConfig(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    backend: Literal["postgres", "sqlite", "dynamodb"] = "postgres"
+    backend: Literal["postgres", "sqlite", "dynamodb"] = "dynamodb"
     sqlite: SqliteCheckpointerConfig = SqliteCheckpointerConfig()
     postgres: PostgresCheckpointerConfig = PostgresCheckpointerConfig()
+    dynamodb: DynamoDBCheckpointerConfig = DynamoDBCheckpointerConfig()
 
 
 class MCPConfig(BaseModel):

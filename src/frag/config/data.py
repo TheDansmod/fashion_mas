@@ -1,7 +1,24 @@
 """Config for Data Handling and Processing."""
 
-from pydantic import BaseModel, ConfigDict, HttpUrl, FilePath
+from pydantic import BaseModel, ConfigDict, HttpUrl, FilePath, Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
+class ChainlitPersistenceConfig(BaseSettings):
+    """Config for the S3 Bucket and the Dynamo DB table used by chainlit."""
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        frozen=True,
+        extra="ignore",
+        env_ignore_empty=True,
+    )
+
+    # from the .env file
+    s3_bucket_name: str = Field(validation_alias='aws_s3_chainlit_persistence_bucket_name')
+    dynamodb_table_name: str = Field(validation_alias='aws_dynamodb_chainlit_persistence_table_name')
+
+    # the value can be different for different resources - so it is permissible to have region configs all over
+    s3_region: str = "us-east-1"
 
 class DataProcessingConfig(BaseModel):
     """Config for data processing pipeline."""
@@ -171,3 +188,4 @@ class DataConfig(BaseModel):
     data_processing: DataProcessingConfig = DataProcessingConfig()
     vector_db: VectorDBConfig = VectorDBConfig()
     fashion_gen: FashionGenConfig = FashionGenConfig()
+    chainlit_persistence: ChainlitPersistenceConfig = ChainlitPersistenceConfig()

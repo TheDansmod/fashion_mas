@@ -1,0 +1,85 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Chainlit User data and history persistence table'
+
+Parameters:
+  TableName:
+    Type: String
+    Default: chainlit_users
+  BucketName:
+    Type: String
+    Default: frag-chainlit-elements-bucket
+
+Resources:
+  # the dynamo db table itself
+  DynamoDBTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Ref TableName
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: UserThreadPK
+          AttributeType: S
+        - AttributeName: UserThreadSK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: Hash
+        - AttributeName: SK
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: UserThread
+          KeySchema:
+            - AttributeName: UserThreadPK
+              KeyType: HASH
+            - AttributeName: UserThreadSK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: INCLUDE
+            NonKeyAttributes:
+              - id
+              - name
+      # the chainlit dynamodb implementation does not implement any features related to time to live - so by default there is no impact of time to live
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: false
+      SSESpecification:
+        SSEEnabled: false
+  
+  # s3 bucket for files (non-text)
+  ChainlitElementsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref BucketName
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      # The CORS rule is needed if your Chainlit frontend loads element files (images, attachments) directly in the browser via the signed URLs. Without CORS, browsers may block the response. Tighten AllowedOrigins to your actual domain in production.
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - "*"
+            AllowedMethods:
+              - GET
+              - PUT
+              - POST
+              - DELETE
+              - HEAD
+            AllowedOrigins:
+              - "*"
+            MaxAge: 3000
+
+Outputs:
+  DynamoDBTableName:
+    Value: !Ref DynamoDBTable
+    Description: The name of the DynamoDB table
+  S3BucketName:
+    Value: !Ref ChainlitElementsBucket
+    Description: The name of the S3 bucket for Chainlit elements

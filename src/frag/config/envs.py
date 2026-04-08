@@ -15,14 +15,15 @@ class AppEnv(StrEnum):
 class EnvSettings(BaseSettings):
     """Captures variables from .env file.
 
-    This also helps enforce that these values must be present in the env.
+    This also helps enforce that these values must be present in the env,
+    and that no other values are present in the .env file.
     """
 
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         frozen=True,
-        extra="ignore",
+        extra="forbid",
         env_ignore_empty=True,
     )
 
@@ -45,3 +46,8 @@ class EnvSettings(BaseSettings):
 
     # for env mode
     app_env: AppEnv
+
+    # for the aws tables and buckets etc
+    aws_s3_chainlit_persistence_bucket_name: str
+    aws_dynamodb_chainlit_persistence_table_name: str
+    aws_dynamodb_checkpointer_table_name: str

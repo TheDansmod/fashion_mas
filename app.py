@@ -1,9 +1,22 @@
 """This is the starting point for the project."""
+# START MONKEYPATCH
+# monkey patch since in the redirect state parameter chainlit uses characters that are invalid for aws cognito
+# https://github.com/Chainlit/chainlit/issues/2707
+# https://github.com/Chainlit/chainlit/issues/972
+from chainlit import secret as _cl_secret  # the secret.py file in the .venv folder
+import string
 
+_cl_secret.chars = string.ascii_letters + string.digits + "-_"
+# END MONKEYPATCH
+
+from typing import Optional
 from pathlib import Path
 import shutil
 
 import chainlit as cl
+import chainlit.data as cl_data
+from chainlit.data.dynamodb import DynamoDBDataLayer
+from chainlit.data.storage_clients.s3 import S3StorageClient
 from langchain_core.callbacks import UsageMetadataCallbackHandler
 from langgraph.types import Command
 from loguru import logger as log
@@ -19,6 +32,41 @@ from frag.utils.common_utils import update_token_use
 from frag.utils.ui_node_updates import NODE_META
 
 cfg = Container.config.provided
+
+
+@cl.data_layer
+@inject
+def get_data_layer(
+    s3_bucket_name: str = PV[cfg.data.chainlit_persistence.s3_bucket_name],
+    s3_region: str = PV[cfg.data.chainlit_persistence.s3_region],
+    dynamodb_table_name: str = PV[cfg.data.chainlit_persistence.dynamodb_table_name],
+):
+    storage_client = S3StorageClient(bucket=s3_bucket_name, region_name=s3_region)
+    return DynamoDBDataLayer(table_name=dynamodb_table_name, storage_provider=storage_client)
+
+
+@cl.oauth_callback
+def oauth_callback(
+    provider_id: str,
+    token: str,
+    raw_user_data: dict[str, str],
+    default_user: cl.User,
+) -> Optional[cl.User]:
+    if provider_id == "aws-cognito":
+        sub = raw_user_data.get("sub")  # this is mandatory
+        email = raw_user_data.get("email", None)
+        username = raw_user_data.get("username", None)
+        # replace email with sub as the identifier
+        return cl.User(
+            identifier=sub,  # stable, unique per user even if they change email etc
+            metadata={
+                "email": email,
+                "provider": provider_id,
+                "username": username,
+                **default_user.metadata,
+            },
+        )
+    return default_user
 
 
 @cl.on_app_startup

@@ -1,0 +1,13 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'A parent / root template which holds other templates for the project as nested / child templates. This allows one to deploy a single template (this one) and have all the child templates be deployed atomically.'
+
+Resources:
+  CheckpointStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://s3.amazonaws.com/frag-cloudformation-templates-bucket/dynamodb_checkpointer.yaml
+
+  ChainlitUsersStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://s3.amazonaws.com/frag-cloudformation-templates-bucket/dynamodb_s3_chainlit_elements.yaml

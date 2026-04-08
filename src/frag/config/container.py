@@ -11,10 +11,10 @@ from frag.utils.logger_setup import setup_logging
 
 @asynccontextmanager
 async def checkpointer_connection(
-    backend: str, sqlite_db_path: str, postgres_dsn: str, postgres_max_pool_size: int
+    backend: str, sqlite_config, postgres_config, dynamodb_config
 ):
     checkpointer_provider = create_checkpointer_provider(
-        backend, sqlite_db_path, postgres_dsn, postgres_max_pool_size
+        backend, sqlite_config, postgres_config, dynamodb_config,
     )
     checkpointer = await checkpointer_provider.start()
     try:
@@ -41,9 +41,9 @@ class Container(containers.DeclarativeContainer):
     checkpointer = providers.Resource(
         checkpointer_connection,
         backend=config.provided.orchestration.checkpointer.backend,
-        sqlite_db_path=config.provided.orchestration.checkpointer.sqlite.db_path,
-        postgres_dsn=config.provided.orchestration.checkpointer.postgres.dsn,
-        postgres_max_pool_size=config.provided.orchestration.checkpointer.postgres.max_pool_size,
+        sqlite_config=config.provided.orchestration.checkpointer.sqlite,
+        postgres_config=config.provided.orchestration.checkpointer.postgres,
+        dynamodb_config=config.provided.orchestration.checkpointer.dynamodb,
     )
 
     # logging
