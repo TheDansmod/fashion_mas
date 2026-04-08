@@ -7,8 +7,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from frag.config.envs import AppEnv
 
+
 class DynamoDBCheckpointerConfig(BaseSettings):
     """Config for dynamo db checkpointer."""
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -20,7 +22,7 @@ class DynamoDBCheckpointerConfig(BaseSettings):
     # from the environment
     app_env: AppEnv
     # this value must match whatever is used when setting up the cloudformation table, so please ensure that we use the .env value when deploying the cloudformation template for the dynamo db langgraph checkpointer
-    table_name: str = Field(validation_alias='aws_dynamodb_checkpointer_table_name')
+    table_name: str = Field(validation_alias="aws_dynamodb_checkpointer_table_name")
 
     @computed_field
     @property
@@ -44,6 +46,7 @@ class DynamoDBCheckpointerConfig(BaseSettings):
 
     # max_attempts — The maximum number of retry attempts after the initial request.
     max_retry_attempts: int = 3
+
 
 class PostgresCheckpointerConfig(BaseSettings):
     """Config for the postgres checkpointer."""

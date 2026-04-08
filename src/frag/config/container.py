@@ -14,7 +14,10 @@ async def checkpointer_connection(
     backend: str, sqlite_config, postgres_config, dynamodb_config
 ):
     checkpointer_provider = create_checkpointer_provider(
-        backend, sqlite_config, postgres_config, dynamodb_config,
+        backend,
+        sqlite_config,
+        postgres_config,
+        dynamodb_config,
     )
     checkpointer = await checkpointer_provider.start()
     try:

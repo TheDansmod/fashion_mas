@@ -1,4 +1,5 @@
 """This is the starting point for the project."""
+
 # START MONKEYPATCH
 # monkey patch since in the redirect state parameter chainlit uses characters that are invalid for aws cognito
 # https://github.com/Chainlit/chainlit/issues/2707
@@ -42,7 +43,9 @@ def get_data_layer(
     dynamodb_table_name: str = PV[cfg.data.chainlit_persistence.dynamodb_table_name],
 ):
     storage_client = S3StorageClient(bucket=s3_bucket_name, region_name=s3_region)
-    return DynamoDBDataLayer(table_name=dynamodb_table_name, storage_provider=storage_client)
+    return DynamoDBDataLayer(
+        table_name=dynamodb_table_name, storage_provider=storage_client
+    )
 
 
 @cl.oauth_callback
