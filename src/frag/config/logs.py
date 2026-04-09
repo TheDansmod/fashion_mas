@@ -15,6 +15,7 @@ class LogConfig(BaseSettings):
         frozen=True,
         extra="ignore",
         env_ignore_empty=True,
+        validate_default=True,
     )
 
     # from .env
@@ -24,7 +25,7 @@ class LogConfig(BaseSettings):
     write_machine_readable_logs: bool = True
     write_console_logs: bool = True
 
-    human_readable_log_file: str = "logs/human_readable/frag_{time:YYYY-MM-DD}.log"
+    human_readable_log_file: str = "logs/human_readable/frag_{time}.log"
     machine_readable_log_file: str = "logs/machine_readable/frag_{time}.log"
 
     # the rotation interval could be a lot of things like 100 MB, 1 month 2 weeks, 2 days, 10h, monthly, 18:00, sunday, monday at 12:00

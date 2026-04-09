@@ -11,7 +11,6 @@ works.
 8. Later we can increase the information returned by matched image
 """
 
-import argparse
 import base64
 import json
 import logging
@@ -19,6 +18,7 @@ from io import BytesIO
 from typing import Literal
 
 import h5py
+import s3fs
 import numpy as np
 import open_clip
 import torch
@@ -246,7 +246,6 @@ class QdrantConnector:
             matches.append(img_data)
         return matches
 
-
 def get_fashion_gen_data(from_idx, to_idx):
     """Get data from the fashion-gen dataset in dictionary format.
 
@@ -264,13 +263,18 @@ def get_fashion_gen_data(from_idx, to_idx):
             we are sending back string values, they are lists of strings. If we are
             sending back floats, they are lists of floats.
     """
+    fs = s3fs.S3FileSystem(anon=False)
+
+    # to be returned
     data = dict()
+
+    bucket = 'frag-fashion-gen-dataset'
+    s3_key = 'fashion_gen.h5'
     images_key = "input_image"
     prices_key = "input_msrpUSD"
     index_key = "index_2"
     num_datapoints = 260490
     codec = "latin-1"
-    hdf5_path = args.datapath
     string_attributes = [
         "input_brand",
         "input_category",
@@ -282,21 +286,17 @@ def get_fashion_gen_data(from_idx, to_idx):
         "input_subcategory",
         "input_description",
     ]
-    if from_idx >= num_datapoints or from_idx >= to_idx:
+    if fetch_index >= num_datapoints:
         return data
-    else:
-        from_idx = max(0, from_idx)
-    if to_idx >= num_datapoints:
-        to_idx = num_datapoints
     vec_decode = np.vectorize(pyfunc=lambda x: x.decode(codec))
-    with h5py.File(hdf5_path, "r") as file:
-        data[images_key] = file[images_key][from_idx:to_idx].astype("uint8")
-        data[prices_key] = np.ravel(file[prices_key][from_idx:to_idx]).tolist()
-        data[index_key] = file[index_key][from_idx:to_idx].tolist()  # don't need ravel
-        for key in string_attributes:
-            data[key] = vec_decode(np.ravel(file[key][from_idx:to_idx])).tolist()
+    with fs.open(f"s3://{bucket}/{s3_key}", "rb") as s3_file:
+        with h5py.File(s3_file, "r") as f:
+            data[images_key] = file[images_key][from_idx:to_idx].astype("uint8")
+            data[prices_key] = np.ravel(file[prices_key][from_idx:to_idx]).tolist()
+            data[index_key] = file[index_key][from_idx:to_idx].tolist()  # don't need ravel
+            for key in string_attributes:
+                data[key] = vec_decode(np.ravel(file[key][from_idx:to_idx])).tolist()
     return data
-
 
 def encode_image(numpy_image):
     img = Image.fromarray(numpy_image)
@@ -398,20 +398,7 @@ class FashionSigLIPEmbedding:
         return list(zip(img_results, text_results))
 
 
-def get_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--datapath",
-        type=str,
-        default="/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/fashiongen_256_256_train.h5",
-        help="Path to the hdf5 file for the fashion gen dataset",
-    )
-    args = parser.parse_args()
-    return args
-
-
 if __name__ == "__main__":
-    args = get_args()
     connector = QdrantConnector(
         url="http://localhost:6333", collection_name="fashion_gen"
     )

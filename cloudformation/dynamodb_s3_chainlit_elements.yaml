@@ -27,7 +27,7 @@ Resources:
           AttributeType: S
       KeySchema:
         - AttributeName: PK
-          KeyType: Hash
+          KeyType: HASH
         - AttributeName: SK
           KeyType: RANGE
       GlobalSecondaryIndexes:
@@ -61,7 +61,7 @@ Resources:
         BlockPublicPolicy: true
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
-      # The CORS rule is needed if your Chainlit frontend loads element files (images, attachments) directly in the browser via the signed URLs. Without CORS, browsers may block the response. Tighten AllowedOrigins to your actual domain in production.
+      # TODO: The CORS rule is needed if your Chainlit frontend loads element files (images, attachments) directly in the browser via the signed URLs. Without CORS, browsers may block the response. Tighten AllowedOrigins to your actual domain in production.
       CorsConfiguration:
         CorsRules:
           - AllowedHeaders:

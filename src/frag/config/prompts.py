@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict
 class HumanNodePrompts(BaseModel):
     """Prompts used in Human Node."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, validate_default=True)
 
     # this is used to update the relevant images and to update the user prompt while taking into account the previous user prompt when the user gives some feedback or adjustment for the recommendations.
     input_update_prompt: str = """
@@ -38,7 +38,7 @@ class HumanNodePrompts(BaseModel):
 class QuantifierNodePrompts(BaseModel):
     """Prompts used in Quantifier Node."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, validate_default=True)
 
     # this is to obtain the number of recommendations the user has asked for (if any)
     num_recommendations_prompt: str = """
@@ -52,7 +52,7 @@ class QuantifierNodePrompts(BaseModel):
 class IntentNodePrompts(BaseModel):
     """Prompts used in Intent Node."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, validate_default=True)
 
     # this is essentially guidance for the vision node - to determine what aspect of the image it should focus on
     # TODO: figure out if you should feed this model the input images as well - come up with a scenario where that might be required
@@ -67,7 +67,7 @@ class IntentNodePrompts(BaseModel):
 class VisionNodePrompts(BaseModel):
     """Prompts used in Vision Node."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, validate_default=True)
 
     user_prompt: str = """
     You are a proficient fashion assistant. Please analyse the uploaded images closely and extract the features mentioned in the instructions below. Do not use markdown for the response, just keep it to a plain string (can use newlines). Ensure the response is short and concise - no more than 5 sentences.
@@ -80,7 +80,7 @@ class VisionNodePrompts(BaseModel):
 class ModifierNodePrompts(BaseModel):
     """Prompts used in Modifier Node."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, validate_default=True)
 
     # this prompt is for obtained clothing item descriptions when input images are present
     images_present_prompt: str = """
@@ -109,7 +109,7 @@ class ModifierNodePrompts(BaseModel):
 class RecommenderNodePrompts(BaseModel):
     """Prompts for Recommender Node"""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, validate_default=True)
 
     match_clothes_prompt: str = """
     You are an expert fashion assistant. Below, I will be providing you a textual description of an item of clothing. Please do the following:
@@ -127,7 +127,7 @@ class RecommenderNodePrompts(BaseModel):
 class CritiqueNodePrompts(BaseModel):
     """Prompts for Critique Node"""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, validate_default=True)
 
     critique_prompt: str = """
     You are an expert fashion assistant. You are provided with the user's uploaded images (if any) and the user request, along with descriptions of products intended to completely satisfy the user's request. Please carefully analyse the request and the recommendations and give a Yes or No answer as to whether the recommendations satisfy the request. If they don't, then give a concise 3 sentence or smaller fix of what was wrong with the recommendations and what not to do.
@@ -137,7 +137,7 @@ class CritiqueNodePrompts(BaseModel):
 class ExplanationNodePrompts(BaseModel):
     """Prompts for Explanation Node"""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, validate_default=True)
 
     explanation_prompt: str = """
     You are a proficient fashion assistant. You are provided with the user's uploaded images (if any) and the user request, along with images of the recommended products and their descriptions. Please explain how the recommended products successfully satisfy the user's request.
@@ -147,7 +147,7 @@ class ExplanationNodePrompts(BaseModel):
 class PromptsSetup(BaseModel):
     """Setup for LLM Prompts."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, validate_default=True)
 
     human_node: HumanNodePrompts = HumanNodePrompts()
     quantifier_node: QuantifierNodePrompts = QuantifierNodePrompts()

@@ -13,12 +13,13 @@ from frag.config.prompts import PromptsSetup
 from frag.config.orchestration import AgentOrchestrationConfig
 from frag.config.data import DataConfig
 from frag.config.logs import LogConfig
+from frag.config.aws_parameter_store import AWSParamStoreConfig
 
 
 class ApplicationConfig(BaseModel):
     """Config for the full application."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, validate_default=True)
 
     env: EnvSettings = EnvSettings()
     data: DataConfig = DataConfig()
@@ -29,3 +30,5 @@ class ApplicationConfig(BaseModel):
     prompts: PromptsSetup = PromptsSetup()
     orchestration: AgentOrchestrationConfig = AgentOrchestrationConfig()
     logs: LogConfig = LogConfig()
+    aws_param_store: AWSParamStoreConfig = AWSParamStoreConfig()
+

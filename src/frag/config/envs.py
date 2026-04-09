@@ -25,6 +25,7 @@ class EnvSettings(BaseSettings):
         frozen=True,
         extra="forbid",
         env_ignore_empty=True,
+        validate_default=True,
     )
 
     # for fetching the embedding model

@@ -8,7 +8,7 @@ class JudgementWeights(BaseModel):
 
     They don't necessarily have to sum to 1."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, validate_default=True)
 
     visual_grounding: float = 0.2
     item_suitability: float = 0.3
@@ -18,7 +18,7 @@ class JudgementWeights(BaseModel):
 class EvaluationConfig(BaseModel):
     """Config for evaluation."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, validate_default=True)
 
     # these are the text inputs for each query
     json_queries_path: FilePath = "data/evaluation_data/eval_queries.json"

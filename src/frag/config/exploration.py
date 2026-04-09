@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, FilePath
 class ExplorationConfig(BaseModel):
     """Exploration Config"""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, validate_default=True)
 
     # this is the name of the bucket on s3 - used for testing how upload / download parsing works - it contains the sample hdf5 file
     s3_bucket_name: str = "my-personal-bucket-callingmicron"

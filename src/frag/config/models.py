@@ -1,17 +1,24 @@
 """Config for LLM models used in the application."""
 
+from typing import Annotated
+
 from pydantic import BaseModel, ConfigDict, computed_field
+from pydantic.functional_serializers import PlainSerializer
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_mistralai import ChatMistralAI
 from langchain_ollama import ChatOllama
 
 from frag.utils.model_factory import get_llm_provider
 
+LLMProvider = Annotated[
+    ChatOllama | ChatGoogleGenerativeAI | ChatMistralAI,
+    PlainSerializer(lambda x: x.__name__, return_type=str)
+]
 
 class VLMAgent(BaseModel):
     """VLM agent for generating sample images or converting provided ones to descriptions."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, validate_default=True)
 
     name: str = "mistral-medium-latest"
     temp: float = 0.6
@@ -24,7 +31,7 @@ class RateLimiter(BaseModel):
     It uses a token (not LLM tokens) bucket model.
     """
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, validate_default=True)
 
     # this is the rate at which tokens get added to the bucket - it is kept far below the actual threshold to decrease risk of rate limiting even further and because there is also a 500k tokens per minute rate limit which is not captured. The limit for mistral-medium-latest is 375k tokens per min while for mistral-large-latest is 50k
     requests_per_second: float = 0.5
@@ -37,7 +44,7 @@ class RateLimiter(BaseModel):
 class ModelsConfig(BaseModel):
     """Config for various LLM models used in the application."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, validate_default=True)
 
     vlm_agent: VLMAgent = VLMAgent()
     rate_limiter: RateLimiter = RateLimiter()
@@ -48,5 +55,5 @@ class ModelsConfig(BaseModel):
     # but it is not required for now
     @computed_field
     @property
-    def llm_provider(self) -> ChatOllama | ChatGoogleGenerativeAI | ChatMistralAI:
+    def llm_provider(self) -> LLMProvider:
         return get_llm_provider(self.vlm_agent.name)

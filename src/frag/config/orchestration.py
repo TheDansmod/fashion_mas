@@ -17,6 +17,7 @@ class DynamoDBCheckpointerConfig(BaseSettings):
         frozen=True,
         extra="ignore",
         env_ignore_empty=True,
+        validate_default=True,
     )
 
     # from the environment
@@ -57,6 +58,7 @@ class PostgresCheckpointerConfig(BaseSettings):
         frozen=True,
         extra="ignore",
         env_ignore_empty=True,
+        validate_default=True,
     )
 
     # max simultaneous connections - this is for the postgres connection pool
@@ -68,16 +70,17 @@ class PostgresCheckpointerConfig(BaseSettings):
     postgres_db: str
 
     # constructing dsn from env vars
+    # we are returning actual PostgresDsn since the type is a url subclass not string
     @computed_field
     @property
     def dsn(self) -> PostgresDsn:
-        return f"postgresql://{self.postgres_user}:{self.postgres_password}@localhost:5432/{self.postgres_db}"
+        return PostgresDsn(f"postgresql://{self.postgres_user}:{self.postgres_password}@localhost:5432/{self.postgres_db}")
 
 
 class SqliteCheckpointerConfig(BaseModel):
     """Config for SQLite Checkpointer."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, validate_default=True)
 
     db_path: FilePath = "data/pipeline_checkpoints.db"
 
@@ -85,7 +88,7 @@ class SqliteCheckpointerConfig(BaseModel):
 class CheckpointerConfig(BaseModel):
     """Config for the langgraph checkpointer."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, validate_default=True)
 
     backend: Literal["postgres", "sqlite", "dynamodb"] = "dynamodb"
     sqlite: SqliteCheckpointerConfig = SqliteCheckpointerConfig()
@@ -95,6 +98,7 @@ class CheckpointerConfig(BaseModel):
 
 class MCPConfig(BaseModel):
     """Config for MCP use in Agent Orchestration."""
+    model_config = ConfigDict(frozen=True, validate_default=True)
 
     llm_tool_names: list[str] = ["semantic_search", "get_product_categories"]
     db_tool_name: str = "get_datapoint_by_index"
@@ -103,7 +107,7 @@ class MCPConfig(BaseModel):
 class AgentOrchestrationConfig(BaseModel):
     """Config for Agent Orchestration."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, validate_default=True)
 
     checkpointer: CheckpointerConfig = CheckpointerConfig()
     mcp: MCPConfig = MCPConfig()
