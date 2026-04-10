@@ -10,7 +10,7 @@ from botocore.exceptions import (
     NoRegionError,
 )
 
-def _bootstrap_ssm(path: str = "/frag/", envvar_prefix='FRAG_') -> None:
+def _bootstrap_ssm(path: str = "/frag/") -> None:
     """
     Fetch all params under the SSM path prefix and inject as env vars.
 
@@ -22,6 +22,8 @@ def _bootstrap_ssm(path: str = "/frag/", envvar_prefix='FRAG_') -> None:
     Silently skips when AWS is unreachable (local offline dev) — the
     fast_connect_timeout ensures this fails in ~2 s, not 60+ s.
     """
+    log.success("IN BOOTSTRAP FUNCTION. RETURNING.")
+    return
     try:
         ssm = boto3.client(
             "ssm",
@@ -32,8 +34,10 @@ def _bootstrap_ssm(path: str = "/frag/", envvar_prefix='FRAG_') -> None:
             ),
         )
         paginator = ssm.get_paginator("get_parameters_by_path")
+        log.success("GOT PAGINATOR")
         loaded = 0
         for page in paginator.paginate(Path=path, WithDecryption=True):
+            log.success("GOT SOME PARAMS")
             for param in page["Parameters"]:
                 # /fashion-agent/database__host  →  DATABASE__HOST
                 # Also handles accidental slash-nesting: /fashion-agent/db/host → DB__HOST
@@ -44,9 +48,10 @@ def _bootstrap_ssm(path: str = "/frag/", envvar_prefix='FRAG_') -> None:
                     .replace("/", "__")   # slash-nesting → pydantic nested delimiter
                 )
                 if key not in os.environ:  # existing vars (Lambda / .env) always win
-                    os.environ[f"{envvar_prefix}{key}"] = param["Value"]
+                    # we don't add an envvar prefix since that is just pollution and I need to actually write envvars in .env file with that prefix. if it was just through this setup then it might be worth it, but otherwise not really
+                    os.environ[key] = param["Value"]
                     loaded += 1
-        log.debug("SSM bootstrap: loaded %d parameters from '%s'", loaded, path)
+        log.debug(f"SSM bootstrap: loaded {loaded} parameters from {path}")
 
     except (NoCredentialsError, EndpointConnectionError, EndpointResolutionError, NoRegionError):
         # Running locally without AWS access — .env / defaults will cover it

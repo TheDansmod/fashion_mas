@@ -23,22 +23,11 @@ class EnvSettings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         frozen=True,
-        extra="forbid",
+        extra="ignore",
         env_ignore_empty=True,
         validate_default=True,
+        env_prefix="ENV__"
     )
-
-    # for fetching the embedding model
-    hf_token: str
-
-    # for langsmith traceability
-    langsmith_tracing: bool
-    langsmith_project: str
-    langsmith_api_key: str
-    langsmith_endpoint: HttpUrl
-
-    # for using mistral models
-    mistral_api_key: str
 
     # for postgres checkpointer
     postgres_user: str

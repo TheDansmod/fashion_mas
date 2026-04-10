@@ -83,7 +83,6 @@ class DynamoDBCheckpointerProvider(CheckpointerProvider):
 
     def __init__(
         self,
-        profile_name: str,
         region_name: str,
         table_name: str,
         ttl_seconds: int,
@@ -93,7 +92,6 @@ class DynamoDBCheckpointerProvider(CheckpointerProvider):
         max_retry_attempts: int,
     ):
         self.session = boto3.Session(
-            profile_name=profile_name,
             region_name=region_name,
         )
         self.table_name = table_name
@@ -147,7 +145,6 @@ def create_checkpointer_provider(
             )
         case "dynamodb":
             return DynamoDBCheckpointerProvider(
-                profile_name=dynamodb_config.profile_name,
                 region_name=dynamodb_config.region_name,
                 table_name=dynamodb_config.table_name,
                 ttl_seconds=dynamodb_config.ttl_seconds,

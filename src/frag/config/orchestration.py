@@ -5,8 +5,6 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, FilePath, PostgresDsn, computed_field, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from frag.config.envs import AppEnv
-
 
 class DynamoDBCheckpointerConfig(BaseSettings):
     """Config for dynamo db checkpointer."""
@@ -20,20 +18,13 @@ class DynamoDBCheckpointerConfig(BaseSettings):
         validate_default=True,
     )
 
-    # from the environment
-    app_env: AppEnv
     # this value must match whatever is used when setting up the cloudformation table, so please ensure that we use the .env value when deploying the cloudformation template for the dynamo db langgraph checkpointer
-    table_name: str = Field(validation_alias="aws_dynamodb_checkpointer_table_name")
-
-    @computed_field
-    @property
-    def profile_name(self) -> str:
-        return self.app_env.value
+    table_name: str = Field(validation_alias="env__aws_dynamodb_checkpointer_table_name")
 
     region_name: str = "us-east-1"
 
-    # it stays for a week
-    ttl_seconds: int = 60 * 60 * 24 * 7
+    # it stays for a day
+    ttl_seconds: int = 60 * 60 * 24 * 1
 
     # whether or not to compress the entries in the dynamo db table
     do_compression: bool = True
@@ -65,9 +56,9 @@ class PostgresCheckpointerConfig(BaseSettings):
     max_pool_size: int = 20
 
     # from .env
-    postgres_user: str
-    postgres_password: str
-    postgres_db: str
+    postgres_user: str = Field(validation_alias="env__postgres_user")
+    postgres_password: str = Field(validation_alias="env__postgres_password")
+    postgres_db: str = Field(validation_alias="env__postgres_db")
 
     # constructing dsn from env vars
     # we are returning actual PostgresDsn since the type is a url subclass not string

@@ -72,6 +72,11 @@ filterwarnings = [
     'ignore:Use `streamable_http_client` instead:DeprecationWarning:contextlib',
 ]
 
+# logging setup during tests
+log_file = "logs/pytest.log"
+log_file_mode = "a"
+log_file_level = "DEBUG"
+
 [tool.coverage.run]
 omit = [
     "src/frag/data_manager/dynamo_db_connector.py",

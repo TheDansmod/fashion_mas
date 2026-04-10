@@ -115,6 +115,8 @@ def set_library_log_levels():
         "urllib3": "WARNING",
         "mcp": "WARNING",
         "httpcore": "WARNING",
+        "botocore": "WARNING",
+        "langgraph_checkpoint_aws": "WARNING",
     }
     for logger_name, log_level in library_levels.items():
         lib_logger = logging.getLogger(logger_name)

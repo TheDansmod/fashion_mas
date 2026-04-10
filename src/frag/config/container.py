@@ -12,7 +12,7 @@ from frag.utils.aws_ssm_bootstrap import _bootstrap_ssm
 
 @asynccontextmanager
 async def checkpointer_connection(
-    backend: str, sqlite_config, postgres_config, dynamodb_config
+    backend: str, sqlite_config, postgres_config, dynamodb_config, _bootstrap_done=None,
 ):
     checkpointer_provider = create_checkpointer_provider(
         backend,
@@ -60,6 +60,7 @@ class Container(containers.DeclarativeContainer):
         sqlite_config=config.provided.orchestration.checkpointer.sqlite,
         postgres_config=config.provided.orchestration.checkpointer.postgres,
         dynamodb_config=config.provided.orchestration.checkpointer.dynamodb,
+        _bootstrap_done=_ssm,
     )
 
     # logging

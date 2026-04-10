@@ -1,6 +1,6 @@
 """Config for loguru logging setup"""
 
-from pydantic import computed_field
+from pydantic import computed_field, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from frag.config.envs import AppEnv
@@ -19,14 +19,14 @@ class LogConfig(BaseSettings):
     )
 
     # from .env
-    app_env: AppEnv
+    app_env: AppEnv = Field(validation_alias="env__app_env")
 
     write_human_readable_logs: bool = True
     write_machine_readable_logs: bool = True
     write_console_logs: bool = True
 
-    human_readable_log_file: str = "logs/human_readable/frag_{time}.log"
-    machine_readable_log_file: str = "logs/machine_readable/frag_{time}.log"
+    human_readable_log_file: str = "logs/human_readable/frag.log"
+    machine_readable_log_file: str = "logs/machine_readable/frag.log"
 
     # the rotation interval could be a lot of things like 100 MB, 1 month 2 weeks, 2 days, 10h, monthly, 18:00, sunday, monday at 12:00
     rotation_interval: str = "1 day"

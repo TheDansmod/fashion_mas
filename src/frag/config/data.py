@@ -29,10 +29,10 @@ class ChainlitPersistenceConfig(BaseSettings):
 
     # from the .env file
     s3_bucket_name: str = Field(
-        validation_alias="aws_s3_chainlit_persistence_bucket_name"
+        validation_alias="env__aws_s3_chainlit_persistence_bucket_name"
     )
     dynamodb_table_name: str = Field(
-        validation_alias="aws_dynamodb_chainlit_persistence_table_name"
+        validation_alias="env__aws_dynamodb_chainlit_persistence_table_name"
     )
 
     # the value can be different for different resources - so it is permissible to have region configs all over
