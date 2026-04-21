@@ -20,8 +20,6 @@ from typing import Literal
 import h5py
 import s3fs
 import numpy as np
-import open_clip
-import torch
 from fastmcp import FastMCP
 from fastmcp.tools import tool
 from mcp.types import ImageContent, TextContent
