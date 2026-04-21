@@ -19,7 +19,7 @@ class LogConfig(BaseSettings):
     )
 
     # from .env
-    app_env: AppEnv = Field(validation_alias="env__app_env")
+    app_env: AppEnv = Field(validation_alias="app_env")
 
     write_human_readable_logs: bool = True
     write_machine_readable_logs: bool = True

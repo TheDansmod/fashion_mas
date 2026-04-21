@@ -1,6 +1,6 @@
 """Config for Data Handling and Processing."""
 
-from pydantic import BaseModel, ConfigDict, HttpUrl, FilePath, Field
+from pydantic import BaseModel, ConfigDict, FilePath, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class FashionGenAWSConfig(BaseModel):
@@ -29,10 +29,10 @@ class ChainlitPersistenceConfig(BaseSettings):
 
     # from the .env file
     s3_bucket_name: str = Field(
-        validation_alias="env__aws_s3_chainlit_persistence_bucket_name"
+        validation_alias="aws_s3_chainlit_persistence_bucket_name"
     )
     dynamodb_table_name: str = Field(
-        validation_alias="env__aws_dynamodb_chainlit_persistence_table_name"
+        validation_alias="aws_dynamodb_chainlit_persistence_table_name"
     )
 
     # the value can be different for different resources - so it is permissible to have region configs all over
@@ -71,8 +71,8 @@ class VectorDBConfig(BaseModel):
 
     model_config = ConfigDict(frozen=True, validate_default=True)
 
-    # this is the url location of the qdrant docker client
-    vector_store_network_path: HttpUrl = "http://localhost:6333"
+    # this is the url location of the qdrant docker client - this can't actually be an http url since the actual value expected in the receiver is str and it throws an error if I set it as HttpUrl
+    vector_store_network_path: str = "http://localhost:6333"
 
     # qdrant allows two api's - rest and grpc. grpc is more performant while rest api is more convenient. the docs recommend using grpc if we are already familiar with qdrant and are trying to optimize the performance of our application.
     prefer_grpc: bool = True

@@ -23,11 +23,22 @@ class EnvSettings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         frozen=True,
-        extra="ignore",
+        extra="forbid",
         env_ignore_empty=True,
         validate_default=True,
-        env_prefix="ENV__"
     )
+
+    # huggingface token
+    hf_token: str
+
+    # langsmith
+    langsmith_tracing: bool
+    langsmith_project: str
+    langsmith_api_key: str
+    langsmith_endpoint: HttpUrl
+
+    # mistral api key
+    mistral_api_key: str
 
     # for postgres checkpointer
     postgres_user: str

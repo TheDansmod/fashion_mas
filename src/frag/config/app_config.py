@@ -2,8 +2,7 @@
 
 from functools import lru_cache
 
-from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, BaseModel, ConfigDict
 
 from frag.config.envs import EnvSettings
 from frag.config.models import ModelsConfig
@@ -14,17 +13,15 @@ from frag.config.prompts import PromptsSetup
 from frag.config.orchestration import AgentOrchestrationConfig
 from frag.config.data import DataConfig
 from frag.config.logs import LogConfig
-from frag.config.aws_parameter_store import AWSParamStoreConfig
 
 
-class ApplicationConfig(BaseSettings):
+class ApplicationConfig(BaseModel):
     """Config for the full application."""
 
-    model_config = SettingsConfigDict(
+    model_config = ConfigDict(
         frozen=True,
         validate_default=True,
         case_sensitive=False,
-        env_nested_delimiter='__',
     )
 
     env: EnvSettings = Field(default_factory=EnvSettings)
@@ -36,5 +33,4 @@ class ApplicationConfig(BaseSettings):
     prompts: PromptsSetup = Field(default_factory=PromptsSetup)
     orchestration: AgentOrchestrationConfig = Field(default_factory=AgentOrchestrationConfig)
     logs: LogConfig = Field(default_factory=LogConfig)
-    aws_param_store: AWSParamStoreConfig = Field(default_factory=AWSParamStoreConfig)
 

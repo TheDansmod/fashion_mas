@@ -48,7 +48,9 @@ class FashionAgent:
     def __init__(
         self,
         callback_config,
-        model=PV[Container.llm_model.provided],
+        model = PV[Container.llm_model.provided],
+        mcp_client_transport: str = PV[cfg.orchestration.mcp.client_transport_method],
+        mcp_url: str = PV[cfg.orchestration.mcp.url],
     ) -> None:
         """Inits the agentic state representations and external client integrations.
 
@@ -69,8 +71,8 @@ class FashionAgent:
         self._client = MultiServerMCPClient(
             {
                 "product_catalogue_server": {
-                    "transport": "streamable_http",
-                    "url": "http://localhost:9000/mcp",
+                    "transport": mcp_client_transport,
+                    "url": mcp_url,
                 },
             }
         )
@@ -558,6 +560,7 @@ class FashionAgent:
         self,
         checkpointer=PV[Container.checkpointer.provided],
         node_diagram_path: str = PV[cfg.orchestration.node_diagram_path],
+        draw_node_diagram: bool = PV[cfg.orchestration.draw_node_diagram],
     ):
         builder = StateGraph(AgentState)
         # nodes
@@ -581,7 +584,8 @@ class FashionAgent:
         builder.add_edge("explanation_node", "human_node")
         # compile and run
         self._graph = builder.compile(checkpointer=checkpointer)
-        draw_langraph_topology(self._graph, node_diagram_path)
+        if draw_node_diagram:
+            draw_langraph_topology(self._graph, node_diagram_path)
 
     async def ainvoke(self, initial_state, config):
         return await self._graph.ainvoke(initial_state, config)

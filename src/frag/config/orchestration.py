@@ -19,7 +19,7 @@ class DynamoDBCheckpointerConfig(BaseSettings):
     )
 
     # this value must match whatever is used when setting up the cloudformation table, so please ensure that we use the .env value when deploying the cloudformation template for the dynamo db langgraph checkpointer
-    table_name: str = Field(validation_alias="env__aws_dynamodb_checkpointer_table_name")
+    table_name: str = Field(validation_alias="aws_dynamodb_checkpointer_table_name")
 
     region_name: str = "us-east-1"
 
@@ -56,9 +56,9 @@ class PostgresCheckpointerConfig(BaseSettings):
     max_pool_size: int = 20
 
     # from .env
-    postgres_user: str = Field(validation_alias="env__postgres_user")
-    postgres_password: str = Field(validation_alias="env__postgres_password")
-    postgres_db: str = Field(validation_alias="env__postgres_db")
+    postgres_user: str = Field(validation_alias="postgres_user")
+    postgres_password: str = Field(validation_alias="postgres_password")
+    postgres_db: str = Field(validation_alias="postgres_db")
 
     # constructing dsn from env vars
     # we are returning actual PostgresDsn since the type is a url subclass not string
@@ -94,6 +94,14 @@ class MCPConfig(BaseModel):
     llm_tool_names: list[str] = ["semantic_search", "get_product_categories"]
     db_tool_name: str = "get_datapoint_by_index"
 
+    # this is for the mcp server creation transport method (for FastMCP)
+    host_transport_method: str = "http"
+    port: int = 9000 
+
+    # this is when using the mcp server on the client in rag agent
+    client_transport_method: str = "streamable_http"
+    url: str = "http://localhost:9000/mcp"
+
 
 class AgentOrchestrationConfig(BaseModel):
     """Config for Agent Orchestration."""
@@ -117,3 +125,6 @@ class AgentOrchestrationConfig(BaseModel):
 
     # this is where the agent's langgraph orchestration diagram is stored
     node_diagram_path: str = "fashion_agent_diagram.png"
+
+    # whether or not to draw the node diagram
+    draw_node_diagram: bool = False

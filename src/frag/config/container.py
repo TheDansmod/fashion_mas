@@ -1,18 +1,18 @@
-from contextlib import asynccontextmanager, contextmanager
+from contextlib import asynccontextmanager
 
 from loguru import logger
+from dotenv import load_dotenv
 from dependency_injector import containers, providers
 
 from frag.config.app_config import ApplicationConfig
 from frag.utils.model_factory import get_llm_model
 from frag.utils.checkpointer import create_checkpointer_provider
 from frag.utils.logger_setup import setup_logging
-from frag.utils.aws_ssm_bootstrap import _bootstrap_ssm
 
 
 @asynccontextmanager
 async def checkpointer_connection(
-    backend: str, sqlite_config, postgres_config, dynamodb_config, _bootstrap_done=None,
+    backend: str, sqlite_config, postgres_config, dynamodb_config,
 ):
     checkpointer_provider = create_checkpointer_provider(
         backend,
@@ -33,22 +33,16 @@ async def manage_logging(log_cfg):
     yield
     await logger.complete()
 
-@contextmanager
-def _ssm_resource():
-    _bootstrap_ssm()
-    yield
-
-def _manage_config(_bootstrap_done=None):
-    # the only purpose of this function is to have DI resolve the bootstrap resource before setting up the config
-    return ApplicationConfig()
-
 class Container(containers.DeclarativeContainer):
-
-    # bootstrapping the config values from AWS, or fallback to local
-    _ssm = providers.Resource(_ssm_resource)
+    # def __init__(self):
+    #     # first hydrate the environment with the .env variables
+    #     load_dotenv()
+    #     print('the dotenv ran')
+    #     # then setup the providers etc
+    #     super().__init__()
 
     # general config
-    config = providers.Singleton(_manage_config, _bootstrap_done=_ssm)
+    config = providers.Singleton(ApplicationConfig)
 
     # llm model
     llm_model = providers.Singleton(get_llm_model, cfg=config.provided)
@@ -60,7 +54,6 @@ class Container(containers.DeclarativeContainer):
         sqlite_config=config.provided.orchestration.checkpointer.sqlite,
         postgres_config=config.provided.orchestration.checkpointer.postgres,
         dynamodb_config=config.provided.orchestration.checkpointer.dynamodb,
-        _bootstrap_done=_ssm,
     )
 
     # logging
@@ -74,6 +67,7 @@ class Container(containers.DeclarativeContainer):
             "frag.data_manager",
             "frag.evaluation",
             "frag.exploration",
+            "frag.mcp_server",
             "frag.rag_pipeline",
             "frag.utils",
         ],
