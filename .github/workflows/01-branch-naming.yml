@@ -1,0 +1,42 @@
+# .github/workflows/01-branch-naming.yml
+# enforces that the branch name should be of the form <prefix>/<project-name>-<ticket-id>-<short-description>
+name: Branch Naming Convention
+
+on:
+  push:
+    branches-ignore:
+      - main
+      - develop
+
+jobs:
+  validate-branch-name:
+    name: validate-branch-name
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check branch name
+        run: |
+          BRANCH="${GITHUB_REF#refs/heads/}"
+          EXEMPT="^(main|develop)$"
+          VALID="^(feature|bugfix|release|hotfix|support|refactor|chore|docs|test|ci)/FRAG-[0-9]+-[a-zA-Z0-9_-]+$"
+
+          if [[ "$BRANCH" =~ $EXEMPT ]]; then
+            echo "Exempt branch: $BRANCH"
+            exit 0
+          fi
+
+          if [[ "$BRANCH" =~ $VALID ]]; then
+            echo "Valid branch name: $BRANCH"
+          else
+            echo "Invalid branch name: '$BRANCH'"
+            echo ""
+            echo "Required format:  <type>/FRAG-<ticket-number>-<description>"
+            echo "Valid types:      feature, bugfix, release, hotfix, support,"
+            echo "                  refactor, chore, docs, test, ci"
+            echo ""
+            echo "Examples:"
+            echo "  feature/FRAG-123-add-user-authentication"
+            echo "  bugfix/FRAG-456-fix-login-redirect"
+            echo "  chore/FRAG-789-update-dependencies"
+            exit 1
+          fi
+
