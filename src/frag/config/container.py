@@ -9,6 +9,10 @@ from frag.utils.model_factory import get_llm_model
 from frag.utils.checkpointer import create_checkpointer_provider
 from frag.utils.logger_setup import setup_logging
 
+# this is at the top level to ensure it runs only once,
+# and is inside the container.py file since that ensures it is run early in any entrypoint
+load_dotenv()
+
 
 @asynccontextmanager
 async def checkpointer_connection(
@@ -34,13 +38,6 @@ async def manage_logging(log_cfg):
     await logger.complete()
 
 class Container(containers.DeclarativeContainer):
-    # def __init__(self):
-    #     # first hydrate the environment with the .env variables
-    #     load_dotenv()
-    #     print('the dotenv ran')
-    #     # then setup the providers etc
-    #     super().__init__()
-
     # general config
     config = providers.Singleton(ApplicationConfig)
 

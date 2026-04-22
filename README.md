@@ -106,7 +106,6 @@ These are the prefixes which are allowed in git or github branches
 | docs/    | Documentation-only changes (READMEs, wikis, inline comments)     | develop       | develop |
 | test/    | Adding / updating tests without changing production code         | develop       | develop |
 | ci/      | Changes to CICD pipeline  Github Actions, Jenkins etc            | develop       | develop |
-| -------- | ---------------------------------------------------------------- | ------------- | ------------------------- |
 
 ### Smart Commit Syntax
 1. Syntax (for commits): `<ISSUE_KEY> <ignored_text> #<command 1> <command 1 arguments> #<command 2> <command 2 arguments> ...`
