@@ -1,0 +1,59 @@
+# .github/workflows/02-commit-message-check.yml
+# enforces that every commit to a branch should start with <project-name>-<ticket-id> eg: FRAG-42 Add google OAuth callback
+name: Commit Message Validation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  validate-commits:
+    name: validate-commits
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate all commits contain JIRA ticket ID
+        run: |
+          BRANCH="${{ github.head_ref }}"
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+
+          if [[ "$BRANCH" =~ (FRAG-[0-9]+) ]]; then
+            JIRA_ID="${BASH_REMATCH[1]}"
+            echo "Expected JIRA ID: $JIRA_ID"
+          else
+            echo "ERROR: No JIRA ID in branch name '$BRANCH', failing."
+            exit 1
+          fi
+
+          FAILED=0
+          while IFS= read -r line; do
+            SHA=$(echo "$line" | awk '{print $1}')
+            MSG=$(echo "$line" | cut -d' ' -f2-)
+            if [[ "$MSG" =~ ^FRAG-[0-9]+ ]]; then
+              echo "$SHA — $MSG"
+            else
+              echo "$SHA — '$MSG'  ← missing $JIRA_ID"
+              FAILED=1
+            fi
+          done < <(git log --no-merges --format="%H %s" "$BASE_SHA..$HEAD_SHA")
+
+          if [ $FAILED -eq 1 ]; then
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "Commits are missing the JIRA ticket ID."
+            echo ""
+            echo "Every commit must begin with: $JIRA_ID"
+            echo "Example:  $JIRA_ID Fix null pointer in auth service"
+            echo ""
+            echo "Run 'bash scripts/setup-hooks.sh' to install the"
+            echo "   local hook that prepends the ID automatically."
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            exit 1
+          fi
+
+          echo "All commits contain the JIRA ticket ID."
+

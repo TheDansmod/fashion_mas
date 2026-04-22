@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# .github/hooks/prepare-commit-msg
+# Automatically prepends FRAG-xxx from the branch name to every commit message.
+
+COMMIT_MSG_FILE="$1"
+COMMIT_SOURCE="$2"
+
+# Skip merge, squash, and all amend/reuse-message modes (-c, -C, --amend)
+[[ "$COMMIT_SOURCE" == "merge"  ]] && exit 0
+[[ "$COMMIT_SOURCE" == "squash" ]] && exit 0
+[[ "$COMMIT_SOURCE" == "commit" ]] && exit 0
+
+BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null)
+
+if [[ "$BRANCH" =~ (FRAG-[0-9]+) ]]; then
+  JIRA_ID="${BASH_REMATCH[1]}"
+
+  # Only prepend if not already present
+  if ! grep -qE "UP-[0-9]+" "$COMMIT_MSG_FILE"; then
+    # Use temp file to avoid command-substitution stripping newlines
+    { printf '%s ' "$JIRA_ID"; cat "$COMMIT_MSG_FILE"; } > /tmp/commit_msg_tmp \
+      && mv /tmp/commit_msg_tmp "$COMMIT_MSG_FILE"
+    echo "Hook: Prepended '$JIRA_ID' to commit message."
+  fi
+fi
+
+exit 0
+

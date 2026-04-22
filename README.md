@@ -80,3 +80,38 @@ TODO: you have added psycopg[binary] as a dependency - but the binary is not rec
 
 TODO: convert all model.invoke / structured model.invoke calls into async calls. ensure all agent calls are async as well
 
+
+# Contribution Guidelines
+I have connected JIRA to github so please make use of the integration
+1. Pick up a JIRA ticket (story, task, sub-task) or create it if it does not exist (likely at the start) - create a branch named `<prefix>/<project-name>-<ticket-id>-short-description` (eg: `bugfix/FRAG-23-fix-graph-generation-bug`) - our project name is `FRAG`. If you don't use the right branch name, you will get a message due to a Github Action
+2. JIRA also allows you to create a github branch directly from JIRA - it also auto-suggests a name based on the ticket name.
+2. Every commit to that branch should start with `<project-name>-<ticket-id>` in the message (eg: `FRAG-42 Add google OAuth callback`)
+3. Use Smart Commit Syntax to automatically update JIRA through the commit.
+4. Open a PR with title `<project-name>-<ticket-id>: <description>` when ready for review. For reviews that only impact the `exploration` folder, I will simply approve. Any other project code should be reviewed seriously. In the start we might have lower scrutiny, while the project skeleton takes shape.
+5. Once the PR is merged, JIRA issue gets closed and the full history is tracked there.
+6. Ensure the email you use to commit to github is the one of the emails that is registered in JIRA for the project, else it will be silently ignored.
+7. Please mostly create branches from develop (at least for now) rather than main - main is for releases
+
+### Gitflow prefixes
+These are the prefixes which are allowed in git or github branches
+| Prefix   | Purpose                                                          | Branches from | Merges into               |
+| -------- | ---------------------------------------------------------------- | ------------- | ------------------------- |
+| feature/ | Developing new features or functionalities                       | develop       | develop            |
+| bugfix/  | Fixing bugs found during development (non-production)            | develop       | develop |
+| release/ | Preparing a new version for production (version bumps, final QA) | develop       | main + develop |
+| hotfix/  | Urgent, critical patches applied directly to production          | main          | main + develop |
+| support/ | Long-term support branches for maintaining older versions        | main          | Stays isolated 
+| refactor/ | Code improvements, restructuring, cleanup - no external change  | develop       | develop |
+| chore/   | Maintenance tasks eg updating dependencies, configs, or tooling  | develop       | develop |
+| docs/    | Documentation-only changes (READMEs, wikis, inline comments)     | develop       | develop |
+| test/    | Adding / updating tests without changing production code         | develop       | develop |
+| ci/      | Changes to CICD pipeline  Github Actions, Jenkins etc            | develop       | develop |
+| -------- | ---------------------------------------------------------------- | ------------- | ------------------------- |
+
+### Smart Commit Syntax
+1. Syntax (for commits): `<ISSUE_KEY> <ignored_text> #<command 1> <command 1 arguments> #<command 2> <command 2 arguments> ...`
+2. Three key commands:
+    1. `#comment <comment text>` - add comment to jira issue
+    2. `#time <value> <optional worklog comment>` - add time you worked on the task (`w` weeks, `d` days, `h` hours, `m` minutes)
+    3. `#<transition-name>` - to move the ticket to a different flow state (eg: `#to-do`, `#in-progress`, `#done`, `#cancelled` - these are the only valid ones)
+

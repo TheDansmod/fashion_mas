@@ -1,0 +1,56 @@
+# .github/workflows/03-pr-title-enforcer.yml
+# enforces pr titles to be of the form <project-name>-<ticket-id>: <description>
+name: PR Title Enforcer
+
+on:
+  pull_request:
+    types: [opened, reopened, edited, synchronize]
+
+jobs:
+  enforce-pr-title:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Prepend JIRA ID to PR title if missing
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const branch   = context.payload.pull_request.head.ref;
+            const title    = context.payload.pull_request.title;
+            const prNumber = context.payload.pull_request.number;
+
+            const prefixPattern = /^(feature|bugfix|release|hotfix|support|refactor|chore|docs|test|ci)\/(FRAG-\d+)/;
+            const match = branch.match(prefixPattern);
+
+            if (!match) {
+              core.setFailed(
+                  `Branch "${branch}" does not follow the required naming convention.\n` +
+                  `Expected: <prefix>/<JIRA-ID>-<description> (e.g. feature/FRAG-217-my-feature)\n` +
+                  `Valid prefixes: feature, bugfix, release, hotfix, support, refactor, chore, docs, test, ci`
+                );
+                return;
+            }
+
+            const jiraId = match[2];
+            console.log(`JIRA ID from branch: ${jiraId}`);
+
+            if (new RegExp(`^${jiraId}(\\s|:|$)`).test(title)) {
+              console.log(`PR title already correct: "${title}"`);
+              return;
+            }
+
+            // Remove any stale FRAG-xxx prefix to avoid duplication
+            const cleanTitle = title.replace(/^FRAG-\d+[-:\s]*/i, '').trim();
+            const newTitle   = `${jiraId} ${cleanTitle}`.trim();
+
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+              title: newTitle
+            });
+
+            console.log(`PR title updated: "${title}" → "${newTitle}"`);
+
