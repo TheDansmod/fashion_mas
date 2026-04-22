@@ -3,11 +3,18 @@ import asyncio
 
 from loguru import logger as log
 from dependency_injector.wiring import inject, Provide as PV
+from dependency_injector import providers
 
 # dependency wiring must be done before frag imports
 from frag.config.container import Container
 
 container = Container()
+# we don't want to setup checkpointer when using mcp server
+container.use_checkpointer.override(providers.Object(False))
+# we want to log to a different file than the main process
+container.mcp_server_logger.override(providers.Object(True))
+# we want to setup the fashion gen dataset connection
+container.setup_dataset_connection.override(providers.Object(True))
 
 from frag.mcp_server.server import main as server_main
 

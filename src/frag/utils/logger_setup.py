@@ -125,7 +125,9 @@ def set_library_log_levels():
         lib_logger.propagate = False
 
 
-def setup_logging(log_cfg):
+def setup_logging(log_cfg, for_mcp_server=False):
+    # if we are doing log setup for mcp server we use different file names, since it is a different process
+    # and we don't want multiple-processes simultaneously writing to the same file - it can cause corruption and race conditions
     # clear the default stderr handler
     logger.remove()
 
@@ -133,7 +135,7 @@ def setup_logging(log_cfg):
         add_console_logging(log_cfg.is_dev, log_cfg.log_level)
     if log_cfg.write_human_readable_logs:
         add_file_logs(
-            log_cfg.human_readable_log_file,
+            log_cfg.mcp_human_readable_log_file if for_mcp_server else log_cfg.human_readable_log_file,
             log_cfg.log_level,
             log_cfg.is_dev,
             log_cfg.rotation_interval,
@@ -142,7 +144,7 @@ def setup_logging(log_cfg):
         )
     if log_cfg.write_machine_readable_logs:
         add_machine_logs(
-            log_cfg.machine_readable_log_file,
+            log_cfg.mcp_machine_readable_log_file if for_mcp_server else log_cfg.machine_readable_log_file,
             log_cfg.log_level,
             log_cfg.rotation_interval,
             log_cfg.retention_period,

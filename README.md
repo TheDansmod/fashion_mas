@@ -31,10 +31,11 @@ https://github.com/user-attachments/assets/cc40f339-4bd2-4075-aea9-9388405977f5
 7. Download the dataset using the kaggle CLI: `kaggle datasets download -d bothin/fashiongen-validation` or download from [here](https://www.kaggle.com/datasets/bothin/fashiongen-validation) and save to `DATAPATH`.
 8. Setup the Qdrant Vector DB: `uv run cli_main.py data.vector_db.recreate=true data.fashion_gen.hdf5_path=DATAPATH`. (Say YES when it asks if you want to create / re-create the Vector DB. This should take around 30 minutes with a GPU.
 9. The project uses the Mistral API by default, so need to have a `.env` file at root level with `MISTRAL_API_KEY=<key>`
-10. Start the mcp server: `uv run src/mcp_server/mcp_server.py --datapath DATAPATH`
+10. Start the mcp server: `uv run mcp_server.py`
     The MCP server runs on port 9000
 11. Start the chainlit UI: `uv run chainlit run app.py` or run the application in the terminal - without chainlit: `uv run cli_main.py`. If using the UI, it should start up in your default browser (`http://localhost:8000`).
 12. If instead, you want to run the evaluation pipeline - which evaluates the agent across multiple different query types using 60 queries and then, through the llm-as-a-judge framework, judges those queries across multiple critiera, and finally provides the mean score out of 10 and the standard deviation: `uv run cli_main.py eval.eval_mode=true`
+13. To run the test(s), do `uv run pytest`
 
 
 # AWS Deployment Considerations

@@ -11,21 +11,14 @@ works.
 8. Later we can increase the information returned by matched image
 """
 
-import base64
 import json
-import logging
-from io import BytesIO
-from typing import Literal
+import asyncio
 
-import h5py
-import s3fs
 import numpy as np
 from fastmcp import FastMCP
 from fastmcp.tools import tool
 from mcp.types import ImageContent, TextContent
-from PIL import Image
-from pydantic import BaseModel, Field
-from qdrant_client import QdrantClient, models
+from qdrant_client import AsyncQdrantClient, models
 from loguru import logger as log
 from dependency_injector.wiring import inject, Provide as PV
 
@@ -34,8 +27,8 @@ from frag.config.container import Container
 from frag.mcp_server.embedding import FashionSigLIPEmbedding
 
 cfg = Container.config.provided
-
 mcp = FastMCP("Product Catalogue MCP Server")
+_h5_lock = asyncio.Lock()
 
 class ProductCatalogueMCPServer:
     @inject
@@ -52,7 +45,7 @@ class ProductCatalogueMCPServer:
     def _reformat_image_data(self, matches):
         matched_images = []
         for match in matches:
-            b64_image = encode_image(match["input_image"][0])
+            b64_image = encode_image(numpy_image=match["input_image"][0])
             metadata = {
                 "price": match["input_msrpUSD"][0],
                 "category": match["input_category"][0],
@@ -67,7 +60,7 @@ class ProductCatalogueMCPServer:
         return [text_content, image_content]
 
     @tool
-    def semantic_search(
+    async def semantic_search(
         self, description: str, categories: list[str], num_matches: int
     ):
         """Get num_matches images and their metadata that match the description and categories.
@@ -88,27 +81,29 @@ class ProductCatalogueMCPServer:
             keys of `price`, `category`, `description`, `id`, and `score`. The score
             tells how good of a match (to the input text) the returned item is.
         """
-        log.info("in semantic search.")
+        log.debug("semantic_search tool call made")
         for category in categories:
             if category not in self._product_categories:
                 return {"error": f"{category} is not a valid category."}
-        embedding = self._embedder.get_text_embedding_batch([description])[0]
-        matches = self._connector.get_image_matches(
+        embedding = await asyncio.to_thread(self._embedder.get_text_embedding_batch, [description])
+        embedding = embedding[0]
+        matches = await self._connector.get_image_matches(
             embedding, categories=categories, num_matches=num_matches
         )
         log.info("returning some matches.")
         return self._reformat_image_data(matches)
 
     @tool
-    def get_datapoint_by_index(self, index: int):
+    async def get_datapoint_by_index(self, index: int):
         """Get a datapoint, including image and metadata, using index in db."""
-        data = get_fashion_gen_data(from_idx=index, to_idx=index + 1)
+        log.debug("get_datapoint_by_index tool call made")
+        data = await get_fashion_gen_data(from_idx=index, to_idx=index + 1)
         return self._reformat_image_data([data])
 
     @tool
     def get_product_categories(self) -> list[str]:
         """Returns a list of valid product categories."""
-        log.info("in get product categories.")
+        log.info("get_product_categories tool call made")
         return self._product_categories
 
 class QdrantConnector:
@@ -122,17 +117,20 @@ class QdrantConnector:
         image_vectors_name: str = PV[cfg.data.vector_db.image_vectors_name],
         index_key: str = PV[cfg.data.fashion_gen.index_key],
     ):
-        self._client = QdrantClient(url=url, prefer_grpc=prefer_grpc)
-        log.info("connected to qdrant.")
-        # validate collection existence
-        if not self._client.collection_exists(collection_name):
-            raise ValueError(f"Collection {collection_name} does not exist.")
+        self._client = AsyncQdrantClient(url=url, prefer_grpc=prefer_grpc)
+        log.debug("connected to qdrant.")
         self._collection_name = collection_name
         self._category_key = category_key
         self._image_vectors_name = image_vectors_name
         self._index_key = index_key
 
-    def get_image_matches(self, embedding, categories, num_matches):
+    async def validate(self):
+        # validate collection existence
+        if not await self._client.collection_exists(self._collection_name):
+            raise ValueError(f"Collection {self._collection_name} does not exist.")
+
+    async def get_image_matches(self, embedding, categories, num_matches):
+        log.debug("getting matching images from qdrant vector db")
         matches = []
         should_filter = []
         if categories:
@@ -144,7 +142,7 @@ class QdrantConnector:
             query_filter = models.Filter(should=should_filter)
         else:
             query_filter = None
-        query_response = self._client.query_points(
+        query_response = await self._client.query_points(
             collection_name=self._collection_name,
             query=embedding,
             using=self._image_vectors_name,
@@ -154,22 +152,31 @@ class QdrantConnector:
         for scored_points in query_response.points:
             item_id = scored_points.payload[self._index_key]
             score = scored_points.score
-            img_data = get_fashion_gen_data(from_idx=item_id, to_idx=item_id + 1)
+            img_data = await get_fashion_gen_data(from_idx=item_id, to_idx=item_id + 1)
             img_data["score"] = score
             matches.append(img_data)
         return matches
 
+def _read_h5_data(from_idx, to_idx, num_datapoints, images_key, prices_key, index_key, codec, string_attributes, h5_file_handle):
+    data = dict()
+    vec_decode = np.vectorize(pyfunc=lambda x: x.decode(codec))
+    data[images_key] = h5_file_handle[images_key][from_idx:to_idx].astype("uint8")
+    data[prices_key] = np.ravel(h5_file_handle[prices_key][from_idx:to_idx]).tolist()
+    data[index_key] = h5_file_handle[index_key][from_idx:to_idx].tolist()  # don't need ravel
+    for key in string_attributes:
+        data[key] = vec_decode(np.ravel(h5_file_handle[key][from_idx:to_idx])).tolist()
+    return data
+
 @inject
-def get_fashion_gen_data(
+async def get_fashion_gen_data(
     from_idx, to_idx,
-    bucket: str = PV[cfg.data.aws_fashion_gen.s3_bucket_name],
-    s3_key: str = PV[cfg.data.aws_fashion_gen.dataset_object_name],
+    num_datapoints: int = PV[cfg.data.fashion_gen.num_datapoints],
     images_key: str = PV[cfg.data.fashion_gen.images_key],
     prices_key: str = PV[cfg.data.fashion_gen.prices_key],
     index_key: str = PV[cfg.data.fashion_gen.index_key],
-    num_datapoints: int = PV[cfg.data.fashion_gen.num_datapoints],
     codec: str = PV[cfg.data.fashion_gen.string_codec],
     string_attributes: list[str] = PV[cfg.data.fashion_gen.string_attributes],
+    h5_file_handle = PV[Container.h5_file.provided],
 ):
     """Get data from the fashion-gen dataset in dictionary format.
 
@@ -187,25 +194,14 @@ def get_fashion_gen_data(
             we are sending back string values, they are lists of strings. If we are
             sending back floats, they are lists of floats.
     """
-    fs = s3fs.S3FileSystem(anon=False)
-
-    # to be returned
-    data = dict()
-
     if from_idx >= num_datapoints or from_idx >= to_idx:
-        return data
+        return dict()
     else:
         from_idx = max(0, from_idx)
     if to_idx >= num_datapoints:
         to_idx = num_datapoints
-    vec_decode = np.vectorize(pyfunc=lambda x: x.decode(codec))
-    with fs.open(f"s3://{bucket}/{s3_key}", "rb") as s3_file:
-        with h5py.File(s3_file, "r") as file:
-            data[images_key] = file[images_key][from_idx:to_idx].astype("uint8")
-            data[prices_key] = np.ravel(file[prices_key][from_idx:to_idx]).tolist()
-            data[index_key] = file[index_key][from_idx:to_idx].tolist()  # don't need ravel
-            for key in string_attributes:
-                data[key] = vec_decode(np.ravel(file[key][from_idx:to_idx])).tolist()
+    async with _h5_lock:
+        data = await asyncio.to_thread(_read_h5_data, from_idx, to_idx, num_datapoints, images_key, prices_key, index_key, codec, string_attributes, h5_file_handle)
     return data
 
 @inject
@@ -214,6 +210,7 @@ async def main(
     port: int = PV[cfg.orchestration.mcp.port],
 ):
     connector = QdrantConnector()
+    await connector.validate()
     embedder = FashionSigLIPEmbedding()
     server = ProductCatalogueMCPServer(connector=connector, embedder=embedder)
     mcp.add_tool(server.semantic_search)

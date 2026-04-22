@@ -25,8 +25,13 @@ class LogConfig(BaseSettings):
     write_machine_readable_logs: bool = True
     write_console_logs: bool = True
 
+    # these are for the main process - the rag agent
     human_readable_log_file: str = "logs/human_readable/frag.log"
     machine_readable_log_file: str = "logs/machine_readable/frag.log"
+
+    # these are for the mcp server process when it is running independently
+    mcp_human_readable_log_file: str = "logs/human_readable/frag_mcp.log"
+    mcp_machine_readable_log_file: str = "logs/machine_readable/frag_mcp.log"
 
     # the rotation interval could be a lot of things like 100 MB, 1 month 2 weeks, 2 days, 10h, monthly, 18:00, sunday, monday at 12:00
     rotation_interval: str = "1 day"

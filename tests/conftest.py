@@ -35,3 +35,20 @@ def caplog(caplog: LogCaptureFixture):
     )
     yield caplog
     logger.remove(handler_id)
+
+# this is for logging the test logs itself - another sink added to loguru - this is instead of using the config in pyproject.toml since that simply takes whatever goes through caplog - which is stripped of metadata
+@pytest.fixture(scope="session", autouse=True)
+def loguru_file_sink():
+    handler_id = logger.add(
+        "logs/pytest.log",
+        mode="a",
+        level="DEBUG",
+        format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} - {message}",
+        enqueue=False,
+    )
+    yield
+    try:
+        logger.remove(handler_id)
+    except ValueError:
+        # the logger handle was removed elsewhere
+        pass
