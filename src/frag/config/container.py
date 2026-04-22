@@ -30,10 +30,18 @@ async def checkpointer_connection(
     finally:
         await checkpointer_provider.stop()
 
+# this allows one to create a flag that can either start or not start the checkpointer
+@asynccontextmanager
+async def _conditional_checkpointer(use_checkpointer, backend, sqlite_config, postgres_config, dynamodb_config):
+    if use_checkpointer:
+        async with checkpointer_connection(backend, sqlite_config, postgres_config, dynamodb_config) as cp:
+            yield cp
+    else:
+        yield None
 
 @asynccontextmanager
-async def manage_logging(log_cfg):
-    setup_logging(log_cfg)
+async def manage_logging(log_cfg, for_mcp_server):
+    setup_logging(log_cfg, for_mcp_server)
     yield
     await logger.complete()
 
@@ -45,8 +53,10 @@ class Container(containers.DeclarativeContainer):
     llm_model = providers.Singleton(get_llm_model, cfg=config.provided)
 
     # checkpointer
+    use_checkpointer = providers.Object(True)
     checkpointer = providers.Resource(
-        checkpointer_connection,
+        _conditional_checkpointer,
+        use_checkpointer=use_checkpointer,
         backend=config.provided.orchestration.checkpointer.backend,
         sqlite_config=config.provided.orchestration.checkpointer.sqlite,
         postgres_config=config.provided.orchestration.checkpointer.postgres,
@@ -54,9 +64,11 @@ class Container(containers.DeclarativeContainer):
     )
 
     # logging
+    mcp_server_logger = providers.Object(False)
     _logger = providers.Resource(
         manage_logging,
         log_cfg=config.provided.logs,
+        for_mcp_server=mcp_server_logger,
     )
 
     wiring_config = containers.WiringConfiguration(

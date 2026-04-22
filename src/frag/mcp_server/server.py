@@ -11,11 +11,7 @@ works.
 8. Later we can increase the information returned by matched image
 """
 
-import base64
 import json
-import logging
-from io import BytesIO
-from typing import Literal
 
 import h5py
 import s3fs
@@ -24,7 +20,6 @@ from fastmcp import FastMCP
 from fastmcp.tools import tool
 from mcp.types import ImageContent, TextContent
 from PIL import Image
-from pydantic import BaseModel, Field
 from qdrant_client import QdrantClient, models
 from loguru import logger as log
 from dependency_injector.wiring import inject, Provide as PV
