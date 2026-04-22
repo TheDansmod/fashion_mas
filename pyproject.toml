@@ -72,10 +72,11 @@ filterwarnings = [
     'ignore:Use `streamable_http_client` instead:DeprecationWarning:contextlib',
 ]
 
-# logging setup during tests
-log_file = "logs/pytest.log"
-log_file_mode = "a"
-log_file_level = "DEBUG"
+# logging setup during tests - removed this since this was putting in logs which had no metadata (due to the caplog sink addition); this was replaced with pytest fixture in conftest.py
+# # unremoved the removal since there was an error with "there is no existing handler id with id 1" - likely due to logger.remove call in logger_setup
+# log_file = "logs/pytest.log"
+# log_file_mode = "a"
+# log_file_level = "DEBUG"
 
 [tool.coverage.run]
 omit = [

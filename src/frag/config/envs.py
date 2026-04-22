@@ -52,3 +52,6 @@ class EnvSettings(BaseSettings):
     aws_s3_chainlit_persistence_bucket_name: str
     aws_dynamodb_chainlit_persistence_table_name: str
     aws_dynamodb_checkpointer_table_name: str
+
+    # for disabling rich error rendering for fast mcp server
+    fastmcp_enable_rich_tracebacks: bool
