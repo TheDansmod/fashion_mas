@@ -26,6 +26,8 @@ async def test_run_fashion_agent(container, mock_input, mocked_create_agent, cap
         "Entered critique node.",
         "Entered explanation node.",
         "Exiting gracefully.",
+        "In mock agent got semantic search response",
+        "In mock agent got get tool categories response ['CLUTCHES & POUCHES', 'POUCHES & DOCUMENT HOLDERS', 'BOOTS', 'BACKPACKS', 'SWEATERS', 'SWIMWEAR', 'MONKSTRAPS', 'JEWELRY', 'DUFFLE & TOP HANDLE BAGS', 'JEANS', 'LACE UPS', 'SKIRTS', 'DUFFLE BAGS', 'TOPS', 'DRESSES', 'MESSENGER BAGS & SATCHELS', 'SOCKS', 'LOAFERS', 'ESPADRILLES', 'UNDERWEAR & LOUNGEWEAR', 'BAG ACCESSORIES', 'HATS', 'SANDALS', 'JACKETS & COATS', 'MESSENGER BAGS', 'GLOVES', 'TRAVEL BAGS', 'LINGERIE', 'SCARVES', 'KEYCHAINS', 'BLANKETS', 'TIES', 'FLATS', 'SHORTS', 'PANTS', 'SUITS & BLAZERS', 'TOTE BAGS', 'HEELS', 'EYEWEAR', 'BRIEFCASES', 'JUMPSUITS', 'FINE JEWELRY', 'BELTS & SUSPENDERS', 'SHIRTS', 'BOAT SHOES & MOCCASINS', 'SNEAKERS', 'POCKET SQUARES & TIE BARS', 'SHOULDER BAGS']",
     ]
     with caplog.at_level(logging.DEBUG):
         await run_fashion_agent()
