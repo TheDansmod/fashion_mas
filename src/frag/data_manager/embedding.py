@@ -1,21 +1,10 @@
-
 import torch
 import open_clip
-from dependency_injector.wiring import inject, Provide as PV
-
-from frag.config.container import Container
-
-cfg = Container.config.provided
 
 class FashionSigLIPEmbedding:
     """Create and return multi-modal embeddings."""
 
-    @inject
-    def __init__(
-        self,
-        embedding_model: str = PV[cfg.data.vector_db.embedding_model],
-        embedding_batch_size: str = PV[cfg.data.data_processing.embedding_batch_size],
-    ):
+    def __init__(self, embedding_model, embedding_batch_size):
         """Initialise device, model, image and text processor, and batch size.
 
         None of the attributes are intended for external use. So all of them start

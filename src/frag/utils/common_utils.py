@@ -10,7 +10,6 @@ import functools
 from datetime import datetime
 from io import BytesIO
 
-from langchain_core.tools import StructuredTool
 from langchain_core.callbacks import UsageMetadataCallbackHandler
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables.graph import MermaidDrawMethod
@@ -199,19 +198,6 @@ def track_token_use(func):
 
         return wrapper
 
-
-def get_tool_with_name(tools, search_name):
-    """Given a list of mcp tools, returns the tool with the search name, or errors."""
-    tool = None
-    for t in tools:
-        if t.name == search_name:
-            tool = t
-            break
-    if not tool:
-        raise ValueError(f"DB tool not found: {search_name}")
-    return tool
-
-
 def save_numpy_image_to_folder(folder_path: str, image_array: np.ndarray) -> Path:
     """Saves numpy image to temporary folder, returns path."""
     directory = Path(folder_path)
@@ -238,50 +224,3 @@ def save_image_url_to_folder(folder_path: str, image_url: str) -> Path:
         file.write(image_data)
     return str(file_path)
 
-
-def make_mistral_compatible(tool):
-    """Wraps an MCP tool to ensure it returns a plain string."""
-
-    def sanitize_response(response):
-        result = []
-        if isinstance(response, list):
-            for block in response:
-                if isinstance(block, dict):
-                    block_type = block["type"]
-                    if block_type == "text":
-                        result.append({"type": "text", "text": block["text"]})
-                    elif block_type == "image":
-                        result.append(
-                            {
-                                "type": "image_url",
-                                "image_url": f"data:{block['mime_type']};base64,{block['base64']}",
-                            }
-                        )
-                    else:
-                        raise ValueError("unexpected type")
-                else:
-                    # we default to converting the whole thing to string if element of
-                    # the list is not a dictionary
-                    result.append({"type": "text", "text": str(block)})
-            return result
-        else:
-            # we just default to string if response is not a list
-            return str(response)
-
-    def sync_wrapper(*args, **kwargs):
-        tool_input = args[0] if args else kwargs
-        response = tool.invoke(tool_input)
-        return sanitize_response(response)
-
-    async def async_wrapper(*args, **kwargs):
-        tool_input = args[0] if args else kwargs
-        response = await tool.ainvoke(tool_input)
-        return sanitize_response(response)
-
-    return StructuredTool.from_function(
-        func=sync_wrapper,
-        coroutine=async_wrapper,
-        name=tool.name,
-        description=tool.description,
-        args_schema=tool.args_schema,
-    )

@@ -1,44 +1,21 @@
-"""An MCP Server for the Vector DB.
-
-1. For now, we are only adding the semantic search tool so that we can figure out how it
-works.
-2. We are also not doing the inject the function signature thing.
-3. We assume the collection already exists
-4. Assume we always prefer GRPC
-5. self._category_key, self._image_vectors_name, self._index_key
-6. all the categories are hard-coded
-7. all the string hard-coded values in get_fashion_gen_data
-8. Later we can increase the information returned by matched image
-"""
-
-import base64
-import json
-import asyncio
-
-import numpy as np
-from fastmcp import FastMCP
-from fastmcp.tools import tool
-from mcp.types import ImageContent, TextContent
+"""Local tools, setup as MCP server alternative."""
+from langchain.tools import tool
 from loguru import logger as log
-from dependency_injector.wiring import inject, Provide as PV
 
 from frag.data_manager.dataset_read_write import get_fashion_gen_data
-from frag.config.container import Container
 
-cfg = Container.config.provided
-mcp = FastMCP("Product Catalogue MCP Server")
 
-class ProductCatalogueMCPServer:
-    @inject
-    def __init__(
-        self,
-        connector,
-        embedder,
-        product_categories: list[str] = PV[cfg.data.fashion_gen.product_categories],
-    ):
+class ProductCatalogueTools:
+    def __init__(self, connector, embedder, product_categories, fgen_args):
         self._connector = connector
         self._embedder = embedder
         self._product_categories = product_categories
+        self._fgen_args = fgen_args
+
+        # tools
+        self._semantic_search = tool(self.semantic_search)
+        self._get_datapoint_by_index = tool(self.get_datapoint_by_index)
+        self._get_product_categories = tool(self.get_product_categories)
 
     def _reformat_image_data(self, matches):
         matched_images = []
@@ -50,15 +27,10 @@ class ProductCatalogueMCPServer:
                 "id": match["id"],
                 "score": match.get("score", 0),
             }
-            text_content = TextContent(type="text", text=json.dumps(metadata))
-            image_content = ImageContent(
-                type="image", data=match["image"], mimeType="image/jpeg"
-            )
-            matched_images.append(text_content)
-            matched_images.append(image_content)
+            matched_images.append({"type": "text", "text": json.dumps(metadata)})
+            matched_images.append({"type": "image", "base64": match["image"], "mime_type": "image/jpeg"})
         return matched_images
 
-    @tool
     async def semantic_search(
         self, description: str, categories: list[str], num_matches: int
     ):
@@ -92,29 +64,17 @@ class ProductCatalogueMCPServer:
         log.info("returning some matches.")
         return self._reformat_image_data(matches)
 
-    @tool
     async def get_datapoint_by_index(self, index: int):
         """Get a datapoint, including image and metadata, using index in db."""
+
         log.debug("get_datapoint_by_index tool call made")
-        data = await get_fashion_gen_data(index)
+        data = await get_fashion_gen_data(index, *self._fgen_args)
         return self._reformat_image_data([data])
 
-    @tool
     def get_product_categories(self) -> list[str]:
         """Returns a list of valid product categories."""
         log.info("get_product_categories tool call made")
         return self._product_categories
 
-@inject
-async def main(
-    transport: str = PV[cfg.orchestration.mcp.host_transport_method],
-    port: int = PV[cfg.orchestration.mcp.port],
-    connector = PV[Container.qdrant_connector.provided],
-    embedder = PV[Container.multimodal_embedder.provided],
-):
-    server = ProductCatalogueMCPServer(connector=connector, embedder=embedder)
-    mcp.add_tool(server.semantic_search)
-    mcp.add_tool(server.get_product_categories)
-    mcp.add_tool(server.get_datapoint_by_index)
-    # since this main function is being invoked from an async context already, we can't just do mcp.run which internally calls asyncio.run (assuming that we started from a sync context) - which then throws an error. so we can simply fix that by asynchronously invoking the mcp runner through run_async
-    await mcp.run_async(transport=transport, port=port)
+    def get_tools(self):
+        return [self._semantic_search, self._get_datapoint_by_index, self._get_product_categories]

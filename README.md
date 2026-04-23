@@ -61,14 +61,6 @@ class RemoteEmbedder:
         response = httpx.post("https://your-embedding-api/embed", json={"texts": texts})
         return response.json()["embeddings"]
 
-# Replace get_fashion_gen_data with:
-def get_fashion_gen_data(from_idx, to_idx):
-    response = httpx.get(f"https://your-data-api/fashiongen?from={from_idx}&to={to_idx}")
-    return response.json()
-
-# Change Qdrant URL from localhost to your external instance:
-QdrantConnector(url="https://your-qdrant-cloud-url", collection_name="fashion_gen")
-
 # Replace mcp.run() at the bottom with:
 from mangum import Mangum
 app = mcp.http_app()   # FastMCP exposes the underlying Starlette app

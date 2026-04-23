@@ -5,7 +5,6 @@ from typing import Literal
 from uuid import uuid4
 
 from langchain.agents import create_agent
-from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt, Command
 from loguru import logger as log
@@ -23,10 +22,8 @@ from frag.rag_pipeline.llm_schemas import (
 from frag.utils.common_utils import (
     draw_langraph_topology,
     get_image_prompt_message,
-    get_tool_with_name,
     get_multi_image_prompt_message,
     save_image_url_to_folder,
-    make_mistral_compatible,
     track_token_use,
     get_multi_image_multi_prompt_message,
 )
@@ -49,8 +46,6 @@ class FashionAgent:
         self,
         callback_config,
         model = PV[Container.llm_model.provided],
-        mcp_client_transport: str = PV[cfg.orchestration.mcp.client_transport_method],
-        mcp_url: str = PV[cfg.orchestration.mcp.url],
     ) -> None:
         """Inits the agentic state representations and external client integrations.
 
@@ -68,14 +63,6 @@ class FashionAgent:
         # setup embeddings
         self._callback_config = callback_config
         self._graph = None
-        self._client = MultiServerMCPClient(
-            {
-                "product_catalogue_server": {
-                    "transport": mcp_client_transport,
-                    "url": mcp_url,
-                },
-            }
-        )
 
     @inject
     async def human_node(
@@ -215,6 +202,7 @@ class FashionAgent:
         )
         return {"num_recommendations": num_recommendations}
 
+    @inject
     def intent_node(
         self,
         state: AgentState,
@@ -242,6 +230,7 @@ class FashionAgent:
         log.debug(f"Instructions for the VLM:\n{response.content}")
         return {"vlm_instructions": response.content}
 
+    @inject
     def vision_node(
         self,
         state: AgentState,
@@ -282,6 +271,7 @@ class FashionAgent:
         log.debug(f"Descriptions obtained from vision node:\n{descr}")
         return {"input_images_descriptions": descr}
 
+    @inject
     def modifier_node(
         self,
         state: AgentState,
@@ -347,15 +337,15 @@ class FashionAgent:
         )
         return {"required_clothes_descriptions": response.required_clothes_descriptions}
 
+    @inject
     async def recommender_node(
         self,
         state: AgentState,
-        llm_tool_names: list[str] = PV[cfg.orchestration.mcp.llm_tool_names],
         match_clothes_prompt: str = PV[
             cfg.prompts.recommender_node.match_clothes_prompt
         ],
-        db_tool_name: str = PV[cfg.orchestration.mcp.db_tool_name],
         temporary_images_folder: str = PV[cfg.orchestration.temporary_images_folder],
+        tools_client = PV[Container.tools_client.provided],
     ) -> AgentState:
         """Executes semantic similarity search within the vector embedding space.
 
@@ -375,12 +365,7 @@ class FashionAgent:
         # clothing items
         recommended_clothes_images = []
         log.debug("Entered recommender node.")
-        tools = await self._client.get_tools()
-        tools = [
-            make_mistral_compatible(tool)
-            for tool in tools
-            if tool.name in llm_tool_names
-        ]
+        tools = await tools_client.get_llm_tools()
         agent = create_agent(
             model=self._model,
             tools=tools,
@@ -396,8 +381,7 @@ class FashionAgent:
             recommended_clothes_images.append(response["structured_response"].image_id)
             log.debug("Received response from agent.")
         # saving the images to path and storing the path - this is a bit of a repeat from human node, but for now does not matter
-        tools = await self._client.get_tools()
-        tool = get_tool_with_name(tools, db_tool_name)
+        tool = await tools_client.get_db_tool()
         recommended_clothes_image_paths = []
         recommended_clothes_descriptions = []
         for img_index in recommended_clothes_images:
@@ -421,6 +405,7 @@ class FashionAgent:
             "recommended_clothes_descriptions": recommended_clothes_descriptions,
         }
 
+    @inject
     def critique_node(
         self,
         state: AgentState,
@@ -477,6 +462,7 @@ class FashionAgent:
                 "critique_text": response.correction,
             }
 
+    @inject
     def explanation_node(
         self,
         state: AgentState,
