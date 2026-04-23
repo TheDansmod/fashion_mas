@@ -139,8 +139,3 @@ class AgentOrchestrationConfig(BaseModel):
 
     # whether or not to draw the node diagram
     draw_node_diagram: bool = False
-
-    # this control whether or not the MCP server is to be used
-    # if the MCP server is not being used for the tools then we use
-    # the tools that are locally defined
-    use_mcp_server: bool = False

@@ -98,8 +98,8 @@ class MCPToolsClient(ToolsClient):
         return tool
 
 class LocalToolsClient(ToolsClient):
-    def __init__(self, connector, embedder, product_categories, llm_tool_names, db_tool_name, fgen_args):
-        self.client = ProductCatalogueTools(connector, embedder, product_categories, fgen_args)
+    def __init__(self, connector, embedder, product_categories, llm_tool_names, db_tool_name):
+        self.client = ProductCatalogueTools(connector, embedder, product_categories)
         self.llm_tool_names = llm_tool_names
         self.db_tool_name = db_tool_name
         self.tools = self.client.get_tools()
@@ -112,8 +112,8 @@ class LocalToolsClient(ToolsClient):
         tool = get_tool_with_name(self.tools, self.db_tool_name)
         return tool
 
-def get_tools_client(use_mcp_server, connector, embedder, product_categories, llm_tool_names, db_tool_name, mcp_client_transport, mcp_url, fgen_args):
+def get_tools_client(use_mcp_server, connector, embedder, product_categories, llm_tool_names, db_tool_name, mcp_client_transport, mcp_url):
     if use_mcp_server:
         return MCPToolsClient(mcp_client_transport, mcp_url, llm_tool_names, db_tool_name)
     else:
-        return LocalToolsClient(connector, embedder, product_categories, llm_tool_names, db_tool_name, fgen_args)
+        return LocalToolsClient(connector, embedder, product_categories, llm_tool_names, db_tool_name)

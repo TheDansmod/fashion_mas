@@ -2,17 +2,21 @@ from typing import Any
 import base64
 
 from loguru import logger as log
+from dependency_injector.wiring import inject, Provide as PV
 
+from frag.config.container import Container
+
+cfg = Container.config.provided
 
 async def get_fashion_gen_data(
     fetch_index,
-    num_datapoints,
-    prices_key,
-    categories_key,
-    descriptions_key,
-    s3_client,
-    bucket_name,
-    metadata_lookup,
+    num_datapoints: int = PV[cfg.data.fashion_gen.num_datapoints],
+    prices_key: str = PV[cfg.data.fashion_gen.prices_key],
+    categories_key: str = PV[cfg.data.fashion_gen.categories_key],
+    descriptions_key: str = PV[cfg.data.fashion_gen.descriptions_key],
+    s3_client = PV[Container.s3_client.provided],
+    bucket_name: str = PV[cfg.data.aws_fashion_gen.s3_bucket_name],
+    metadata_lookup: dict[int, Any] = PV[Container.metadata_lookup.provided],
 ):
     """Get data from the fashion-gen dataset in dictionary format.
 

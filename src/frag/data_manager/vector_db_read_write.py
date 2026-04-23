@@ -1,8 +1,6 @@
 from loguru import logger as log
 from qdrant_client import AsyncQdrantClient, models
 
-from frag.data_manager.dataset_read_write import get_fashion_gen_data
-
 class QdrantConnector:
     def __init__(
         self,
@@ -12,7 +10,6 @@ class QdrantConnector:
         category_key,
         image_vectors_name,
         index_key,
-        fgen_args,
     ):
         self._client = AsyncQdrantClient(url=url, prefer_grpc=prefer_grpc)
         log.debug("connected to qdrant.")
@@ -20,7 +17,6 @@ class QdrantConnector:
         self._category_key = category_key
         self._image_vectors_name = image_vectors_name
         self._index_key = index_key
-        self._fgen_args = fgen_args
 
     async def validate(self):
         # validate collection existence
@@ -28,6 +24,8 @@ class QdrantConnector:
             raise ValueError(f"Collection {self._collection_name} does not exist.")
 
     async def get_image_matches(self, embedding, categories, num_matches):
+        from frag.data_manager.dataset_read_write import get_fashion_gen_data
+
         log.debug("getting matching images from qdrant vector db")
         matches = []
         should_filter = []
@@ -50,7 +48,7 @@ class QdrantConnector:
         for scored_points in query_response.points:
             item_id = scored_points.payload[self._index_key]
             score = scored_points.score
-            img_data = await get_fashion_gen_data(item_id, *self._fgen_args)
+            img_data = await get_fashion_gen_data(item_id)
             img_data["score"] = score
             matches.append(img_data)
         return matches

@@ -1,16 +1,14 @@
 """Local tools, setup as MCP server alternative."""
+import json
 from langchain.tools import tool
 from loguru import logger as log
 
-from frag.data_manager.dataset_read_write import get_fashion_gen_data
-
 
 class ProductCatalogueTools:
-    def __init__(self, connector, embedder, product_categories, fgen_args):
+    def __init__(self, connector, embedder, product_categories):
         self._connector = connector
         self._embedder = embedder
         self._product_categories = product_categories
-        self._fgen_args = fgen_args
 
         # tools
         self._semantic_search = tool(self.semantic_search)
@@ -66,9 +64,10 @@ class ProductCatalogueTools:
 
     async def get_datapoint_by_index(self, index: int):
         """Get a datapoint, including image and metadata, using index in db."""
+        from frag.data_manager.dataset_read_write import get_fashion_gen_data
 
         log.debug("get_datapoint_by_index tool call made")
-        data = await get_fashion_gen_data(index, *self._fgen_args)
+        data = await get_fashion_gen_data(index)
         return self._reformat_image_data([data])
 
     def get_product_categories(self) -> list[str]:
