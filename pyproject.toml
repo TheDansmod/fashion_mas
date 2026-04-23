@@ -71,19 +71,16 @@ addopts = [
 testpaths = ["tests"]
 filterwarnings = [
     # langchain mcp server is throwing this internal warning and I am going to suppress it since I can't do anything about it until they fix it
-    'ignore:Use `streamable_http_client` instead:DeprecationWarning:contextlib',
+    # this should work, but for some reason, does not # TODO: fix this
+    'ignore:Use `streamable_http_client` instead:DeprecationWarning',
 ]
 
-# logging setup during tests - removed this since this was putting in logs which had no metadata (due to the caplog sink addition); this was replaced with pytest fixture in conftest.py
-# # unremoved the removal since there was an error with "there is no existing handler id with id 1" - likely due to logger.remove call in logger_setup
+# # logging setup during tests - this is not required since this actually hooks into the default logging module where there aren't actually any logs. so it only ends up capturing stuff that 3rd party libraries are logging like urllib httpx etc
 # log_file = "logs/pytest.log"
 # log_file_mode = "a"
 # log_file_level = "DEBUG"
 
 [tool.coverage.run]
 omit = [
-    "src/frag/data_manager/dynamo_db_connector.py",
-    "src/frag/data_manager/session_data_table.py",
     "src/frag/exploration/*",
-    "src/frag/mcp_server/mcp_client.py",
 ]

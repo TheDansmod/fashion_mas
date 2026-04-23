@@ -19,6 +19,9 @@ class FashionGenAWSConfig(BaseModel):
     # I have verified that the unit is bytes since they set it as 50 * 2**20 for default
     s3fs_block_size: int = 100 * 1024
 
+    # the s3 key for the metadata file
+    fashion_gen_metadata_s3_key: str = "metadata/fashion_gen_metadata.parquet"
+
 
 class ChainlitPersistenceConfig(BaseSettings):
     """Config for the S3 Bucket and the Dynamo DB table used by chainlit."""

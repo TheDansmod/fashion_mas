@@ -59,7 +59,7 @@ class MockStructuredOutput:
             # for modifier node
             return self.schema(
                 required_clothes_descriptions=[
-                    "Dard wash denim jeans",
+                    "Dark wash denim jeans",
                     "blue shorts",
                     "black office shoe",
                 ]

@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 
-import h5py
-import s3fs
+import boto3
+from botocore.config import Config
 from loguru import logger
 from dotenv import load_dotenv
 from dependency_injector import containers, providers
@@ -49,21 +49,19 @@ async def manage_logging(log_cfg, for_mcp_server):
     await logger.complete()
 
 @asynccontextmanager
-async def s3fs_file_handler(bucket, s3_key, block_size, setup_connection):
-    # s3fs is internally async but the open call does not support async
+async def manage_s3_connection(max_pool_size, retry_mode, max_retry_attempts, setup_connection):
     if setup_connection:
-        fs = s3fs.S3FileSystem(anon=False, default_block_size=block_size)
-        with fs.open(f"s3://{bucket}/{s3_key}", "rb") as fh:
-            yield fh
-    else:
-        yield None
-
-@asynccontextmanager
-async def h5py_file_handler(s3_fh, setup_connection):
-    # h5py is not async safe and we can't use async with on it
-    if setup_connection:
-        with h5py.File(s3_fh, "r") as f:
-            yield f
+        s3_client = boto3.client(
+            "s3",
+            config=Config(
+                max_pool_connections=max_pool_size,
+                retries={
+                    "max_attempts": max_retry_attempts,
+                    "mode": retry_mode
+                }
+            )
+        )
+        yield s3_client
     else:
         yield None
 
@@ -87,7 +85,7 @@ class Container(containers.DeclarativeContainer):
     )
 
     # logging
-    # be default, the logging is setup for rag_agent, not mcp_server
+    # by default, the logging is setup for rag_agent, not mcp_server
     mcp_server_logger = providers.Object(False)
     _logger = providers.Resource(
         manage_logging,
@@ -95,21 +93,15 @@ class Container(containers.DeclarativeContainer):
         for_mcp_server=mcp_server_logger,
     )
 
-    # s3fs and h5py
-    # by default we don't setup s3fs and hdf5
-    setup_dataset_connection = providers.Object(False)
-    s3_file_handle = providers.Resource(
-        s3fs_file_handler,
-        bucket=config.provided.data.aws_fashion_gen.s3_bucket_name,
-        s3_key=config.provided.data.aws_fashion_gen.dataset_object_name,
-        block_size=config.provided.data.aws_fashion_gen.s3fs_block_size,
-        setup_connection=setup_dataset_connection,
-    )
-
-    h5_file = providers.Resource(
-        h5py_file_handler,
-        s3_fh=s3_file_handle,
-        setup_connection=setup_dataset_connection,
+    # s3 connection
+    # by default, we don't setup an s3 connection
+    setup_s3_connection = providers.Object(False)
+    s3_client = providers.Resource(
+        manage_s3_connection,
+        max_pool_size=config.provided.orchestration.mcp.max_pool_size,
+        retry_mode=config.provided.orchestration.mcp.retry_mode,
+        max_retry_attempts=config.provided.orchestration.mcp.max_retry_attempts,
+        setup_connection=setup_s3_connection,
     )
 
     wiring_config = containers.WiringConfiguration(

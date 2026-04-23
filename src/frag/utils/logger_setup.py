@@ -174,8 +174,15 @@ def set_library_log_levels():
 def setup_logging(log_cfg, for_mcp_server=False):
     # if we are doing log setup for mcp server we use different file names, since it is a different process
     # and we don't want multiple-processes simultaneously writing to the same file - it can cause corruption and race conditions
+
     # clear the default stderr handler
-    logger.remove()
+    # during testing logger.remove() without args can create issues by removing all handlers like my pytest log etc
+    # so i am changing to remove only the stderr logger (id 0)
+    try:
+        logger.remove(0)
+    except ValueError:
+        # already removed - handler called multiple times - likely during testing
+        pass
 
     if log_cfg.write_console_logs:
         add_console_logging(log_cfg.is_dev, log_cfg.log_level)
