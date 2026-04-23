@@ -55,3 +55,8 @@ class EnvSettings(BaseSettings):
 
     # for disabling rich error rendering for fast mcp server
     fastmcp_enable_rich_tracebacks: bool
+
+    # this control whether or not the MCP server is to be used
+    # if the MCP server is not being used for the tools then we use
+    # the tools that are locally defined
+    use_mcp_server: bool

@@ -9,16 +9,15 @@ from dependency_injector import providers
 from frag.config.container import Container
 
 container = Container()
-# we don't want to setup checkpointer when using mcp server
-container.use_checkpointer.override(providers.Object(False))
-# we want to log to a different file than the main process
-container.mcp_server_logger.override(providers.Object(True))
-# we want to setup the s3 connection
-container.setup_s3_connection.override(providers.Object(True))
+# we are in the mcp server process
+container.in_mcp_server_process.override(providers.Object(True))
 
 from frag.mcp_server.server import main as server_main
 
-async def main():
+@inject
+async def main(use_mcp_server: bool = PV[Container.config.provided.env.use_mcp_server]):
+    if not use_mcp_server:
+        raise ValueError("Did you mean to run the MCP server? The USE_MCP_SERVER environment variable is set to False!")
     try:
         await container.init_resources()
         await server_main()
