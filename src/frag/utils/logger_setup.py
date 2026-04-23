@@ -4,6 +4,9 @@ import logging
 import json
 
 from loguru import logger
+from rich.logging import RichHandler
+from rich.console import Console
+from rich.traceback import Traceback
 
 
 # funnel all logging module output for other libraries through loguru
@@ -30,13 +33,56 @@ def add_console_logging(
     is_dev: bool,
     log_level: str,
 ) -> int:
+    # the rich handler owns console formatting
+    console = Console(stderr=False)
+    rich_handler = RichHandler(
+        console=console,                # stdout, to match your existing setup
+        rich_tracebacks=True,           # beautiful tracebacks in dev mode
+        tracebacks_show_locals=is_dev,  # show local vars in tracebacks (like diagnose=True)
+        show_time=True,
+        show_level=True,
+        show_path=True,
+        markup=True,
+    )
+
+    # below function is from claude sonnet
+    def rich_sink(message):
+        # message.record contains all loguru metadata
+        record = message.record
+        level = record["level"].name
+        loguru_exc = record["exception"]
+
+        # emit through rich's handler by constructing a minimal LogRecord
+        log_record = logging.LogRecord(
+            name=record["name"],
+            level=logging.getLevelName(level),
+            pathname=record["file"].path,
+            lineno=record["line"],
+            msg=record["message"],
+            args=(),
+            exc_info=None,
+        )
+        rich_handler.emit(log_record)
+
+        # Render the traceback separately, directly via the Rich console
+        if loguru_exc is not None:
+            tb = Traceback.from_exception(
+                loguru_exc.type,
+                loguru_exc.value,
+                loguru_exc.traceback,
+                show_locals=rich_handler.tracebacks_show_locals,
+                width=console.width,
+            )
+            console.print(tb)
+
     handler_id = logger.add(
-        sys.stdout,
+        rich_sink,
         level=log_level,
-        diagnose=is_dev,
-        backtrace=is_dev,
-        enqueue=True,
-        colorize=True,
+        diagnose=False,  # rich handles tracebacks
+        backtrace=False, # rich handles this
+        enqueue=False,   # not needed for console logging
+        format="{message}",  # should be plain since rich adds its own columns
+        colorize=False,  # rich adds its own styling
     )
     return handler_id
 

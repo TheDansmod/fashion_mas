@@ -7,8 +7,6 @@ class FashionGenAWSConfig(BaseModel):
     """Config for uploading / managing fashion gen dataset on AWS S3."""
     model_config = ConfigDict(frozen=True, validate_default=True)
 
-    local_file_path: FilePath = r'/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/fashiongen_256_256_train.h5'
-
     s3_bucket_name: str = 'frag-fashion-gen-dataset'
 
     # the name of the fashion gen dataset hdf5 file when uploaded to the s3 bucket

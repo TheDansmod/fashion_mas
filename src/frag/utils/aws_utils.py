@@ -54,7 +54,7 @@ def s3_object_exists(bucket_name: str, object_key: str) -> bool:
 
 @inject
 def upload_hdf5_to_s3_bucket(
-    file_path: str = PV[cfg.data.aws_fashion_gen.local_file_path],
+    file_path: str = PV[cfg.data.fashion_gen.hdf5_path],
     bucket: str = PV[cfg.data.aws_fashion_gen.s3_bucket_name],
     object_name: str = PV[cfg.data.aws_fashion_gen.dataset_object_name],
 ) -> bool:

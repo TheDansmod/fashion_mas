@@ -75,6 +75,7 @@ class Container(containers.DeclarativeContainer):
     llm_model = providers.Singleton(get_llm_model, cfg=config.provided)
 
     # checkpointer
+    # by default, the checkpointer is created
     use_checkpointer = providers.Object(True)
     checkpointer = providers.Resource(
         _conditional_checkpointer,
@@ -86,6 +87,7 @@ class Container(containers.DeclarativeContainer):
     )
 
     # logging
+    # be default, the logging is setup for rag_agent, not mcp_server
     mcp_server_logger = providers.Object(False)
     _logger = providers.Resource(
         manage_logging,
@@ -94,6 +96,7 @@ class Container(containers.DeclarativeContainer):
     )
 
     # s3fs and h5py
+    # by default we don't setup s3fs and hdf5
     setup_dataset_connection = providers.Object(False)
     s3_file_handle = providers.Resource(
         s3fs_file_handler,
