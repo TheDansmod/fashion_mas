@@ -13,8 +13,8 @@ container = Container()
 container.use_checkpointer.override(providers.Object(False))
 # we want to log to a different file than the main process
 container.mcp_server_logger.override(providers.Object(True))
-# we want to setup the fashion gen dataset connection
-container.setup_dataset_connection.override(providers.Object(True))
+# we want to setup the s3 connection
+container.setup_s3_connection.override(providers.Object(True))
 
 from frag.mcp_server.server import main as server_main
 

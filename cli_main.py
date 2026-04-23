@@ -13,7 +13,6 @@ container = Container()
 from frag.rag_pipeline.rag_agent import run_fashion_agent
 from frag.data_manager.vector_db_writer import populate_vector_db
 from frag.evaluation.llm_as_judge import run_full_evaluation_pipeline
-# from frag.exploration.wired_config import check_wiring
 
 cfg = Container.config.provided
 
@@ -24,7 +23,6 @@ async def main(
     eval_mode: bool = PV[cfg.evaluation.eval_mode],
 ):
     """Launch the current main task for the project."""
-    # check_wiring()
     try:
         await container.init_resources()
         if recreate_vector_db:

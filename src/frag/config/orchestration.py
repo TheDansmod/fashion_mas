@@ -102,6 +102,17 @@ class MCPConfig(BaseModel):
     client_transport_method: str = "streamable_http"
     url: str = "http://localhost:9000/mcp"
 
+    # s3 connection
+    # this is the max number of simultaneous connections to s3
+    max_pool_size: int = 20
+
+    # legacy — The original boto3 behaviour. Uses a fixed exponential backoff with jitter. Has a narrower set of retryable error codes. This is the default if you set nothing at all.
+    # standard — A modernised, consistent retry policy that AWS introduced to align all SDKs. It retries on a wider set of transient errors and throttles. Defaults to 3 max attempts unless overridden. This is the recommended baseline for most production workloads.
+    # adaptive — Builds on standard but adds client-side rate limiting. The client tracks the rate of throttling responses from AWS and proactively slows down its own request rate before AWS starts rejecting calls — similar to a token bucket on the client side. This is what the DynamoDB checkpointer example uses because LangGraph agents can burst heavily, and adaptive mode prevents a thundering-herd of retries from making throttling worse.
+    retry_mode: Literal["legacy", "standard", "adaptive"] = "adaptive"
+
+    # max_attempts — The maximum number of retry attempts after the initial request.
+    max_retry_attempts: int = 3
 
 class AgentOrchestrationConfig(BaseModel):
     """Config for Agent Orchestration."""

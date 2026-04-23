@@ -26,7 +26,12 @@ def caplog(caplog: LogCaptureFixture):
     handler_id = logger.add(
         caplog.handler,
         # this ensures that the full logs don't get passed through (which might include stuff like the timestamp and invoking module, etc), only the messages themselves
-        format="{message}",
+        format=(
+            "{time:YYYY-MM-DD HH:mm:ss.SSS} | "
+            "{level: <8} | "
+            "{name}:{function}:{line} | "
+            "{message}"
+        ),
         # level of 0 means that the sink does not have its own log level and accepts all log messages
         level=0,
         # you can set a level for caplog as well - the below line respects the caplog level, and only allows those logs through which have either the same or higher log level.
@@ -34,21 +39,30 @@ def caplog(caplog: LogCaptureFixture):
         enqueue=False,  # set to True if your test spawns child processes
     )
     yield caplog
-    logger.remove(handler_id)
+    try:
+        logger.remove(handler_id)
+    except ValueError:
+        pass  # handler already removed
 
-# this is for logging the test logs itself - another sink added to loguru - this is instead of using the config in pyproject.toml since that simply takes whatever goes through caplog - which is stripped of metadata
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(autouse=True, scope="session")
 def loguru_file_sink():
     handler_id = logger.add(
         "logs/pytest.log",
-        mode="a",
         level="DEBUG",
-        format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} - {message}",
+        format=(
+            "{time:YYYY-MM-DD HH:mm:ss.SSS} | "
+            "{level: <8} | "
+            "{name}:{function}:{line} | "
+            "{message}"
+        ),
+        mode="a",
         enqueue=False,
+        colorize=False,
+        backtrace=True,
+        diagnose=True,
     )
     yield
     try:
         logger.remove(handler_id)
     except ValueError:
-        # the logger handle was removed elsewhere
-        pass
+        pass  # handler already removed

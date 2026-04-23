@@ -7,8 +7,6 @@ class FashionGenAWSConfig(BaseModel):
     """Config for uploading / managing fashion gen dataset on AWS S3."""
     model_config = ConfigDict(frozen=True, validate_default=True)
 
-    local_file_path: FilePath = r'/mnt/windows/Users/lordh/Documents/Svalbard/Data/fashion-gen/fashiongen_256_256_train.h5'
-
     s3_bucket_name: str = 'frag-fashion-gen-dataset'
 
     # the name of the fashion gen dataset hdf5 file when uploaded to the s3 bucket
@@ -20,6 +18,9 @@ class FashionGenAWSConfig(BaseModel):
     # that reduces wasted bandwidth by ~256× without hurting latency.
     # I have verified that the unit is bytes since they set it as 50 * 2**20 for default
     s3fs_block_size: int = 100 * 1024
+
+    # the s3 key for the metadata file
+    fashion_gen_metadata_s3_key: str = "metadata/fashion_gen_metadata.parquet"
 
 
 class ChainlitPersistenceConfig(BaseSettings):

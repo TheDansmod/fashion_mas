@@ -11,10 +11,13 @@ works.
 8. Later we can increase the information returned by matched image
 """
 
+import io
+import base64
 import json
 import asyncio
 
 import numpy as np
+import pyarrow.parquet as pq
 from fastmcp import FastMCP
 from fastmcp.tools import tool
 from mcp.types import ImageContent, TextContent
@@ -28,7 +31,7 @@ from frag.mcp_server.embedding import FashionSigLIPEmbedding
 
 cfg = Container.config.provided
 mcp = FastMCP("Product Catalogue MCP Server")
-_h5_lock = asyncio.Lock()
+metadata_lookup = None
 
 class ProductCatalogueMCPServer:
     @inject
@@ -45,17 +48,16 @@ class ProductCatalogueMCPServer:
     def _reformat_image_data(self, matches):
         matched_images = []
         for match in matches:
-            b64_image = encode_image(numpy_image=match["input_image"][0])
             metadata = {
-                "price": match["input_msrpUSD"][0],
-                "category": match["input_category"][0],
-                "description": match["input_description"][0],
-                "id": match["index_2"][0],
+                "price": match["price"],
+                "category": match["category"],
+                "description": match["description"],
+                "id": match["id"],
                 "score": match.get("score", 0),
             }
             text_content = TextContent(type="text", text=json.dumps(metadata))
             image_content = ImageContent(
-                type="image", data=b64_image, mimeType="image/jpeg"
+                type="image", data=match["image"], mimeType="image/jpeg"
             )
         return [text_content, image_content]
 
@@ -97,7 +99,7 @@ class ProductCatalogueMCPServer:
     async def get_datapoint_by_index(self, index: int):
         """Get a datapoint, including image and metadata, using index in db."""
         log.debug("get_datapoint_by_index tool call made")
-        data = await get_fashion_gen_data(from_idx=index, to_idx=index + 1)
+        data = await get_fashion_gen_data(index)
         return self._reformat_image_data([data])
 
     @tool
@@ -152,31 +154,20 @@ class QdrantConnector:
         for scored_points in query_response.points:
             item_id = scored_points.payload[self._index_key]
             score = scored_points.score
-            img_data = await get_fashion_gen_data(from_idx=item_id, to_idx=item_id + 1)
+            img_data = await get_fashion_gen_data(item_id)
             img_data["score"] = score
             matches.append(img_data)
         return matches
 
-def _read_h5_data(from_idx, to_idx, num_datapoints, images_key, prices_key, index_key, codec, string_attributes, h5_file_handle):
-    data = dict()
-    vec_decode = np.vectorize(pyfunc=lambda x: x.decode(codec))
-    data[images_key] = h5_file_handle[images_key][from_idx:to_idx].astype("uint8")
-    data[prices_key] = np.ravel(h5_file_handle[prices_key][from_idx:to_idx]).tolist()
-    data[index_key] = h5_file_handle[index_key][from_idx:to_idx].tolist()  # don't need ravel
-    for key in string_attributes:
-        data[key] = vec_decode(np.ravel(h5_file_handle[key][from_idx:to_idx])).tolist()
-    return data
-
 @inject
 async def get_fashion_gen_data(
-    from_idx, to_idx,
+    fetch_index,
     num_datapoints: int = PV[cfg.data.fashion_gen.num_datapoints],
-    images_key: str = PV[cfg.data.fashion_gen.images_key],
     prices_key: str = PV[cfg.data.fashion_gen.prices_key],
-    index_key: str = PV[cfg.data.fashion_gen.index_key],
-    codec: str = PV[cfg.data.fashion_gen.string_codec],
-    string_attributes: list[str] = PV[cfg.data.fashion_gen.string_attributes],
-    h5_file_handle = PV[Container.h5_file.provided],
+    categories_key: str = PV[cfg.data.fashion_gen.categories_key],
+    descriptions_key: str = PV[cfg.data.fashion_gen.descriptions_key],
+    s3_client = PV[Container.s3_client.provided],
+    bucket_name: str = PV[cfg.data.aws_fashion_gen.s3_bucket_name],
 ):
     """Get data from the fashion-gen dataset in dictionary format.
 
@@ -194,15 +185,35 @@ async def get_fashion_gen_data(
             we are sending back string values, they are lists of strings. If we are
             sending back floats, they are lists of floats.
     """
-    if from_idx >= num_datapoints or from_idx >= to_idx:
-        return dict()
-    else:
-        from_idx = max(0, from_idx)
-    if to_idx >= num_datapoints:
-        to_idx = num_datapoints
-    async with _h5_lock:
-        data = await asyncio.to_thread(_read_h5_data, from_idx, to_idx, num_datapoints, images_key, prices_key, index_key, codec, string_attributes, h5_file_handle)
+    global metadata_lookup
+    data = dict()
+    if not 0 <= fetch_index < num_datapoints:
+        return data
+    image_key = f"images/{fetch_index // 1000:03d}/{fetch_index}.png"
+    response = s3_client.get_object(Bucket=bucket_name, Key=image_key)
+    data["image"] = base64.b64encode(response["Body"].read()).decode("utf-8")
+    data["price"] = metadata_lookup[fetch_index][prices_key]
+    data["category"] = metadata_lookup[fetch_index][categories_key]
+    data["description"] = metadata_lookup[fetch_index][descriptions_key]
+    data["id"] = fetch_index
     return data
+
+@inject
+async def setup_metadata_lookup(
+    s3_client = PV[Container.s3_client.provided],
+    bucket_name: str = PV[cfg.data.aws_fashion_gen.s3_bucket_name],
+    metadata_key: str = PV[cfg.data.aws_fashion_gen.fashion_gen_metadata_s3_key],
+    index_key: str = PV[cfg.data.fashion_gen.index_key],
+):
+    global metadata_lookup
+    buffer = io.BytesIO()
+    await asyncio.to_thread(s3_client.download_fileobj, bucket_name, metadata_key, buffer)
+    buffer.seek(0)
+    # read with pyarrow
+    table = pq.read_table(buffer)
+    df = table.to_pandas()
+    df.set_index(index_key, inplace=True)
+    metadata_lookup = df.to_dict(orient='index')
 
 @inject
 async def main(
@@ -212,6 +223,7 @@ async def main(
     connector = QdrantConnector()
     await connector.validate()
     embedder = FashionSigLIPEmbedding()
+    await setup_metadata_lookup()
     server = ProductCatalogueMCPServer(connector=connector, embedder=embedder)
     mcp.add_tool(server.semantic_search)
     mcp.add_tool(server.get_product_categories)
