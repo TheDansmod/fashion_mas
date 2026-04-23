@@ -1,11 +1,29 @@
+from loguru import logger as log
 from langchain_core.messages import AIMessage
 import random
 
 
 class MockAgent:
-    def __init__(self, schema):
+    def __init__(self, schema, tools):
         self.schema = schema
         self.schema_name = schema.__name__
+        self.tools = tools
+
+    async def _make_tool_calls(self):
+        """Makes random tool calls so we can test them out."""
+        if not self.tools:
+            return
+        for tool in self.tools:
+            if tool.name == "semantic_search":
+                response = await tool.ainvoke({
+                    "description": "Black pant with white stripe.",
+                    "categories": ["UNDERWEAR & LOUNGEWEAR", "PANTS"],
+                    "num_matches": 3,
+                })
+                log.debug("In mock agent got semantic search response {}", response)
+            if tool.name == "get_product_categories":
+                response = tool.invoke({})
+                log.debug("In mock agent got get tool categories response {}", response)
 
     def invoke(self, *args, **kwargs):
         if self.schema_name == "UpdatedUserRequest":
@@ -24,11 +42,13 @@ class MockAgent:
     async def ainvoke(self, *args, **kwargs):
         if self.schema_name == "MatchedImageId":
             # for recommender node
+            await self._make_tool_calls()
             return {
                 "structured_response": self.schema(image_id=random.randint(0, 260400))
             }
         elif self.schema_name == "UpdatedUserRequest":
             # for human node
+            await self._make_tool_calls()
             return {
                 "structured_response": self.schema(
                     relevant_image_indexes=[0, 2],
@@ -116,4 +136,4 @@ class ChatMockLLM:
 
 
 def mock_create_agent(model, response_format, tools=None, **kwargs):
-    return MockAgent(response_format)
+    return MockAgent(response_format, tools)
