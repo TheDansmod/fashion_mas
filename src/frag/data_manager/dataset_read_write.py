@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Callable
 import base64
 
 from loguru import logger as log
@@ -8,6 +8,7 @@ from frag.config.container import Container
 
 cfg = Container.config.provided
 
+@inject
 async def get_fashion_gen_data(
     fetch_index,
     num_datapoints: int = PV[cfg.data.fashion_gen.num_datapoints],
@@ -17,6 +18,7 @@ async def get_fashion_gen_data(
     s3_client = PV[Container.s3_client.provided],
     bucket_name: str = PV[cfg.data.aws_fashion_gen.s3_bucket_name],
     metadata_lookup: dict[int, Any] = PV[Container.metadata_lookup.provided],
+    get_image_s3_key_from_index: Callable[[int], str] = PV[cfg.data.aws_fashion_gen.fashion_gen_image_s3_key_lambda],
 ):
     """Get data from the fashion-gen dataset in dictionary format.
 
@@ -37,7 +39,7 @@ async def get_fashion_gen_data(
     data = dict()
     if not 0 <= fetch_index < num_datapoints:
         return data
-    image_key = f"images/{fetch_index // 1000:03d}/{fetch_index}.png"
+    image_key = get_image_s3_key_from_index(fetch_index)
     response = s3_client.get_object(Bucket=bucket_name, Key=image_key)
     data["image"] = base64.b64encode(response["Body"].read()).decode("utf-8")
     data["price"] = metadata_lookup[fetch_index][prices_key]

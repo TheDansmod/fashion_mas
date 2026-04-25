@@ -212,6 +212,7 @@ def get_fashion_gen_data(
     return data
 
 
+@inject
 def _iter_data_points(
     embedder,
     image_vec_name: str = PV[cfg.data.vector_db.image_vectors_name],
@@ -251,6 +252,7 @@ def _iter_data_points(
             )
 
 
+@inject
 def populate_vector_db(
     collection_name: str = PV[cfg.data.vector_db.collection_name],
     upload_batch_size: int = PV[cfg.data.data_processing.upload_batch_size],
