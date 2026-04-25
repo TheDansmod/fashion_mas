@@ -8,8 +8,7 @@ import json
 import asyncio
 import logging as log
 
-import boto3
-from botocore.config import Config
+import aioboto3
 import pyarrow.parquet as pq
 from qdrant_client import AsyncQdrantClient, models
 
@@ -44,52 +43,24 @@ account_id = "650539477368"
 model_id = "amazon.nova-2-multimodal-embeddings-v1:0"
 metadata_key = "metadata/fashion_gen_metadata.parquet"
 descriptions_key = "input_description"
-
-# this is the dictionary containing all the metadata for the fashion gen images.
-# it can be accessed by doing metadata_df.at[index, key] if you want to lookup some key like "input_description"
-metadata_df = None
-
-# this is the instance of the class which generates (using amazon aws nova) the embeddings and returns them
-embedder = None
-
-# this is the total number of datapoints present in the fashion-gen dataset
-num_datapoints = 260_490
-
-# these are the attributes from the metadata that we want to capture in the vector db metadata
-payload_attributes = [
-    "s3_keys",
-    "index_2",
-    "input_msrpUSD",
-    "input_brand",
-    "input_category",
-    "input_composition",
-    "input_department",
-    "input_gender",
-    "input_name",
-    "input_season",
-    "input_subcategory",
-    "input_description",
-]
-
-# this is the column in metadata_df that holds the index of the image
 index_key = "index_2"
 
-# this is the number of datapoints we fetch at one time from the fashion-gen dataset. Best for it to be some integer multiple of the batch size. Not so large that it does not fit in RAM. Without writing image to payload, the process is really fast.
+metadata_df = None
+embedder = None
 fetch_batch_size: int = 1024
-
-# this is the value to which the semaphore controlling how many simultaneous queries can be made to aws bedrock, is set
 aws_bedrock_simultaneous_queries = 20
 
+
+payload_attributes = [
+    "s3_keys", "index_2", "input_msrpUSD", "input_brand", "input_category",
+    "input_composition", "input_department", "input_gender", "input_name",
+    "input_season", "input_subcategory", "input_description",
+]
+
 async def setup_qdrant_client():
-    """Create the vector db client,and collection, and returns the client.
+    global qdrant_client
 
-    Depending on the setup the existing collection might be deleted and a new
-    collection created. Or if the collection already exists and the recreate flag is
-    not enabled, then the existing collection is fetched.
-    """
-    global vector_db_url, prefer_grpc, recreate, collection_name, image_vectors_name, text_vectors_name, embedding_size, vectors_on_disk, payload_on_disk, hnsw_on_disk, indexing_threshold, qdrant_client
-
-    qdrant_client = AsyncQdrantClient(host="localhost", grpc_port=6334, prefer_grpc=True)
+    qdrant_client = AsyncQdrantClient(host=qdrant_host, grpc_port=qdrant_grpc_port, prefer_grpc=prefer_grpc)
 
     if recreate and await qdrant_client.collection_exists(collection_name):
         await qdrant_client.delete_collection(collection_name)
@@ -120,46 +91,47 @@ async def setup_qdrant_client():
     else:
         log.info(f"Collection '{collection_name}' already exists. Appending.")
 
-async def setup_metadata_df():
-    global data_bucket_name, metadata_key, metadata_df
+class AsyncEmbedder():
+    def __init__(self, session):
+        # Configure connection pool for native async boto
+        boto_config = aioboto3.core.config.Config(max_pool_connections=aws_bedrock_simultaneous_queries)
+        self.client = session.client("bedrock-runtime", config=boto_config)
+        self._sem = asyncio.Semaphore(aws_bedrock_simultaneous_queries)
+        
+    async def __aenter__(self):
+        self.client_context = await self.client.__aenter__()
+        return self
 
-    s3_client = boto3.client("s3")
-    log.debug("setting up metadata lookup")
-    buffer = io.BytesIO()
-    await asyncio.to_thread(s3_client.download_fileobj, data_bucket_name, metadata_key, buffer)
-    buffer.seek(0)
-    # read with pyarrow
-    table = pq.read_table(buffer)
-    metadata_df = table.to_pandas()
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.client_context.__aexit__(exc_type, exc_val, exc_tb)
 
-class Embedder():
-    def __init__(self):
-        boto_config = Config(max_pool_connections=aws_bedrock_simultaneous_queries)
-        self.client = boto3.client("bedrock-runtime", config=boto_config)
-        # we divide by two since we are making two queries within the semaphore
-        self._sem = asyncio.Semaphore(aws_bedrock_simultaneous_queries // 2)
+    async def _get_embedding(self, request_body):
+        async with self._sem:
+            try:
+                response = await self.client_context.invoke_model(
+                    body=json.dumps(request_body),
+                    modelId=model_id,
+                    accept="application/json",
+                    contentType="application/json",
+                )
+                resp_body = json.loads(await response["body"].read())
+                return resp_body["embeddings"][0]["embedding"]
+            except Exception as e:
+                log.exception("Exception while getting embedding from Bedrock.")
+                raise
 
-    def _get_text_request_body(self, index):
-        global embedding_size, metadata_df, descriptions_key
-
-        description = metadata_df.at[index, descriptions_key]
+    async def get_text_embedding(self, description):
         request_body = {
             "taskType": "SINGLE_EMBEDDING",
             "singleEmbeddingParams": {
                 "embeddingPurpose": "GENERIC_INDEX",
                 "embeddingDimension": embedding_size,
-                "text": {
-                    "value": description,
-                    "truncationMode": "END"
-                }
+                "text": {"value": description, "truncationMode": "END"}
             }
         }
-        return request_body
+        return await self._get_embedding(request_body)
 
-    def _get_image_request_body(self, index):
-        global data_bucket_name, get_image_s3_key_from_index, account_id, embedding_size
-
-        image_s3_uri  = f"s3://{data_bucket_name}/{get_image_s3_key_from_index(index)}"
+    async def get_image_embedding(self, s3_uri):
         request_body = {
             "taskType": "SINGLE_EMBEDDING",
             "singleEmbeddingParams": {
@@ -168,86 +140,74 @@ class Embedder():
                 "image": {
                     "detailLevel": "STANDARD_IMAGE",
                     "format": "png",
-                    "source": {
-                        "s3Location": {
-                            "uri": image_s3_uri,
-                            "bucketOwner": account_id
-                        }
-                    }
+                    "source": {"s3Location": {"uri": s3_uri, "bucketOwner": account_id}}
                 }
             }
         }
-        return request_body
+        return await self._get_embedding(request_body)
 
-    def _get_embedding(self, request_body):
-        global model_id
-
-        try:
-            response = self.client.invoke_model(
-                body=json.dumps(request_body),
-                modelId=model_id,
-                accept="application/json",
-                contentType="application/json",
-            )
-        except Exception as e:
-            log.exception("There was an exception while getting embedding of an image on s3.")
-            raise
-
-        resp_body = json.loads(response["body"].read())
-        embedding = resp_body["embeddings"][0]["embedding"]
-        return embedding
-
-    def _get_text_embedding(self, index):
-        return self._get_embedding(self._get_text_request_body(index))
-
-    def _get_image_embedding(self, index):
-        return self._get_embedding(self._get_image_request_body(index))
-
-    async def get_text_embedding(self, index):
-        return await asyncio.to_thread(self._get_text_embedding, index)
-
-    async def get_image_embedding(self, index):
-        return await asyncio.to_thread(self._get_image_embedding, index)
-
-    async def _get_single_paired_embedding(self, index):
-        async with self._sem:
-            image_vector, text_vector = await asyncio.gather(
-                self._get_image_embedding(index),
-                self._get_text_embedding(index),
-            )
-        return image_vector, text_vector
-
-    async def get_paired_embedding_batch(self, from_idx, to_idx):
-        global aws_bedrock_simultaneous_queries
-
-        return await asyncio.gather(*[self._get_single_paired_embedding(i) for i in range(from_idx, to_idx)])
-
-
-async def populate_vector_db():
-    global image_vectors_name, text_vectors_name, embedder, num_datapoints, metadata_df, fetch_batch_size, payload_attributes, qdrant_client, collection_name
-
-    for from_idx in range(0, num_datapoints, fetch_batch_size):
-        to_idx = min(from_idx + fetch_batch_size, num_datapoints)
-        points = []
-        img_descr_pairs = await embedder.get_paired_embedding_batch(from_idx, to_idx)
-        log.debug(f"Got embedding {from_idx} to {to_idx} out of {num_datapoints} datapoints.")
-        for local_idx, (img_vec, text_vec) in enumerate(img_descr_pairs):
-            abs_idx = from_idx + local_idx
-            # construct the named vectors
-            named_vectors = {image_vectors_name: img_vec, text_vectors_name: text_vec}
-            # construct the point struct from the payload and named vectors
-            points.append(
-                models.PointStruct(
-                    id=metadata_df.at[abs_idx, index_key],
-                    vector=named_vectors,
-                    payload={key: metadata_df.at[abs_idx, key] for key in payload_attributes},
-                )
-            )
-        await qdrant_client.upsert(
-            collection_name=collection_name,
-            points=points,
-            wait=False,
+    async def get_paired_embedding(self, description, s3_uri):
+        return await asyncio.gather(
+            self.get_image_embedding(s3_uri),
+            self.get_text_embedding(description),
         )
+
+async def populate_vector_db(session):
+    global data_bucket_name, metadata_key
+    
+    # Download parquet to buffer asynchronously
+    s3_client = session.client("s3")
+    buffer = io.BytesIO()
+    async with s3_client as s3:
+        await s3.download_fileobj(data_bucket_name, metadata_key, buffer)
+    buffer.seek(0)
+    
+    # Read Parquet file sequentially in chunks to save RAM
+    parquet_file = pq.ParquetFile(buffer)
+    
+    upsert_task = None
+
+    async with AsyncEmbedder(session) as embedder:
+        for batch_num, batch in enumerate(parquet_file.iter_batches(batch_size=fetch_batch_size)):
+            df_chunk = batch.to_pandas()
+            points = []
+            
+            # Prepare all embedder tasks for the current chunk
+            tasks = []
+            for _, row in df_chunk.iterrows():
+                idx = row[index_key]
+                desc = row[descriptions_key]
+                s3_uri = f"s3://{data_bucket_name}/{get_image_s3_key_from_index(idx)}"
+                tasks.append(embedder.get_paired_embedding(desc, s3_uri))
+            
+            # Fetch embeddings concurrently for the whole chunk
+            results = await asyncio.gather(*tasks)
+            
+            for row_idx, (img_vec, text_vec) in enumerate(results):
+                row = df_chunk.iloc[row_idx]
+                points.append(
+                    models.PointStruct(
+                        id=row[index_key],
+                        vector={image_vectors_name: img_vec, text_vectors_name: text_vec},
+                        payload={key: row[key] for key in payload_attributes if key in row},
+                    )
+                )
+
+            log.debug(f"Fetched embeddings for batch {batch_num + 1}")
+
+            # Pipelining: Wait for previous upsert to finish before triggering the next one
+            if upsert_task:
+                await upsert_task
+
+            # Fire off Qdrant upsert in the background and immediately move to the next embedding batch
+            upsert_task = asyncio.create_task(qdrant_client.upsert(
+                collection_name=collection_name,
+                points=points,
+            ))
+
+        # Await the final upsert task
+        if upsert_task:
+            await upsert_task
 
 async def reset_qdrant_indexing_threshold():
     global qdrant_client, collection_name, final_indexing_threshold
@@ -271,10 +231,10 @@ async def main():
     global embedder
 
     await setup_qdrant_client()
-    await setup_metadata_df()
-    embedder = Embedder()
+    session = aioboto3.Session()
     await populate_vector_db()
     await reset_qdrant_indexing_threshold()
+    await qdrant_client.close()
 
 if __name__ == '__main__':
     asyncio.run(main())
