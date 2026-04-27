@@ -40,12 +40,18 @@ def encode_image(image_path=None, numpy_image=None):
 def get_image_prompt_message(image_path=None, text_prompt=None, numpy_image=None):
     """Get langgraph compatible prompt containing an image and some text."""
     image_data = encode_image(image_path, numpy_image)
+    if image_path is None:
+        img_format = "png"
+    else:
+        img_format = "png" if image_path.lower().endswith(".png") else "jpeg"
     message = [
         HumanMessage(
             content=[
                 {
                     "type": "image_url",
-                    "image_url": f"data:image/jpeg;base64,{image_data}",
+                    "image_url": {
+                        "url": f"data:image/{img_format};base64,{image_data}",
+                    }
                 },
                 {
                     "type": "text",
@@ -62,10 +68,13 @@ def get_multi_image_prompt_message(image_paths, text_prompt):
     content = []
     for image_path in image_paths:
         image_data = encode_image(image_path)
+        img_format = "png" if image_path.lower().endswith(".png") else "jpeg"
         content.append(
             {
                 "type": "image_url",
-                "image_url": f"data:image/jpeg;base64,{image_data}",
+                "image_url": {
+                    "url": f"data:image/{img_path};base64,{image_data}",
+                }
             }
         )
     content.append(
@@ -96,10 +105,13 @@ def get_multi_image_multi_prompt_message(prompts):
             )
         elif key == "image":
             image_data = encode_image(value)
+            img_format = "png" if value.lower().endswith(".png") else "jpeg"
             content.append(
                 {
                     "type": "image_url",
-                    "image_url": f"data:image/jpeg;base64,{image_data}",
+                    "image_url": {
+                        "url": f"data:image/{img_format};base64,{image_data}",
+                    }
                 }
             )
         else:
@@ -215,10 +227,12 @@ def save_image_url_to_folder(folder_path: str, image_url: str) -> Path:
     directory.mkdir(parents=True, exist_ok=True)
     filename = f"{uuid.uuid4()}.png"
     file_path = directory / filename
+    # if it is of the form data:image/png;base64,{the-url}
     if "," in image_url:
         base64_string = image_url.split(",")[1]
         image_data = base64.b64decode(base64_string)
     else:
+        # if it is directly the base64 encoded component
         image_data = base64.b64decode(image_url)
     with open(file_path, "wb") as file:
         file.write(image_data)

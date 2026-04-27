@@ -1,26 +1,17 @@
 """Config for LLM models used in the application."""
 
-from typing import Annotated
+from typing import Annotated, Any
 
 from pydantic import BaseModel, ConfigDict, computed_field
-from pydantic.functional_serializers import PlainSerializer
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_mistralai import ChatMistralAI
-from langchain_ollama import ChatOllama
 
 from frag.utils.model_factory import get_llm_provider
-
-LLMProvider = Annotated[
-    ChatOllama | ChatGoogleGenerativeAI | ChatMistralAI,
-    PlainSerializer(lambda x: x.__name__, return_type=str)
-]
 
 class VLMAgent(BaseModel):
     """VLM agent for generating sample images or converting provided ones to descriptions."""
 
     model_config = ConfigDict(frozen=True, validate_default=True)
 
-    name: str = "mistral-medium-latest"
+    name: str = "us.amazon.nova-2-lite-v1:0"
     temp: float = 0.6
     use_rate_limiter: bool = True
 
@@ -34,7 +25,8 @@ class RateLimiter(BaseModel):
     model_config = ConfigDict(frozen=True, validate_default=True)
 
     # this is the rate at which tokens get added to the bucket - it is kept far below the actual threshold to decrease risk of rate limiting even further and because there is also a 500k tokens per minute rate limit which is not captured. The limit for mistral-medium-latest is 375k tokens per min while for mistral-large-latest is 50k
-    requests_per_second: float = 0.5
+    # for aws claude haiku 4.5 the request limit is 50 requests per second which translates to 0.833..
+    requests_per_second: float = 0.8
     # this sets the frequency with which it checks if tokens are available to make a request
     check_every_n_seconds: int = 1
     # this is the size of the bucket - allows a burst of requests if the rate limiting is actually long term rather than strictly per second
@@ -52,8 +44,8 @@ class ModelsConfig(BaseModel):
     # pydantic does not do any additional logic on this field
     # so, this does not do validation,
     # there is a cached_property + model_validator pattern that can do validation
-    # but it is not required for now
+    # but it (pattern) is not required for now
     @computed_field
     @property
-    def llm_provider(self) -> LLMProvider:
+    def llm_provider(self) -> Any:
         return get_llm_provider(self.vlm_agent.name)
