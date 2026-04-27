@@ -11,7 +11,7 @@ from dependency_injector import containers, providers
 
 from frag.config.app_config import ApplicationConfig
 from frag.data_manager.vector_db_read_write import QdrantConnector
-from frag.data_manager.embedding import FashionSigLIPEmbedding
+from frag.data_manager.embedding import AWSEmbedder
 from frag.utils.model_factory import get_llm_model
 from frag.utils.checkpointer import create_checkpointer_provider
 from frag.utils.logger_setup import setup_logging
@@ -107,11 +107,11 @@ async def manage_qdrant_connection(url, prefer_grpc, collection_name, category_k
         yield None
 
 @asynccontextmanager
-async def manage_embedder(embedding_model, embedding_batch_size, in_mcp_server_process, use_mcp_server):
+async def manage_embedder(embedding_size, model_id, in_mcp_server_process, use_mcp_server):
     # setup an embedder if you are in mcp_server_process or if you are not using mcp server
     if in_mcp_server_process or not use_mcp_server:
         log.debug("setting up embedder")
-        embedder = FashionSigLIPEmbedding(embedding_model, embedding_batch_size)
+        embedder = AWSEmbedder(embedding_size, model_id)
         yield embedder
     else:
         log.debug("not setting up embedder")
@@ -188,8 +188,8 @@ class Container(containers.DeclarativeContainer):
     # embedder
     multimodal_embedder = providers.Resource(
         manage_embedder,
-        embedding_model=config.provided.data.vector_db.embedding_model,
-        embedding_batch_size=config.provided.data.data_processing.embedding_batch_size,
+        embedding_size=config.provided.data.data_processing.aws_vec_db_gen.embedding_dim,
+        model_id=config.provided.data.data_processing.aws_vec_db_gen.embedding_model_id,
         in_mcp_server_process=in_mcp_server_process,
         use_mcp_server=config.provided.env.use_mcp_server,
     )

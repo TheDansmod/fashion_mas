@@ -129,8 +129,8 @@ class VectorDBConfig(BaseModel):
     # qdrant allows two api's - rest and grpc. grpc is more performant while rest api is more convenient. the docs recommend using grpc if we are already familiar with qdrant and are trying to optimize the performance of our application.
     prefer_grpc: bool = True
 
-    # this is the name of the collection in qdrant
-    collection_name: str = "fashion_gen"
+    # this is the name of the collection in qdrant - the collection name for the full collection using marqo-fashion siglip is fashion_gen, but a lot of stuff needs to change for that to work
+    collection_name: str = "nova_fashion_gen"
 
     # this is the model used to generated embeddings (multi-modal)
     embedding_model: str = "hf-hub:Marqo/marqo-fashionSigLIP"

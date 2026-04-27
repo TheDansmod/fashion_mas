@@ -83,6 +83,4 @@ filterwarnings = [
 [tool.coverage.run]
 omit = [
     "src/frag/exploration/*",
-    "src/frag/data_manager/vector_db_reader.py",
-    "src/frag/data_manager/vector_db_writer.py",
 ]

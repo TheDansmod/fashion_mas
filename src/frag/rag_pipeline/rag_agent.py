@@ -387,10 +387,12 @@ class FashionAgent:
         for img_index in recommended_clothes_images:
             response = await tool.ainvoke({"index": img_index})
             image_url, image_descr = None, None
+            # block is a dictionary
             for block in response:
-                if "base64" in block:
-                    image_url = block["base64"]
-                elif "text" in block:
+                # see return type of _reformat_image_data to see what the blocks are
+                if block["type"] == "image_url":
+                    image_url = block["image_url"].split("base64,")[-1]
+                elif block["type"] == "text":
                     image_descr = json.loads(block["text"])["description"]
             if (image_url is None) or (image_descr is None):
                 raise ValueError("Could not find either image or description")
