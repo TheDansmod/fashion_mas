@@ -2,6 +2,7 @@ import sys
 import traceback
 import logging
 import json
+import site
 
 from loguru import logger
 from rich.logging import RichHandler
@@ -72,6 +73,7 @@ def add_console_logging(
                 loguru_exc.traceback,
                 show_locals=rich_handler.tracebacks_show_locals,
                 width=console.width,
+                suppress=site.getsitepackages()  # suppress all install third-party packages
             )
             console.print(tb)
 

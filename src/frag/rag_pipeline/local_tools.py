@@ -27,8 +27,14 @@ class ProductCatalogueTools:
                 "id": match["id"],
                 "score": match.get("score", 0),
             }
-            matched_images.append({"type": "text", "text": json.dumps(metadata)})
-            matched_images.append({"type": "image", "base64": match["image"], "mime_type": "image/jpeg"})
+            matched_images.append({
+                "type": "text",
+                "text": json.dumps(metadata)
+            })
+            matched_images.append({
+                "type": "image_url",
+                "image_url": f"data:image/jpeg;base64,{match['image']}",
+            })
         return matched_images
 
     async def semantic_search(

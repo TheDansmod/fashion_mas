@@ -60,3 +60,17 @@ class EnvSettings(BaseSettings):
     # if the MCP server is not being used for the tools then we use
     # the tools that are locally defined
     use_mcp_server: bool
+
+    # this account id is required while we are creating batch job for generating image embeddings
+    aws_account_id: str
+
+    # this is the arn value that is required when invoking batch jobs
+    aws_bedrock_batch_inference_role_arn: str
+
+    # for chainlit oauth
+    oauth_cognito_client_id: str
+    oauth_cognito_client_secret: str
+    oauth_cognito_domain: str
+    oauth_cognito_scopes: str
+    chainlit_auth_secret: str
+    oauth_prompt: str

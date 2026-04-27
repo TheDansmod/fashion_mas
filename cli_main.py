@@ -11,7 +11,6 @@ from frag.config.container import Container
 container = Container()
 
 from frag.rag_pipeline.rag_agent import run_fashion_agent
-from frag.data_manager.vector_db_writer import populate_vector_db
 from frag.evaluation.llm_as_judge import run_full_evaluation_pipeline
 
 cfg = Container.config.provided

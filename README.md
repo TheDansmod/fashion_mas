@@ -66,7 +66,6 @@ from mangum import Mangum
 app = mcp.http_app()   # FastMCP exposes the underlying Starlette app
 handler = Mangum(app)  # this is your Lambda handler
 ```
-2. Use asyncio.gather for all the matches together rather than each match sequentially
 
 
 TODO: you have added psycopg[binary] as a dependency - but the binary is not recommended for production - please libpq on the system in a production environment.
