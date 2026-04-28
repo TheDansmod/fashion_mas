@@ -15,7 +15,7 @@ def get_llm_provider(name, *args, **kwargs):
     elif "mistral" in name:
         from langchain_mistralai import ChatMistralAI
         return ChatMistralAI
-    elif "amazon" in name:
+    elif name in ["us.anthropic.claude-haiku-4-5-20251001-v1:0"]:
         from langchain_aws import ChatBedrockConverse
         return ChatBedrockConverse
     else:
@@ -43,12 +43,13 @@ def get_rate_limiter(cfg):
 def get_llm_model(cfg):
     """Creates and returns an LLM model for use with appropriate rate limits."""
     model = None
-    if "amazon" in cfg.models.vlm_agent.name:
+    name = cfg.models.vlm_agent.name
+    if name in ["us.anthropic.claude-haiku-4-5-20251001-v1:0"]:
         model = cfg.models.llm_provider(
             model_id=cfg.models.vlm_agent.name,
             temperature=cfg.models.vlm_agent.temp,
             rate_limiter=get_rate_limiter(cfg),
-            region_name="us-east-1"
+            region_name="us-east-1",
         )
     else:
         model = cfg.models.llm_provider(

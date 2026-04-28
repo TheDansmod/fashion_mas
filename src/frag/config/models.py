@@ -11,7 +11,7 @@ class VLMAgent(BaseModel):
 
     model_config = ConfigDict(frozen=True, validate_default=True)
 
-    name: str = "us.amazon.nova-2-lite-v1:0"
+    name: str = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
     temp: float = 0.6
     use_rate_limiter: bool = True
 
