@@ -2,14 +2,7 @@
 
 from abc import ABC, abstractmethod
 
-import boto3
-import aiosqlite
 from langgraph.checkpoint.base import BaseCheckpointSaver
-from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
-from psycopg_pool import AsyncConnectionPool
-from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-from langgraph_checkpoint_aws import DynamoDBSaver
-from botocore.config import Config
 
 
 class CheckpointerProvider(ABC):
@@ -35,9 +28,12 @@ class SqliteCheckpointerProvider(CheckpointerProvider):
 
     def __init__(self, db_path: str) -> None:
         self._db_path = db_path
-        self._connection: aiosqlite.Connection | None = None
+        self._connection = None
 
     async def start(self) -> BaseCheckpointSaver:
+        from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+        import aiosqlite
+
         self._connection = await aiosqlite.connect(self._db_path)
         return AsyncSqliteSaver(self._connection)
 
@@ -53,9 +49,12 @@ class PostgresCheckpointerProvider(CheckpointerProvider):
     def __init__(self, conn_string: str, max_size: int) -> None:
         self._conn_string = conn_string
         self._max_size = max_size
-        self._pool: AsyncConnectionPool | None = None
+        self._pool = None
 
     async def start(self) -> BaseCheckpointSaver:
+        from psycopg_pool import AsyncConnectionPool
+        from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+
         # autocommit: True - each checkpoint read/write operates as its own auto-committed transaction, which is required by the LangGraph checkpointer's internal SQL logic
         # prepare_threshold: 0 - disables psycopg3's prepared-statement caching, which is necessary when using a connection pool (different connections would otherwise lose each other's prepared statements)
         self._pool = AsyncConnectionPool(
@@ -91,6 +90,8 @@ class DynamoDBCheckpointerProvider(CheckpointerProvider):
         retry_mode: str,
         max_retry_attempts: int,
     ):
+        import boto3
+
         self.session = boto3.Session(
             region_name=region_name,
         )
@@ -102,6 +103,9 @@ class DynamoDBCheckpointerProvider(CheckpointerProvider):
         self.max_retry_attempts = max_retry_attempts
 
     async def start(self) -> BaseCheckpointSaver:
+        from langgraph_checkpoint_aws import DynamoDBSaver
+        from botocore.config import Config
+
         checkpointer = DynamoDBSaver(
             table_name=self.table_name,
             session=self.session,

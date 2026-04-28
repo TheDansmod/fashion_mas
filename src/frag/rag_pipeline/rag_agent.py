@@ -192,13 +192,15 @@ class FashionAgent:
             prompt, config=self._callback_config
         )  # text prompt - structured
         log.debug("Received response from model.")
+        log.debug("default num recommendations: {}", default_num_recommendations)
+        log.debug("response.num_recommendations: {}", response.num_recommendations)
         num_recommendations = (
             default_num_recommendations
             if response.num_recommendations == 0
             else response.num_recommendations
         )
         log.debug(
-            f"Number of recommendations required by the user:\n{response.num_recommendations}"
+            f"Number of recommendations required by the user:\n{num_recommendations}"
         )
         return {"num_recommendations": num_recommendations}
 
@@ -391,7 +393,7 @@ class FashionAgent:
             for block in response:
                 # see return type of _reformat_image_data to see what the blocks are
                 if block["type"] == "image_url":
-                    image_url = block["image_url"].split("base64,")[-1]
+                    image_url = block["image_url"]["url"].split("base64,")[-1]
                 elif block["type"] == "text":
                     image_descr = json.loads(block["text"])["description"]
             if (image_url is None) or (image_descr is None):

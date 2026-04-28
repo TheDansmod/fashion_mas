@@ -33,7 +33,9 @@ class ProductCatalogueTools:
             })
             matched_images.append({
                 "type": "image_url",
-                "image_url": f"data:image/jpeg;base64,{match['image']}",
+                "image_url": {
+                    "url": f"data:image/png;base64,{match['image']}",
+                }
             })
         return matched_images
 

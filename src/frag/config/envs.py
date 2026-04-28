@@ -67,6 +67,10 @@ class EnvSettings(BaseSettings):
     # this is the arn value that is required when invoking batch jobs
     aws_bedrock_batch_inference_role_arn: str
 
+    # aws credentials for when they aren't available on EC2 in ~/.aws/
+    aws_access_key_id: str
+    aws_secret_access_key: str
+
     # for chainlit oauth
     oauth_cognito_client_id: str
     oauth_cognito_client_secret: str
