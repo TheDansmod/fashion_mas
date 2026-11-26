@@ -1,4 +1,5 @@
 from typing import Any, Callable
+import asyncio
 import base64
 
 from loguru import logger as log
@@ -11,7 +12,6 @@ cfg = Container.config.provided
 @inject
 async def get_fashion_gen_data(
     fetch_index,
-    num_datapoints: int = PV[cfg.data.fashion_gen.num_datapoints],
     prices_key: str = PV[cfg.data.fashion_gen.prices_key],
     categories_key: str = PV[cfg.data.fashion_gen.categories_key],
     descriptions_key: str = PV[cfg.data.fashion_gen.descriptions_key],
@@ -37,11 +37,17 @@ async def get_fashion_gen_data(
             sending back floats, they are lists of floats.
     """
     data = dict()
-    if not 0 <= fetch_index < num_datapoints:
+    # membership (not a range check) so that catalogue subsets work
+    if fetch_index not in metadata_lookup:
         return data
     image_key = get_image_s3_key_from_index(fetch_index)
-    response = s3_client.get_object(Bucket=bucket_name, Key=image_key)
-    data["image"] = base64.b64encode(response["Body"].read()).decode("utf-8")
+    # boto3 is synchronous - run it in a thread so the event loop (shared by Chainlit /
+    # the MCP server) is not blocked during the download
+    response = await asyncio.to_thread(
+        s3_client.get_object, Bucket=bucket_name, Key=image_key
+    )
+    image_bytes = await asyncio.to_thread(response["Body"].read)
+    data["image"] = base64.b64encode(image_bytes).decode("utf-8")
     data["price"] = metadata_lookup[fetch_index][prices_key]
     data["category"] = metadata_lookup[fetch_index][categories_key]
     data["description"] = metadata_lookup[fetch_index][descriptions_key]

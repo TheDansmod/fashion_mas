@@ -73,7 +73,7 @@ def get_multi_image_prompt_message(image_paths, text_prompt):
             {
                 "type": "image_url",
                 "image_url": {
-                    "url": f"data:image/{img_path};base64,{image_data}",
+                    "url": f"data:image/{img_format};base64,{image_data}",
                 }
             }
         )

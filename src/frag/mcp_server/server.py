@@ -52,7 +52,7 @@ class ProductCatalogueMCPServer:
             }
             text_content = TextContent(type="text", text=json.dumps(metadata))
             image_content = ImageContent(
-                type="image", data=match["image"], mimeType="image/jpeg"
+                type="image", data=match["image"], mimeType="image/png"
             )
             matched_images.append(text_content)
             matched_images.append(image_content)

@@ -127,7 +127,16 @@ class FashionAgent:
             )  # the multiplication is because append the other values later
             # save the input_images_path. some of the paths are for previously recommended images, so we take those from the state
             log.debug("Getting relevant images")
+            # the indexes come from the LLM, so they are not trusted to be in range
+            num_previous_images = base_len + len(state.recommended_clothes_image_paths)
             for idx in updated_user_request.relevant_image_indexes:
+                if not 0 <= idx < num_previous_images:
+                    log.warning(
+                        "Ignoring out-of-range image index {} (have {} images).",
+                        idx,
+                        num_previous_images,
+                    )
+                    continue
                 if idx < base_len:
                     input_images_path.append(state.input_images_path[idx])
                     input_images_descriptions.append(
@@ -157,7 +166,7 @@ class FashionAgent:
             ),
         }
         # was using string substitution earlier, but since I switched to loguru, I am using their f-string string format equivalent
-        log.debug("State update: {}", {json.dumps(state_update, indent=2)})
+        log.debug("State update: {}", json.dumps(state_update, indent=2))
         return state_update
 
     @inject
@@ -387,17 +396,34 @@ class FashionAgent:
         recommended_clothes_image_paths = []
         recommended_clothes_descriptions = []
         for img_index in recommended_clothes_images:
-            response = await tool.ainvoke({"index": img_index})
+            # the image id is chosen by the LLM and may not exist in the catalogue
+            # (hallucinated, or outside the loaded subset) - skip such items rather than
+            # failing the whole turn
             image_url, image_descr = None, None
-            # block is a dictionary
-            for block in response:
-                # see return type of _reformat_image_data to see what the blocks are
-                if block["type"] == "image_url":
-                    image_url = block["image_url"]["url"].split("base64,")[-1]
-                elif block["type"] == "text":
-                    image_descr = json.loads(block["text"])["description"]
+            try:
+                response = await tool.ainvoke({"index": img_index})
+                # block is a dictionary
+                for block in response:
+                    # local tools return OpenAI-style `image_url` blocks (see
+                    # _reformat_image_data); the MCP adapter returns LangChain standard
+                    # `image` blocks with a `base64` field
+                    if block["type"] == "image_url":
+                        image_url = block["image_url"]["url"].split("base64,")[-1]
+                    elif block["type"] == "image":
+                        image_url = block["base64"]
+                    elif block["type"] == "text":
+                        image_descr = json.loads(block["text"])["description"]
+            except Exception:  # noqa: BLE001  failures differ per tool backend (KeyError, S3 404, MCP ToolException); any of them means skip this item
+                log.opt(exception=True).warning(
+                    "Skipping recommended item {}: catalogue lookup failed.", img_index
+                )
+                continue
             if (image_url is None) or (image_descr is None):
-                raise ValueError("Could not find either image or description")
+                log.warning(
+                    "Skipping recommended item {}: no image or description returned.",
+                    img_index,
+                )
+                continue
             path = save_image_url_to_folder(temporary_images_folder, image_url)
             recommended_clothes_image_paths.append(path)
             recommended_clothes_descriptions.append(image_descr)
@@ -508,7 +534,7 @@ class FashionAgent:
         msg = get_multi_image_multi_prompt_message(prompts)
         # invoke model
         log.debug("Invoking model")
-        response = self._model.invoke(msg)
+        response = self._model.invoke(msg, config=self._callback_config)
         log.debug(f"Got response: {response.content}")
         return {"recommended_clothes_explanation": response.content}
 
@@ -531,19 +557,18 @@ class FashionAgent:
         """
         return "intent_node" if state.has_input_images else "modifier_node"
 
-    @inject
     def critique_node_router(
         self,
         state: AgentState,
-        max_num_critiques: int = PV[cfg.orchestration.max_num_critiques],
     ) -> Literal["explanation_node", "modifier_node"]:
-        """If the recommendation was good, we move on to explanation node, else modifier."""
-        if (
-            not state.critique_text.strip()
-        ) or state.num_times_critiqued > max_num_critiques:
-            return "explanation_node"
-        else:
+        """Route back to the modifier node if there is a critique, else explain.
+
+        The critique node itself enforces the retry limit: once `max_num_critiques` is
+        reached it returns an empty `critique_text`, which routes to explanation.
+        """
+        if state.critique_text.strip():
             return "modifier_node"
+        return "explanation_node"
 
     @inject
     async def compile_graph(

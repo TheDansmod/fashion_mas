@@ -426,44 +426,44 @@ under `scripts/`, and the pytest fixtures. Each one runs this sequence:
 Do these before the big refactor so each fix is a separate, reviewable diff. Steps
 marked *(subsumed)* are fixed automatically by a later phase.
 
-- [ ] **3.1 `utils/common_utils.py:76`**: `img_path` is undefined; it should be
+- [x] **3.1 `utils/common_utils.py:76`**: `img_path` is undefined; it should be
   `img_format`. Any follow-up turn with a new uploaded image raises `NameError`.
-- [ ] **3.2 `evaluation/llm_as_judge.py:149,152`**: operator precedence. Change it to
+- [x] **3.2 `evaluation/llm_as_judge.py:149,152`**: operator precedence. Change it to
   `(vis_wt*vis + suit_wt*suit + comp_wt*comp) / wt_sum`, and the same for the
   two-term branch.
-- [ ] **3.3 `evaluation/llm_as_judge.py:156`**: `judge_evaluation_outputs` has no
+- [x] **3.3 `evaluation/llm_as_judge.py:156`**: `judge_evaluation_outputs` has no
   `@inject`, so `model` is a `Provide` marker and the call raises. `track_token_use`
   then swallows the exception, so **the judge step currently does nothing**.
   *(subsumed by Phases 4 and 7.5)*
-- [ ] **3.4 `evaluation/llm_as_judge.py:63`**: `thread_id` should be `str(uuid4())`.
-- [ ] **3.5 `evaluation/llm_as_judge.py:207`**: the log message is missing its `f`
+- [x] **3.4 `evaluation/llm_as_judge.py:63`**: `thread_id` should be `str(uuid4())`.
+- [x] **3.5 `evaluation/llm_as_judge.py:207`**: the log message is missing its `f`
   prefix.
-- [ ] **3.6 `cli_main.py:29`**: `populate_vector_db()` is never imported. Remove that
+- [x] **3.6 `cli_main.py:29`**: `populate_vector_db()` is never imported. Remove that
   branch; building the vector DB is a script (Phase 10).
-- [ ] **3.7 `mcp_server/server.py:55`**: images are PNG but labelled `image/jpeg`.
-- [ ] **3.8 `rag_pipeline/rag_agent.py:511`**: the explanation node calls `invoke`
+- [x] **3.7 `mcp_server/server.py:55`**: images are PNG but labelled `image/jpeg`.
+- [x] **3.8 `rag_pipeline/rag_agent.py:511`**: the explanation node calls `invoke`
   without `config=self._callback_config`, so its tokens aren't counted.
-- [ ] **3.9 `utils/checkpointer.py:163`**: the error message omits `dynamodb`.
+- [x] **3.9 `utils/checkpointer.py:163`**: the error message omits `dynamodb`.
   *(subsumed by Phase 4.5)*
-- [ ] **3.10 `rag_agent.py:160`**: `{json.dumps(...)}` makes a set literal inside
+- [x] **3.10 `rag_agent.py:160`**: `{json.dumps(...)}` makes a set literal inside
   `log.debug`. Remove the braces.
-- [ ] **3.11 `rag_agent.py:130-142`**: `relevant_image_indexes` from the LLM aren't
+- [x] **3.11 `rag_agent.py:130-142`**: `relevant_image_indexes` from the LLM aren't
   bounds-checked, so a bad index raises `IndexError`. Skip out-of-range indices with a
   warning.
-- [ ] **3.12 `rag_agent.py:383`**: the LLM-chosen `image_id` isn't validated, so a
+- [x] **3.12 `rag_agent.py:383`**: the LLM-chosen `image_id` isn't validated, so a
   hallucinated ID raises `KeyError` or gets a 404 from S3. For now, wrap the lookup
   and skip the item with a warning. Phase 7.4 adds proper validation and a retry.
-- [ ] **3.13 `data_manager/dataset_read_write.py:40`**: the range check against
+- [x] **3.13 `data_manager/dataset_read_write.py:40`**: the range check against
   `num_datapoints` is wrong for subsets. Use `fetch_index in metadata_lookup`.
   *(subsumed by Phase 6)*
-- [ ] **3.14 `dataset_read_write.py:43`**: a synchronous `s3_client.get_object` inside
+- [x] **3.14 `dataset_read_write.py:43`**: a synchronous `s3_client.get_object` inside
   `async def` blocks the event loop. Use `asyncio.to_thread`. *(subsumed by Phase 6)*
-- [ ] **3.15 `rag_agent.py:541-543`**: the `> max_num_critiques` condition is
+- [x] **3.15 `rag_agent.py:541-543`**: the `> max_num_critiques` condition is
   unreachable. Simplify it to
   `"modifier_node" if state.critique_text.strip() else "explanation_node"`.
-- [ ] **3.16 `llm_schemas.py:118-122`**: `Field(..., default_factory=str)` is
+- [x] **3.16 `llm_schemas.py:118-122`**: `Field(..., default_factory=str)` is
   contradictory. Use `correction: str = Field("", description=...)`.
-- [ ] **3.17 MCP path in the recommender node: verify by reading the adapter source.**
+- [x] **3.17 MCP path in the recommender node: verify by reading the adapter source.**
   `recommender_node` parses db-tool output assuming the local-tools shape
   (`{"type": "image_url", "image_url": {"url": ...}}`). The raw MCP adapter tool
   (`langchain-mcp-adapters` 0.2.x) likely returns
@@ -473,6 +473,40 @@ marked *(subsumed)* are fixed automatically by a later phase.
   source after Phase 2. Phase 6.6 removes the problem either way.
 
 ---
+
+**Phase 3 done (2026-11-26).** All 17 steps were applied, including the ones marked
+*(subsumed)*. They were each one or two lines and make the current code correct in the
+meantime. Notes:
+- **3.3:** added `@inject` under `@track_token_use`, so the judge now actually gets its
+  model. `track_token_use` still swallows exceptions until Phase 7.5.
+- **3.6:** the `recreate_vector_db` parameter and branch were removed from
+  `cli_main.py`. The `recreate` config field stays until Phase 4.1.
+- **3.11:** the bounds check uses
+  `len(input_images_descriptions) + len(recommended_clothes_image_paths)`.
+- **3.12:** the recommender skips items whose lookup fails or returns no image or
+  description, with a warning. If every item fails, the turn ends with zero
+  recommendations, and the UI already shows "No recommendations could be found". The
+  broad `except` has a `noqa: BLE001` with its justification.
+- **3.13:** the `num_datapoints` parameter was removed from `get_fashion_gen_data`.
+- **3.14:** both `get_object` and `Body.read()` run in `asyncio.to_thread`.
+- **3.15:** `@inject` and the unused `max_num_critiques` parameter were removed from
+  the router.
+- **3.17 confirmed** from the installed `langchain_mcp_adapters/tools.py`: for
+  `ImageContent`, `_convert_mcp_content_to_lc_block` returns
+  `create_image_block(base64=..., mime_type=...)`, which is
+  `{"type": "image", "base64": ..., "mime_type": ...}`.
+  - **The MCP path was broken:** every recommended item lacked an `image_url` block.
+    Before 3.12 that raised `ValueError`; after 3.12 it would have silently skipped
+    everything.
+  - **Interim fix:** the recommender now also accepts `image` blocks. Phase 6.6 still
+    replaces this parsing with `ToolsClient.get_item()`.
+  - **Still open for Phase 6.6:** `make_mistral_compatible` (used on the MCP *LLM*
+    tools) emits `{"type": "image_url", "image_url": "<data-url string>"}`, a string
+    rather than the `{"url": ...}` dict the local tools use. Normalise it there.
+- No new ruff violations on changed lines. The total went from 993 to 984: both F821s
+  are gone, plus a few incidental fixes.
+- No AWS calls were made, and tests weren't run (per the user, tests run after all the
+  fixes are in).
 
 ## Phase 4: Replace dependency-injector with explicit composition
 
