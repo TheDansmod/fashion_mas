@@ -1,16 +1,26 @@
 line-length = 88
 
 [lint]
-extend-select = [
-    "D",  # pydocstyle (docstring formatting)
-    "E",  # pydocstyle (standard errors) - subset in default
-    "F",  # pyflakes (logical errors) - present in default
-    "W",  # pycodestyle warning
-    "I",  # isort (for sorting imports)
-]
+# Start from every rule and add exceptions only with a justification (see cleanup.md §0.4).
+select = ["ALL"]
 ignore = [
-    "D203",   # One-blank-line-before-class is mutually exclusive.
-    "D213",   # Multi-line-summary-first-line is mutually exclusive.
+    "D203",   # conflicts with D211 (no blank line before class docstring); we keep D211
+    "D213",   # conflicts with D212 (summary on first docstring line); we keep D212, matching google style
+    "COM812", # conflicts with the `ruff format` trailing-comma handling
+    "ISC001", # conflicts with the `ruff format` implicit string concatenation handling
+    "EXE002", # the repo lives on an NTFS mount where every file reports the executable bit
+]
+
+[lint.per-file-ignores]
+"tests/**" = [
+    "S101",    # pytest relies on bare assert statements
+    "D",       # test names are self-describing; docstrings add noise
+    "PLR2004", # literal expected values are the point of assertions
+    "INP001",  # pytest runs with --import-mode=importlib; tests/ is deliberately not a package
+]
+"scripts/**" = [
+    "T201",    # scripts report progress on stdout by design
+    "INP001",  # standalone scripts run by path, not an importable package
 ]
 
 [lint.pydocstyle]
@@ -18,8 +28,3 @@ convention = "google"
 
 [format]
 docstring-code-format = true
-
-#     "D100",   # Reverse; Missing docstring in public module
-#     "D102",   # Reverse; Missing docstring in public method
-#     "D103",   # Reverse; Missing docstring in public function
-#     "D107",   # Reverse; Missing docstring in `__init__`

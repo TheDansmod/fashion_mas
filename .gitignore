@@ -8,34 +8,36 @@ wheels/
 
 # Virtual environments
 .venv
-# hydra log files
+
+# Tool caches and reports
+.ruff_cache/
+.pytest_cache/
+.coverage
+/reports/
+
+# Logs
 *.log
-# hydra output folders
-/outputs/
-# don't need to track this since it will only store the qdrant collection - if we use /** it means that git still traverses the folder so subsequent negations can still apply
+/logs/
+
+# Local data (qdrant storage, checkpoints, temp images, token usage, ...).
+# Using /** (not /) so git still traverses the folder and the negations below apply.
 /data/**
-# the .env file might contain sensitive data, so all its keys (that are required) are enumerated in the main.py file
-.env
-# every time I am running the code for the agent, I am generating a diagram of the agent orchestration (as a sort of sanity check)
-src/exploration/fashion_agent_diagram.png
-# there is a kaggle.json file which is not needed (was just to download the dataset on google colab)
-config/kaggle.json
-# I created a file with all the prices from the dataset just to see what their histogram looked like to see how I might implement price based filtering. It is not part of the code.
-src/exploration/prices.txt
-# I have some random images being generated in this folder
-src/exploration/random_images/
-# can ignore .chainlit folder for now - it unnecessarily clutters the tracked files with the translations
-.chainlit/
-# ignore chainlit.md that somehow keeps getting created every run
-chainlit.md
-# I moved the location where the fashion agent diagram was generated - since the exploration folder no longer exists
-fashion_agent_diagram.png
-# I have manually curated an evaluation dataset and would like to include it in the repository - need to un-ignore both the directory and the files inside the directory - doing just one does not work since git wont go into a directory that is to be ignored
+# the manually curated evaluation dataset is tracked - both the directory and its
+# contents must be un-ignored, since git won't descend into an ignored directory
 !/data/evaluation_data/
 !/data/evaluation_data/**
-# when running pytest with coverage, a .coverage file is created. no need to track the file - it is only for development
-.coverage
-# the below folder is used for reporting coverage and is not for tracking
-/reports/
-# ignore the log files
-/logs/
+
+# Secrets - see .env.example for the expected keys
+.env
+
+# Chainlit: local config/translations (a production config.toml will be committed
+# later), the generated chainlit.md, and the .files/ upload staging folder
+.chainlit/
+chainlit.md
+.files/
+
+# Generated agent graph diagram
+fashion_agent_diagram.png
+
+# don't need to track frag completion plan (that is internal only)
+docs/frag_aws_completion_plan.md

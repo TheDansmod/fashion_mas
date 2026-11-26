@@ -6,7 +6,6 @@ from pydantic import Field, BaseModel, ConfigDict
 
 from frag.config.envs import EnvSettings
 from frag.config.models import ModelsConfig
-from frag.config.exploration import ExplorationConfig
 from frag.config.eval import EvaluationConfig
 from frag.config.tracking import TrackingConfig
 from frag.config.prompts import PromptsSetup
@@ -29,7 +28,6 @@ class ApplicationConfig(BaseModel):
     models: ModelsConfig = Field(default_factory=ModelsConfig)
     evaluation: EvaluationConfig = Field(default_factory=EvaluationConfig)
     tracking: TrackingConfig = Field(default_factory=TrackingConfig)
-    exploration: ExplorationConfig = Field(default_factory=ExplorationConfig)
     prompts: PromptsSetup = Field(default_factory=PromptsSetup)
     orchestration: AgentOrchestrationConfig = Field(default_factory=AgentOrchestrationConfig)
     logs: LogConfig = Field(default_factory=LogConfig)

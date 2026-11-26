@@ -2,7 +2,7 @@
 
 from typing import Callable
 
-from pydantic import BaseModel, ConfigDict, FilePath, Field, DirectoryPath
+from pydantic import BaseModel, ConfigDict, FilePath, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class FashionGenAWSConfig(BaseModel):
@@ -34,35 +34,8 @@ class AWSVectorDBCreation(BaseModel):
     # this is the size of the embedding returned by Amazon Nova. Options are 3072, 1024, 384, 256
     embedding_dim: int = 1024
 
-    # this is the number of records we'll have per jsonl file (the limit is 100k)
-    records_per_jsonl_file: int = 50_000
-
-    # this is the folder in which the jsonl files will be stored
-    jsonl_folder_path: DirectoryPath = "data/jsonl_files"
-
-    # this is the name of the bucket on s3 which is used for the jsonl files and for the embedding outputs
-    embedding_s3_bucket_name: str = "frag-fashion-gen-embeddings"
-
-    # this function gives the s3 key given a jsonl file name (not path) corresponding to where the file is located in the s3 bucket
-    jsonl_s3_key_lambda: Callable[[str], str] = lambda file_name: f"jsonl_files/{file_name}"
-
-    # this is the folder name for the jsonl files inside their s3 bucket (it should match the value for jsonl_s3_key_lambda)
-    jsonl_s3_folder_name: str = "jsonl_files"
-
-    # this is the name of the folder in s3 embedding_s3_bucket_name bucket where the output of the embedding jobs will be saved
-    embedding_output_folder_s3: str = "embedding_output"
-
     # this is the model to use to generate the embeddings
     embedding_model_id: str = "amazon.nova-2-multimodal-embeddings-v1:0"
-
-    # this is the name of the role that bedrock assumes while executing my batch jobs
-    bedrock_batch_inference_role_name: str = "BedrockBatchInferenceRole"
-
-    # this is the name of the policy that the bedrock_batch_inference_role_name role uses to allow it access to AWS S3
-    bedrock_batch_s3_access_policy_name: str = "BedrockBatchS3Access"
-
-    # this is the prefix used to submit embedding jobs to model with id embedding_model_id
-    batch_embedding_job_prefix: str = "frag-fashion-gen-embedding-job"
 
 class ChainlitPersistenceConfig(BaseSettings):
     """Config for the S3 Bucket and the Dynamo DB table used by chainlit."""
