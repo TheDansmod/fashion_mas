@@ -21,10 +21,11 @@ https://github.com/user-attachments/assets/cc40f339-4bd2-4075-aea9-9388405977f5
 
 # Install and Run Instructions
 1. Clone git repo
-2. Run `uv sync` from root directory
-3. Chainlit does not play well with cloning / symlinking / hardlinking which is the default behaviour of uv. So need to remove chainlit and add it in copy mode:
-    1. `uv remove chainlit`
-    2. `uv add chainlit --link-mode copy`
+2. Run `uv sync --all-groups` from root directory (or pick groups: `dev`, `siglip` for the local Marqo-FashionSigLIP embedder - CPU-only torch, `ingest` for the HDF5 ingestion script)
+3. Chainlit does not play well with symlinked / hardlinked installs. Reinstall just chainlit as real files (re-run this whenever chainlit gets reinstalled):
+    `uv sync --all-groups --reinstall-package chainlit --link-mode copy`
+    - If you use `UV_LINK_MODE=symlink`: `uv cache clean` / `uv cache prune` deletes the files the venv links to and silently breaks it. Repair with `uv sync --reinstall --all-groups` followed by the chainlit command above.
+    - The AWS CLI is not a project dependency. Install v2 system-wide (e.g. `sudo pacman -S aws-cli-v2` on Arch, or AWS's official installer).
 4. Create the folder for the vector db: `mkdir -p data/qdrant_storate/`
 5. Install podman / docker and podman-compose / docker-compose, and run `podman-compose up -d` to download and setup the docker containers.
 6. Run `podman-compose down` to terminate the containers when done.
@@ -35,7 +36,7 @@ https://github.com/user-attachments/assets/cc40f339-4bd2-4075-aea9-9388405977f5
     The MCP server runs on port 9000
 11. Start the chainlit UI: `uv run chainlit run app.py` or run the application in the terminal - without chainlit: `uv run cli_main.py`. If using the UI, it should start up in your default browser (`http://localhost:8000`).
 12. If instead, you want to run the evaluation pipeline - which evaluates the agent across multiple different query types using 60 queries and then, through the llm-as-a-judge framework, judges those queries across multiple critiera, and finally provides the mean score out of 10 and the standard deviation: `uv run cli_main.py eval.eval_mode=true`
-13. To run the test(s), do `uv run pytest`
+13. To run the test(s), do `uv run pytest`. For a coverage report: `uv run pytest --cov=frag --cov-report=term-missing:skip-covered --cov-report=html:reports/htmlcov`
 
 
 # AWS Deployment Considerations
