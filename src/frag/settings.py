@@ -1,0 +1,232 @@
+"""Application settings: one pure, idempotent Pydantic settings tree.
+
+Rules (see cleanup.md §3.1):
+- Constructing `Settings` only reads environment variables and `.env`; no other I/O and
+  no side effects, so `Settings() == Settings()` for the same environment.
+- Nothing here is instantiated at import time. Use `get_settings()` (one cached instance
+  per process) or construct `Settings(...)` directly in tests.
+- Paths are plain strings; the code that uses a path checks or creates it.
+- Only settings the application reads itself are declared. Variables read directly by
+  libraries (LangSmith, Chainlit/Cognito OAuth, Ollama, FastMCP, Hugging Face, boto3
+  credentials) are deliberately absent.
+
+Nested sections are set from the environment with a double underscore, e.g.
+`CHECKPOINTER__BACKEND=dynamodb` or `LLM__PROVIDER=ollama`.
+"""
+
+from functools import lru_cache
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class _Section(BaseModel):
+    # extra="forbid" so that a mistyped nested env var (e.g. CHECKPOINTER__BACKND)
+    # fails loudly instead of being silently ignored
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+
+class LLMSettings(_Section):
+    """The chat / vision LLM used by every agent node and by the evaluation judge."""
+
+    provider: Literal["bedrock", "ollama"] = "bedrock"
+    model_id: str = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+    temperature: float = 0.6
+    # client-side request rate limit (LangChain InMemoryRateLimiter: a token bucket);
+    # None disables it. Kept below the provider quota since token-per-minute limits
+    # are not modelled. A local Ollama server can use None.
+    rate_limit_rps: float | None = 0.8
+    rate_limit_max_bucket: float = 1.0
+    rate_limit_check_every_s: float = 1.0
+
+
+class EmbeddingSettings(_Section):
+    """Query-time text embedder; must match the vectors in the selected collection."""
+
+    # "siglip" (Marqo-FashionSigLIP, local) becomes the default once its embedder is
+    # restored in cleanup.md Phase 6; until then only "nova" is implemented
+    backend: Literal["siglip", "nova"] = "nova"
+    siglip_model: str = "hf-hub:Marqo/marqo-fashionSigLIP"
+    nova_model_id: str = "amazon.nova-2-multimodal-embeddings-v1:0"
+    # Nova supports 3072, 1024, 384 and 256; the existing collection uses 1024
+    nova_dim: int = 1024
+    nova_purpose: str = "GENERIC_INDEX"
+
+
+class CatalogueSettings(_Section):
+    """Where the product catalogue (images + metadata) lives on S3, and its fields."""
+
+    s3_bucket: str = "frag-fashion-gen-dataset"
+    metadata_key: str = "metadata/fashion_gen_metadata.parquet"
+    # images are sharded into folders of 1000 by index
+    image_key_template: str = "images/{shard:03d}/{idx}.png"
+    # index_2 is aligned with the sequential dataset index (unlike `index`)
+    index_field: str = "index_2"
+    category_field: str = "input_category"
+    description_field: str = "input_description"
+    price_field: str = "input_msrpUSD"
+
+    def image_key(self, idx: int) -> str:
+        """Return the S3 key of the image for catalogue item `idx`."""
+        return self.image_key_template.format(shard=idx // 1000, idx=idx)
+
+
+class VectorDBSettings(_Section):
+    """Qdrant connection and collection selection."""
+
+    # str rather than HttpUrl: the Qdrant client expects a plain string
+    url: str = "http://localhost:6333"
+    # gRPC is faster; REST is more convenient for debugging
+    prefer_grpc: bool = True
+    image_vector_name: str = "images"
+    # one collection per embedding backend - vectors are not interchangeable
+    collections: dict[str, str] = Field(
+        default_factory=lambda: {"siglip": "fashion_gen", "nova": "nova_fashion_gen"}
+    )
+
+
+class ToolsSettings(_Section):
+    """How the agent reaches the catalogue tools."""
+
+    # "local": in-process tools; "mcp": tools served by `mcp_server.py`
+    mode: Literal["local", "mcp"] = "local"
+    mcp_url: str = "http://localhost:9000/mcp"
+    mcp_host: str = "127.0.0.1"
+    mcp_port: int = 9000
+
+
+class CheckpointerSettings(_Section):
+    """LangGraph checkpointer; switch backends with CHECKPOINTER__BACKEND only."""
+
+    backend: Literal["memory", "sqlite", "postgres", "dynamodb"] = "sqlite"
+    sqlite_path: str = "data/pipeline_checkpoints.db"
+    # matches the `postgres` compose profile; override with CHECKPOINTER__POSTGRES_DSN
+    postgres_dsn: str = "postgresql://frag:frag@localhost:5432/frag"
+    postgres_pool_size: int = 10
+    # must match the table name used when deploying the CloudFormation stack
+    dynamodb_table: str = "langgraph-checkpoints"
+    # dynamodb only: entries expire after a day
+    ttl_seconds: int = 60 * 60 * 24
+    compress: bool = True
+
+
+class ChatHistorySettings(_Section):
+    """Chainlit chat-history persistence (DynamoDB table + S3 bucket for elements)."""
+
+    # required by the Chainlit app (checked there); optional so that other entrypoints
+    # and tests can build Settings without them
+    dynamodb_table: str | None = None
+    s3_bucket: str | None = None
+
+
+class AgentSettings(_Section):
+    """Behaviour of the LangGraph agent."""
+
+    # used when the user does not say how many recommendations they want
+    default_num_recommendations: int = 3
+    # retries in the modifier node to get the right number of item descriptions
+    num_recommendation_attempts: int = 3
+    # how many times the critique node may send the recommendations back
+    max_num_critiques: int = 3
+    # recommended catalogue images are written here (unique file names)
+    temp_dir: str = "data/temp_images"
+    # if set, the compiled graph is drawn here (uses the mermaid.ink web API)
+    draw_graph_path: str | None = None
+
+
+class EvalWeights(_Section):
+    """Relative weights of the judge criteria; they need not sum to 1."""
+
+    visual_grounding: float = 0.2
+    item_suitability: float = 0.3
+    completeness_coverage: float = 0.5
+
+
+class EvalSettings(_Section):
+    """LLM-as-a-judge evaluation inputs and outputs."""
+
+    queries_path: str = "data/evaluation_data/eval_queries.json"
+    images_dir: str = "data/evaluation_data/eval_images"
+    # agent outputs and judgements are written in separate passes to bound LLM use
+    eval_response_file_path: str = "data/evaluation_data/eval_soln.json"
+    judgement_file_path: str = "data/evaluation_data/eval_judgement.json"
+    weights: EvalWeights = Field(default_factory=EvalWeights)
+
+
+class LogSettings(_Section):
+    """Loguru logging; file names get a per-process service suffix."""
+
+    # None -> DEBUG in development/staging, INFO in production
+    level: str | None = None
+    console: bool = True
+    human_readable_file: bool = True
+    machine_readable_file: bool = True
+    file_dir: str = "logs"
+    # loguru rotation/retention/compression syntax
+    rotation: str = "1 day"
+    retention: str = "30 days"
+    compression: str = "zip"
+    library_levels: dict[str, str] = Field(
+        default_factory=lambda: {
+            "httpx": "WARNING",
+            "urllib3": "WARNING",
+            "mcp": "WARNING",
+            "httpcore": "WARNING",
+            "botocore": "WARNING",
+            "langgraph_checkpoint_aws": "WARNING",
+        }
+    )
+
+
+class Settings(BaseSettings):
+    """Root settings object."""
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        env_nested_delimiter="__",
+        # .env is shared with libraries that read their own variables
+        extra="ignore",
+        frozen=True,
+    )
+
+    app_env: Literal["development", "staging", "production"] = "development"
+    aws_region: str = "us-east-1"
+
+    llm: LLMSettings = Field(default_factory=LLMSettings)
+    embedding: EmbeddingSettings = Field(default_factory=EmbeddingSettings)
+    catalogue: CatalogueSettings = Field(default_factory=CatalogueSettings)
+    vector_db: VectorDBSettings = Field(default_factory=VectorDBSettings)
+    tools: ToolsSettings = Field(default_factory=ToolsSettings)
+    checkpointer: CheckpointerSettings = Field(default_factory=CheckpointerSettings)
+    chat_history: ChatHistorySettings = Field(default_factory=ChatHistorySettings)
+    agent: AgentSettings = Field(default_factory=AgentSettings)
+    evaluation: EvalSettings = Field(default_factory=EvalSettings)
+    logging: LogSettings = Field(default_factory=LogSettings)
+
+    # local token-usage tracking; None disables it
+    token_usage_csv: str | None = "data/token_usage.csv"  # noqa: S105  a file path, not a secret
+
+    @property
+    def collection(self) -> str:
+        """Qdrant collection matching the configured embedding backend."""
+        return self.vector_db.collections[self.embedding.backend]
+
+    @property
+    def is_dev(self) -> bool:
+        """Whether this is a development environment."""
+        return self.app_env == "development"
+
+    @property
+    def log_level(self) -> str:
+        """Effective log level."""
+        if self.logging.level:
+            return self.logging.level
+        return "INFO" if self.app_env == "production" else "DEBUG"
+
+
+@lru_cache
+def get_settings() -> Settings:
+    """Return the process-wide settings (read once, then cached)."""
+    return Settings()

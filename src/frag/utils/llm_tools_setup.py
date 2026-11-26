@@ -3,7 +3,13 @@ from abc import ABC, abstractmethod
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_core.tools import StructuredTool
 
+from frag.data_manager.catalogue import Catalogue
 from frag.rag_pipeline.local_tools import ProductCatalogueTools
+from frag.settings import ToolsSettings
+
+# tools offered to the LLM, and the lookup tool the recommender node calls directly
+LLM_TOOL_NAMES = ("semantic_search", "get_product_categories")
+DB_TOOL_NAME = "get_datapoint_by_index"
 
 class ToolsClient(ABC):
     @abstractmethod
@@ -75,17 +81,18 @@ def get_tool_with_name(tools, search_name):
     return tool
 
 class MCPToolsClient(ToolsClient):
-    def __init__(self, mcp_client_transport, mcp_url, llm_tool_names, db_tool_name):
+    def __init__(self, mcp_url: str) -> None:
+        """Create an MCP client for the catalogue server at `mcp_url`."""
         self.client = MultiServerMCPClient(
             {
                 "product_catalogue_server": {
-                    "transport": mcp_client_transport,
+                    "transport": "streamable_http",
                     "url": mcp_url,
                 },
             }
         )
-        self.llm_tool_names = llm_tool_names
-        self.db_tool_name = db_tool_name
+        self.llm_tool_names = LLM_TOOL_NAMES
+        self.db_tool_name = DB_TOOL_NAME
 
     async def get_llm_tools(self):
         tools = await self.client.get_tools()
@@ -98,10 +105,11 @@ class MCPToolsClient(ToolsClient):
         return tool
 
 class LocalToolsClient(ToolsClient):
-    def __init__(self, connector, embedder, product_categories, llm_tool_names, db_tool_name):
-        self.client = ProductCatalogueTools(connector, embedder, product_categories)
-        self.llm_tool_names = llm_tool_names
-        self.db_tool_name = db_tool_name
+    def __init__(self, catalogue: Catalogue) -> None:
+        """Build in-process tools over the catalogue."""
+        self.client = ProductCatalogueTools(catalogue)
+        self.llm_tool_names = LLM_TOOL_NAMES
+        self.db_tool_name = DB_TOOL_NAME
         self.tools = self.client.get_tools()
 
     async def get_llm_tools(self):
@@ -112,8 +120,13 @@ class LocalToolsClient(ToolsClient):
         tool = get_tool_with_name(self.tools, self.db_tool_name)
         return tool
 
-def get_tools_client(use_mcp_server, connector, embedder, product_categories, llm_tool_names, db_tool_name, mcp_client_transport, mcp_url):
-    if use_mcp_server:
-        return MCPToolsClient(mcp_client_transport, mcp_url, llm_tool_names, db_tool_name)
-    else:
-        return LocalToolsClient(connector, embedder, product_categories, llm_tool_names, db_tool_name)
+def get_tools_client(
+    settings: ToolsSettings, catalogue: Catalogue | None
+) -> ToolsClient:
+    """Return MCP-backed tools or in-process tools, depending on `settings.mode`."""
+    if settings.mode == "mcp":
+        return MCPToolsClient(settings.mcp_url)
+    if catalogue is None:
+        msg = "local tools need an open catalogue"
+        raise ValueError(msg)
+    return LocalToolsClient(catalogue)

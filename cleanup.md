@@ -65,7 +65,7 @@ anything above the default free tier, whether or not credits would pay for it.
 - **Any Bedrock runtime call** (`InvokeModel`, `Converse`, and therefore running the
   agent with `llm.provider=bedrock` or `embedding.backend=nova`, or running the eval
   against Bedrock). Bedrock is billed per token or per embedding, and there is no
-  free tier. Prefer `llm.provider=google` (§1.6) for development runs.
+  free tier. Prefer `llm.provider=ollama` (§1.6, local and free) for development runs.
 - **Any create, update or delete of an AWS resource**, even a free one:
   CloudFormation deploy, change set execution, resource import or stack deletion;
   creating buckets or tables; `PutObject`/`DeleteObject`; IAM changes; SSM
@@ -128,7 +128,7 @@ count go down.
 | 1.3 | **AWS usage** follows §0.2. |
 | 1.4 | **Two embedding backends, both kept.** `siglip` is the local default: Marqo-FashionSigLIP runs locally for query text, against the `fashion_gen` collection in `data/qdrant_storage` (768-d, about 260k points). `nova` is the AWS mode: Amazon Nova Multimodal Embeddings on Bedrock, against a 5k–10k collection. **This is feasible.** Qdrant point IDs and `payload.index_2` match the S3 image keys (`images/{idx//1000:03d}/{idx}.png`) and the Parquet index, so the SigLIP collection works unchanged with S3 images and metadata. In both modes, the LLM is remote. |
 | 1.5 | **Catalogue images and metadata Parquet always come from S3.** Cognito auth and the Chainlit chat history (DynamoDB + S3) are always on, locally included. There's no local-filesystem catalogue backend. **Consequence:** the full 260k-image bucket must be **kept** (the local SigLIP mode needs it), which reverses the plan's "delete the full-size buckets". |
-| 1.6 | **LLM providers: `bedrock` (Claude Haiku 4.5) plus one development provider.** The development provider is `google` (Gemini free tier) **if it accepts images inside tool results** (Phase 4.2). If it doesn't, use `ollama` instead and drop Gemini. Mistral is dropped either way. |
+| 1.6 | **LLM providers: `bedrock` (Claude Haiku 4.5) and `ollama` (local, free, for development).** Gemini was dropped (2026-11-26) because its API wanted billing set up; Mistral is dropped too. `langchain-ollama` is the optional `local-llm` group. |
 | 1.7 | **Checkpointer:** toggling between `memory`, `sqlite`, `postgres` and `dynamodb` should be as seamless as possible, through one setting. |
 | 1.8 | **Every AWS resource is created by committed code** (CloudFormation templates, plus scripts that deploy them or upload data). No one-off console or CLI setup. Resources that already exist but were made by hand get codified (Phase 13). |
 | 1.9 | **Remove the Bedrock batch-inference code and the JSONL files entirely.** Batch inference is blocked by an account limitation, so embeddings are produced with individual `InvokeModel` calls, and the AWS catalogue stays small. |
@@ -232,7 +232,7 @@ The entrypoints are `app.py`, `frag.cli:main` (`chat`, `eval`, `mcp`), each scri
 under `scripts/`, and the pytest fixtures. Each one runs this sequence:
 
 1. `load_dotenv()`. It's idempotent and doesn't override variables that are already
-   set. It's needed so LangSmith, Chainlit, boto3 and `langchain-google-genai` see
+   set. It's needed so LangSmith, Chainlit, boto3 and the Ollama client see
    their variables in `os.environ`.
 2. `settings = get_settings()`
 3. `setup_logging(settings.logging, service="agent" | "mcp" | "eval" | "<script>")`.
@@ -366,7 +366,7 @@ under `scripts/`, and the pytest fixtures. Each one runs this sequence:
     `langgraph-checkpoint-sqlite`, `aiosqlite`, `langgraph-checkpoint-postgres` and
     `psycopg-pool`. Keep `psycopg[binary]` for local development, and leave the plan's
     production note about building against `libpq` to the plan.
-  - **Add** `langchain-google-genai` (decision 1.6). If Phase 4.2 shows Gemini can't take
+  - ~~**Add** `langchain-google-genai`~~, superseded: Ollama is used instead (Phase 5 notes). If Phase 4.2 shows Gemini can't take
     images in tool results, replace it with an optional group
     `local-llm = ["langchain-ollama"]`.
   - **Add optional groups:**
@@ -514,7 +514,7 @@ At the end of this phase, nothing under `src/frag` imports `dependency_injector`
 
 ### 4.1 Settings (`src/frag/settings.py`); follows §3.1
 
-- [ ] Merge `config/app_config.py`, `envs.py`, `data.py`, `models.py`,
+- [x] Merge `config/app_config.py`, `envs.py`, `data.py`, `models.py`,
   `orchestration.py`, `logs.py`, `tracking.py` and `eval.py` into one
   `Settings(BaseSettings)` with nested `BaseModel` sections. Keep the current default
   values. Suggested shape:
@@ -526,7 +526,7 @@ At the end of this phase, nothing under `src/frag` imports `dependency_injector`
       )
       app_env: Literal["development", "production"] = "development"
       aws_region: str = "us-east-1"
-      llm: LLMSettings                  # provider: Literal["bedrock","google"]="bedrock" (or "ollama", see 4.2), model_id, temperature,
+      llm: LLMSettings                  # provider: Literal["bedrock","ollama"]="bedrock", model_id, temperature,
                                         # rate_limit_rps: float | None, rate_limit_bucket, rate_limit_check_s
       embedding: EmbeddingSettings      # backend: Literal["siglip","nova"]="siglip",
                                         # siglip_model="hf-hub:Marqo/marqo-fashionSigLIP",
@@ -555,11 +555,11 @@ At the end of this phase, nothing under `src/frag` imports `dependency_injector`
   @lru_cache
   def get_settings() -> Settings: return Settings()
   ```
-- [ ] **Declare only what the app reads itself.** These read their own environment
+- [x] **Declare only what the app reads itself.** These read their own environment
   variables, so don't declare them:
   - LangSmith (`LANGSMITH_*`)
   - Chainlit and Cognito (`OAUTH_COGNITO_*`, `CHAINLIT_AUTH_SECRET`, `OAUTH_PROMPT`)
-  - Google (`GOOGLE_API_KEY`)
+  - Ollama (`OLLAMA_HOST`)
   - FastMCP (`FASTMCP_*`)
   - Hugging Face (`HF_TOKEN`)
   - boto3 (`AWS_*` credentials)
@@ -568,14 +568,14 @@ At the end of this phase, nothing under `src/frag` imports `dependency_injector`
   which stops boto3 falling back to an instance role. Drop `MISTRAL_API_KEY` and
   `use_mcp_server` (it becomes `TOOLS__MODE`). Use `extra="ignore"`: `.env` is shared
   with those libraries.
-- [ ] **Remove the hard-coded values:**
+- [x] **Remove the hard-coded values:**
   - One `aws_region` replaces the four `"us-east-1"` literals.
   - `num_datapoints` is gone; the catalogue size is `len(metadata)`.
   - `product_categories` is gone; it's derived from the metadata at startup
     (Phase 6.5).
   - `fashion_gen_image_s3_key_lambda` is replaced by `image_key_template`. No lambdas
     in config.
-- [ ] **Delete the dead fields:**
+- [x] **Delete the dead fields:**
   - SigLIP *ingestion* fields: `embedding_batch_size`, `data_fetch_batch_size`,
     `migration_batch_size`, `payload_update_batch_size`, `upload_batch_size`,
     `upload_parallel`. These become `scripts/build_vector_db.py` arguments if needed.
@@ -588,13 +588,13 @@ At the end of this phase, nothing under `src/frag` imports `dependency_injector`
     `host_transport_method`, and the S3 pool and retry fields (hard-code one boto
     `Config` in `catalogue/store.py`).
   - `eval_mode` (it becomes a CLI subcommand) and `query_images_path`.
-- [ ] **Move prompts out of config** into `src/frag/prompts.py` as constants. Fix the
+- [x] **Move prompts out of config** into `src/frag/prompts.py` as constants. Fix the
   typos while moving them: "You are a expert", "expert fashion_assistant", "Your role
   is judge", "You task is". The evaluation prompt moves to `evaluation/`.
 
 ### 4.2 LLM factory (`src/frag/llm.py`)
 
-- [ ] Replace `utils/model_factory.py` and the `ModelsConfig.llm_provider`
+- [x] Replace `utils/model_factory.py` and the `ModelsConfig.llm_provider`
   `computed_field`, which makes config import utils (a layering inversion):
   ```python
   def build_llm(s: LLMSettings, region: str) -> BaseChatModel:
@@ -605,12 +605,12 @@ At the end of this phase, nothing under `src/frag` imports `dependency_injector`
               from langchain_aws import ChatBedrockConverse
               return ChatBedrockConverse(model_id=s.model_id, temperature=s.temperature,
                                          rate_limiter=limiter, region_name=region)
-          case "google":
-              from langchain_google_genai import ChatGoogleGenerativeAI
-              return ChatGoogleGenerativeAI(model=s.model_id, temperature=s.temperature,
+          case "ollama":
+              from langchain_ollama import ChatOllama
+              return ChatOllama(model=s.model_id, temperature=s.temperature,
                                             rate_limiter=limiter)
   ```
-- [ ] **Gemini caveats to verify.** Each check is one or two free-tier Google calls,
+- [x] ~~**Gemini caveats to verify.**~~ *Superseded: the user chose Ollama (Gemini wanted billing set up). The Ollama equivalents of these checks (images in tool results, structured output) are still open and need a local Ollama server with a vision + tool-calling model; do them before relying on Ollama for development runs.* Each check is one or two free-tier Google calls,
   which is allowed; Google isn't AWS.
   1. Pick a current vision-capable Gemini model that has free-tier access; check
      Google AI Studio for the current list. Set a conservative `rate_limit_rps` for
@@ -629,7 +629,7 @@ At the end of this phase, nothing under `src/frag` imports `dependency_injector`
 
 ### 4.3 Resource composition (`src/frag/runtime.py`)
 
-- [ ] Replace `config/container.py` (14 `manage_*` functions, the
+- [x] Replace `config/container.py` (14 `manage_*` functions, the
   `in_mcp_server_process` override and the `_conditional_checkpointer` wrapper) with:
   ```python
   @dataclass
@@ -657,19 +657,19 @@ At the end of this phase, nothing under `src/frag` imports `dependency_injector`
                        else MCPToolsClient(settings.tools.mcp_url))
           yield Resources(settings, llm, checkpointer, catalogue, tools)
   ```
-- [ ] Logging is **not** a resource. Entrypoints call `setup_logging` first (§3.2).
+- [x] Logging is **not** a resource. Entrypoints call `setup_logging` first (§3.2).
 
 ### 4.4 Thread resources through explicitly
 
-- [ ] `FashionAgent(llm, tools, checkpointer, settings: AgentSettings, callbacks=None)`.
+- [x] `FashionAgent(llm, tools, checkpointer, settings: AgentSettings, callbacks=None)`.
   Remove every `@inject`/`PV[...]`; nodes read `self._settings` and `prompts.*`.
   Compile the graph in `__init__`, which is synchronous.
-- [ ] `mcp_server.server.build_server(catalogue) -> FastMCP` (Phase 6.7).
-- [ ] Evaluation functions take `(resources, eval_settings)` (Phase 9).
+- [x] `mcp_server.server.build_server(catalogue) -> FastMCP` (Phase 6.7).
+- [x] Evaluation functions take `(resources, eval_settings)` (Phase 9).
 
 ### 4.5 Checkpointer (`src/frag/checkpointer.py`); decision 1.7
 
-- [ ] Settings:
+- [x] Settings:
   ```python
   class CheckpointerSettings(BaseModel):
       backend: Literal["memory", "sqlite", "postgres", "dynamodb"] = "sqlite"
@@ -682,7 +682,7 @@ At the end of this phase, nothing under `src/frag` imports `dependency_injector`
   ```
   Replace `POSTGRES_USER/PASSWORD/DB` with a single DSN, and replace
   `AWS_DYNAMODB_CHECKPOINTER_TABLE_NAME` with `CHECKPOINTER__DYNAMODB_TABLE`.
-- [ ] Implementation, replacing the ABC, the three provider classes and the factory
+- [x] Implementation, replacing the ABC, the three provider classes and the factory
   (164 lines):
   ```python
   @asynccontextmanager
@@ -708,46 +708,112 @@ At the end of this phase, nothing under `src/frag` imports `dependency_injector`
               yield DynamoDBSaver(table_name=c.dynamodb_table, ...)  # same args as today; check the installed signature
   ```
   Keep the explanatory comments about `autocommit`/`prepare_threshold`; they're good.
-- [ ] Add a `postgres` service to `compose.yaml` under `profiles: ["postgres"]`
+- [x] Add a `postgres` service to `compose.yaml` under `profiles: ["postgres"]`
   (`postgres:17`, bound to loopback, with a named volume and a healthcheck), so that
   `podman compose --profile postgres up -d` plus `CHECKPOINTER__BACKEND=postgres` is
   the whole toggle.
-- [ ] Unit-test `memory` and `sqlite` offline. Test `postgres` only if the compose
+- [x] Unit-test `memory` and `sqlite` offline. Test `postgres` only if the compose
   service is running; skip otherwise with `pytest.mark.skipif` on connection failure.
   Test `dynamodb` only under `@pytest.mark.aws` (§0.2B allows it, but it stays
   deselected by default).
 
 ### 4.6 Remove the DI package
 
-- [ ] Delete `config/container.py` and the `config/` package.
-- [ ] `grep -rn "dependency_injector\|Provide\[\|@inject\|Container" src tests app.py`
+- [x] Delete `config/container.py` and the `config/` package.
+- [x] `grep -rn "dependency_injector\|Provide\[\|@inject\|Container" src tests app.py`
   returns nothing.
-- [ ] Remove `dependency-injector` from `pyproject.toml` and run `uv lock`.
+- [x] Remove `dependency-injector` from `pyproject.toml` and run `uv lock`.
 
 ---
+
+**Phase 4 done (2026-11-26)**, except the Gemini checks in 4.2, which need a
+`GOOGLE_API_KEY` from the user. Notes:
+- **New modules:** `settings.py`, `prompts.py`, `llm.py`, `checkpointer.py`,
+  `runtime.py`, `tokens.py`, `evaluation/prompts.py` and `data_manager/catalogue.py`.
+- **Deleted:** the `config/` package, `utils/model_factory.py`, `utils/checkpointer.py`
+  and `dependency-injector`. A grep for DI references across `src`, `tests`, `scripts`
+  and the entrypoints comes back empty.
+- **Pulled forward from later phases**, because removing DI touched the same code:
+  - 7.5: `tokens.track_tokens` replaces the exception-swallowing `track_token_use`.
+  - 11.2: the DI-only `get_qdrant_points_by_id` is deleted.
+  - 6.2: the metadata loader reads only the 4 columns it uses.
+  - 6.5: categories are derived from the metadata (48 for the full catalogue).
+  - 6.7 (partly): `FastMCP` is no longer a module-level global.
+  - 11.3 (partly): `setup_logging` is idempotent and uses a per-service file name
+    (`logs/*/frag-{agent,cli,eval,mcp}.log`). The Rich console is kept.
+  - 8.1 (partly): `cli_main.py` takes `chat|eval` with argparse, since the eval-mode
+    setting is gone. `mcp_server.py` no longer checks `USE_MCP_SERVER`.
+- **Interim structure until Phase 6:** `get_fashion_gen_data` became
+  `FashionGenData.get()`, and `Catalogue` is a plain frozen dataclass (data, vector DB,
+  embedder, categories) opened by `open_catalogue()`. `EMBEDDING__BACKEND` defaults to
+  `nova`; the default switches to `siglip` once Phase 6 restores that embedder.
+- **Behaviour changes:**
+  - Eval uses the in-memory checkpointer (§3.3).
+  - The token CSV timestamp is now ISO UTC (`+00:00`).
+  - `FashionAgent` compiles its graph in `__init__`, so `compile_graph()` is gone.
+  - In `app.py`, all imports come first, then `load_dotenv()` and the monkeypatches.
+    Nothing reads env or patched globals at import time.
+- **`.env` renames needed** (the user does these; the agent doesn't edit `.env`):
+  - `AWS_DYNAMODB_CHECKPOINTER_TABLE_NAME` becomes `CHECKPOINTER__DYNAMODB_TABLE`
+  - `AWS_DYNAMODB_CHAINLIT_PERSISTENCE_TABLE_NAME` becomes
+    `CHAT_HISTORY__DYNAMODB_TABLE`
+  - `AWS_S3_CHAINLIT_PERSISTENCE_BUCKET_NAME` becomes `CHAT_HISTORY__S3_BUCKET`
+  - `USE_MCP_SERVER=false|true` becomes `TOOLS__MODE=local|mcp`
+  - Add `CHECKPOINTER__BACKEND=dynamodb` to keep the current behaviour (the default is
+    now `sqlite`).
+  - Optional: `POSTGRES_*` becomes `CHECKPOINTER__POSTGRES_DSN`.
+  - `MISTRAL_API_KEY` can go.
+  - `.env.example` is rewritten to match (part of Phase 14.1, done early).
+- **`compose.yaml`:** a `postgres` service under `profiles: ["postgres"]`, bound to
+  loopback, with a named volume and a healthcheck.
+- **Ruff:** new and rewritten files are clean, and changed lines in partially edited
+  files are clean. Total 984 → 396. New justified ignores:
+  - tests: `ANN` (fixtures are injected by name)
+  - `**/prompts.py`: `E501` (wrapping would change the prompt text)
+  - `src/frag/{llm,checkpointer}.py`: `PLC0415` (lazy backend imports)
+  - inline `BLE001` on the eval loops and the entrypoint top-level handlers
+  - inline `S105` on `token_usage_csv` (false positive)
+- **Smoke checks** (not the pytest suite; no Bedrock calls):
+  - Empty-environment import of every module: passes. `Settings() == Settings()`.
+  - Checkpoint put/get/delete on `memory`, `sqlite` (temp dir), `postgres` (compose
+    profile) and `dynamodb` (the existing table; test thread deleted): all pass.
+  - `open_resources(role="mcp")`: S3 metadata (260,490 items, 48 categories) and local
+    Qdrant `nova_fashion_gen` (**10,000 points**). The search path, using a stored
+    vector instead of an embedding, the image fetch, an unknown ID (`{}`) and the local
+    lookup tool all pass.
+  - `mcp_server.py` plus `MCPToolsClient`: tool discovery passes. The lookup tool
+    returns `['text', 'image']` blocks, which the recommender's 3.17 parsing handles.
+  - Containers were stopped afterwards.
+- **AWS call log (§0.2E):**
+  - (B) DynamoDB checkpointer table: about 6 requests (put, get, delete thread, get).
+  - (B) S3 `frag-fashion-gen-dataset`: the metadata Parquet downloaded twice (the
+    catalogue check and the MCP server startup), plus 4 image GETs.
+  - No Bedrock calls, and no resource changes.
+- The integration test's `container` fixture is removed, so the old test can't run
+  until Phase 5 rewrites it.
 
 ## Phase 5: Offline tests (the safety net for Phases 6–9)
 
 The current test can't run offline: `container.init_resources()` touches S3, DynamoDB,
 Qdrant and Bedrock, and it needs an absolute-path image under the git-ignored `data/`.
 
-- [ ] **5.1** Add `tests/fixtures/shirt.jpg`, a small image generated with PIL (a
+- [x] **5.1** Add `tests/fixtures/shirt.jpg`, a small image generated with PIL (a
   64×64 solid colour is fine).
-- [ ] **5.2 `tests/fakes.py`:**
+- [x] **5.2 `tests/fakes.py`:**
   - `ChatMockLLM` (from `tests/mocks/`) with `ainvoke` added.
   - `MockAgent`/`mock_create_agent`, returning IDs from the fake catalogue instead of
     `random.randint(0, 260400)`.
   - `FakeToolsClient` (`get_llm_tools`, `get_item`) and `FakeEmbedder`.
-- [ ] **5.3** Rewrite the integration test as `tests/integration/test_agent_graph.py`:
+- [x] **5.3** Rewrite the integration test as `tests/integration/test_agent_graph.py`:
   - Build
     `FashionAgent(ChatMockLLM(), FakeToolsClient(), InMemorySaver(), AgentSettings(temp_dir=tmp_path))`.
   - Run one image turn, then one text follow-up.
   - **Assert on the returned state** rather than on log substrings: three image files
     exist, the explanation is non-empty, and the critique loop ran
     `max_num_critiques` times.
-- [ ] **5.4** Delete `tests/integration/conftest.py` and `tests/mocks/`. Keep the
+- [x] **5.4** Delete `tests/integration/conftest.py` and `tests/mocks/`. Keep the
   loguru `caplog` bridge. Make the session-wide `logs/pytest.log` sink opt-in.
-- [ ] **5.5 Unit tests:**
+- [x] **5.5 Unit tests:**
   - both routers
   - `get_final_score` (it would have caught bug 3.2)
   - `build_message` (it would have caught bug 3.1)
@@ -758,10 +824,66 @@ Qdrant and Bedrock, and it needs an absolute-path image under the git-ignored `d
   - `Catalogue.get`/`search` with a fake image store, vector DB and embedder
   - the MCP block normaliser
   - `open_checkpointer` with `memory` and `sqlite`
-- [ ] **5.6** Register the markers `aws` (real AWS, §0.2B scope only) and `bedrock`
+- [x] **5.6** Register the markers `aws` (real AWS, §0.2B scope only) and `bedrock`
   (costs money, §0.2C). Use `addopts = -m "not aws and not bedrock"`.
 
 ---
+
+**Phase 5 done (2026-11-26).** Notes:
+- **Done first:**
+  - **Switched Google to Ollama** (user decision). `llm.provider` is now
+    `bedrock | ollama`, `langchain-google-genai` was removed, and
+    `local-llm = [langchain-ollama]` was added. `ChatOllama` builds offline. Ollama
+    is installed but not running, so the Ollama image-in-tool-result check is still
+    open (Phase 4.2).
+  - **`.env` verified.** All renamed keys are present and the legacy names are gone.
+    The DynamoDB checkpointer table and the Chainlit table are ACTIVE, and the Chainlit
+    bucket exists (read-only `describe-table` / `head-bucket`).
+    **One problem: `TOOLS__MODE=false` is invalid.** It must be `local` (the old
+    `USE_MCP_SERVER=false`), and until it's fixed `Settings()` raises at startup. A
+    test now covers exactly this.
+- **New tests:** `tests/fakes.py`, `tests/conftest.py`, `tests/fixtures/shirt.jpg`
+  (64×64 JPEG, 693 bytes), `tests/integration/test_agent_graph.py`, and
+  `tests/unit/test_{agent_nodes,catalogue,infrastructure,settings_and_logging}.py`.
+  `tests/mocks/`, `tests/integration/conftest.py` and the old
+  `tests/integration/rag_pipeline/` were deleted.
+- **Coverage:**
+  - Two real turns through the compiled graph: an image turn, then a text follow-up
+    that asserts the bounds check (3.11) and description reuse.
+  - The text-only path, the routers, and the critique limit.
+  - The recommender with both tool-block shapes (3.17) and with an unknown ID (3.12).
+  - Settings: defaults, idempotence, nested overrides, invalid or mistyped values,
+    and a subprocess import with an empty environment that writes no files.
+  - Idempotent logging setup.
+  - Catalogue get, column pruning, category derivation, and Qdrant search via an
+    in-memory `AsyncQdrantClient` (category filter, metadata-missing skip).
+  - All four checkpointers. Postgres skips unless the compose profile is up;
+    DynamoDB is `@pytest.mark.aws`.
+  - The LLM factory, token tracking, message MIME types (3.1), the final score (3.2)
+    and the evaluation inputs.
+- **The MCP normaliser test (5.5) is deferred to Phase 6.6.** The normaliser's output
+  is meant to change there. The recommender's handling of MCP blocks is covered
+  instead.
+- **Small source change:** `derive_categories()` was extracted in
+  `data_manager/catalogue.py` so it can be unit-tested.
+- **pytest config:**
+  - `asyncio_mode = "auto"`
+  - `pythonpath = ["."]`
+  - markers `aws` and `bedrock`, deselected by default
+  - opt-in debug log via `FRAG_TEST_LOG_FILE`
+- **Results:**
+  - Default run: **35 passed, 1 skipped (postgres), 1 deselected (aws)** in about 3 s.
+  - It passes the same way inside `unshare -rn` (no network interfaces), so it's
+    genuinely offline.
+  - With Postgres up: the Postgres test passes.
+  - `pytest -m aws`: the DynamoDB test passes.
+- **Ruff:** clean on `tests/`. New justified test ignores: `EM`, `TRY003` and
+  `ASYNC240`, plus an inline `ARG001` on a fake tool's schema-mirroring parameter.
+  `tests/` was formatted with `ruff format`. Total 396 → 353.
+- **AWS call log:**
+  - (A) 2× `dynamodb describe-table` and 1× `s3 head-bucket` (`.env` verification).
+  - (B) About 6 DynamoDB requests from `pytest -m aws`; the test thread was deleted.
+  - No Bedrock calls.
 
 ## Phase 6: Catalogue, embedders and tools
 
@@ -860,7 +982,7 @@ DI-injected S3 fetch inside a method to dodge an import cycle.
     with a corrective message, then skip it. This is the plan's Phase 0.3.
   - Rewrite the docstring and remove the stale TODO.
   - Optional: run the per-description agent calls with `asyncio.gather`. The shared
-    rate limiter throttles them anyway. Keep it sequential if Gemini's free-tier
+    rate limiter throttles them anyway. Keep it sequential if a local Ollama model's
     limits make it pointless.
 - [ ] **7.5 `tokens.py`**: replace the `track_token_use` decorator. It injects a
   `callback_config` kwarg, duplicates its sync and async branches, and **swallows all
@@ -980,7 +1102,7 @@ DI-injected S3 fetch inside a method to dodge an import cycle.
 - [ ] **9.6** `get_evaluation_inputs(queries_path, images_dir)` builds paths with
   `Path`. Merge the two near-identical dict literals.
 - [ ] **9.7** A full eval against Bedrock costs money, so it needs the user's approval
-  (§0.2C). The plan estimates $3–5. Test the pipeline with `--limit 2` on Gemini.
+  (§0.2C). The plan estimates $3–5. Test the pipeline with `--limit 2` on Ollama.
 
 ---
 
@@ -1060,7 +1182,7 @@ call Bedrock or write to S3 print a cost estimate and require `--yes` or typing 
 
 ## Phase 12: Verify feasibility of the local SigLIP + remote LLM mode
 
-These checks are allowed under §0.2B, plus free-tier Gemini calls.
+These checks are allowed under §0.2B, plus local Ollama calls.
 
 - [ ] **12.1** Start Qdrant on `data/qdrant_storage`, then run
   `scripts/qdrant_admin.py info --collection fashion_gen`. Record the point count, the
@@ -1070,7 +1192,7 @@ These checks are allowed under §0.2B, plus free-tier Gemini calls.
   `point.id == payload.index_2` and that `head-object` on the derived S3 image key
   exists. That's three HEAD requests.
 - [ ] **12.3** Run `frag chat` with `EMBEDDING__BACKEND=siglip`,
-  `TOOLS__MODE=local`, `LLM__PROVIDER=google` (or `ollama`, per Phase 4.2) and
+  `TOOLS__MODE=local`, `LLM__PROVIDER=ollama` and
   `CHECKPOINTER__BACKEND=sqlite`, and send one text-only and one image query. That's
   free-tier or local LLM calls and a few dozen S3 GETs.
 - [ ] **12.4** Repeat 12.3 with `TOOLS__MODE=mcp`, running `frag mcp` in another
@@ -1151,7 +1273,7 @@ anything needs the user's go-ahead (§0.2C).
 
 - [ ] **14.1 `.env.example`**: rewrite it to match `Settings` plus the third-party
   variables, grouped as **local development** and **AWS**.
-  - Development preset: `LLM__PROVIDER=google` with `GOOGLE_API_KEY`,
+  - Development preset: `LLM__PROVIDER=ollama` with a pulled vision model,
     `EMBEDDING__BACKEND=siglip` and `CHECKPOINTER__BACKEND=sqlite`.
   - AWS preset: `LLM__PROVIDER=bedrock`, `EMBEDDING__BACKEND=nova` and
     `CHECKPOINTER__BACKEND=dynamodb`.
@@ -1161,7 +1283,7 @@ anything needs the user's go-ahead (§0.2C).
   - Recommend `aws configure sso` or a named profile instead of static keys in `.env`.
 - [ ] **14.2 `README.md`**:
   - **Features.** Describe both embedding backends (Marqo-FashionSigLIP locally, Nova
-    on AWS), all four checkpointers, Bedrock and Gemini, and per-turn graph runs.
+    on AWS), all four checkpointers, Bedrock and Ollama, and per-turn graph runs.
     Replace the eval score with "pending re-run", and report the completion rate once
     Phase 9 is re-run.
   - **Install and run.**
@@ -1205,7 +1327,7 @@ anything needs the user's go-ahead (§0.2C).
   - findings that aren't in this document
   - the AWS call log (§0.2E)
   - the ruff baseline compared with the final state, and every added ignore
-  - the Gemini image-in-tool-result result (Phase 4.2)
+  - the Ollama image-in-tool-result result (Phase 4.2)
   - the Qdrant consolidation result (Phase 8.4)
   - the remaining manual tests that need Bedrock (§0.2C), for the user to approve:
     1. Bedrock LLM + SigLIP: one chat turn.
@@ -1253,7 +1375,7 @@ anything needs the user's go-ahead (§0.2C).
 | `src/frag/rag_pipeline/llm_schemas.py` | Splits into `agent/state.py`, `agent/schemas.py`, `evaluation/schemas.py` (7.2, 7.3) |
 | `src/frag/rag_pipeline/local_tools.py` | Becomes `tools/local.py` (6.6) |
 | `src/frag/utils/llm_tools_setup.py` | Becomes `tools/base.py` + `tools/mcp_client.py` (6.6) |
-| `src/frag/utils/model_factory.py` | Becomes `llm.py`: Bedrock + Google (4.2) |
+| `src/frag/utils/model_factory.py` | Becomes `llm.py`: Bedrock + Ollama (4.2) |
 | `src/frag/utils/checkpointer.py` | Becomes `checkpointer.py`: memory/sqlite/postgres/dynamodb (4.5) |
 | `src/frag/utils/common_utils.py` | Becomes `messages.py` + `tokens.py`; dead code deleted (7.5, 11) |
 | `src/frag/utils/logger_setup.py` | Becomes `logging_setup.py` (11.3) |

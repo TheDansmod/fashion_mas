@@ -1,13 +1,15 @@
-import sys
-import traceback
+"""Loguru logging: Rich console, rotating text and JSON files, stdlib intercept."""
+
+import contextlib
 import logging
-import json
 import site
 
 from loguru import logger
-from rich.logging import RichHandler
 from rich.console import Console
+from rich.logging import RichHandler
 from rich.traceback import Traceback
+
+from frag.settings import LogSettings
 
 
 # funnel all logging module output for other libraries through loguru
@@ -136,36 +138,9 @@ def add_machine_logs(
     return handler_id
 
 
-# def _serialize(record):
-#     payload = {
-#         "time":     record["time"].isoformat(),
-#         "level":    record["level"].name,
-#         "message":  record["message"],
-#         "module":   record["module"],
-#         "line":     record["line"],
-#     }
-#     if record["extra"]:
-#         payload.update(record["extra"])
-#     if record["exception"]:
-#         exc = record["exception"]
-#         payload["exception"] = {
-#             "type":      exc.type.__name__,
-#             "value":     str(exc.value),
-#             "traceback": traceback.format.exception(exc.type, exc.value, exc.traceback)
-#         }
-#     return json.dumps(payload)
-
-
-def set_library_log_levels():
+def set_library_log_levels(library_levels: dict[str, str]) -> None:
+    """Route the named third-party loggers through loguru at the given levels."""
     intercept_handler = InterceptHandler()
-    library_levels = {
-        "httpx": "WARNING",
-        "urllib3": "WARNING",
-        "mcp": "WARNING",
-        "httpcore": "WARNING",
-        "botocore": "WARNING",
-        "langgraph_checkpoint_aws": "WARNING",
-    }
     for logger_name, log_level in library_levels.items():
         lib_logger = logging.getLogger(logger_name)
         lib_logger.handlers = [intercept_handler]
@@ -173,44 +148,59 @@ def set_library_log_levels():
         lib_logger.propagate = False
 
 
-def setup_logging(log_cfg, for_mcp_server=False):
-    # if we are doing log setup for mcp server we use different file names, since it is a different process
-    # and we don't want multiple-processes simultaneously writing to the same file - it can cause corruption and race conditions
+# handler ids added by setup_logging, so that calling it again replaces only its own
+# handlers (idempotent) and never removes sinks added by others, e.g. pytest's caplog
+_handler_ids: list[int] = []
 
-    # clear the default stderr handler
-    # during testing logger.remove() without args can create issues by removing all handlers like my pytest log etc
-    # so i am changing to remove only the stderr logger (id 0)
-    try:
+
+def setup_logging(
+    settings: LogSettings, *, level: str, is_dev: bool, service: str
+) -> None:
+    """Configure loguru sinks for this process. Safe to call more than once.
+
+    Args:
+        settings: Logging settings.
+        level: Effective log level (see `Settings.log_level`).
+        is_dev: Enables locals in tracebacks.
+        service: Process name ("agent", "mcp", "eval", "cli", ...). Log files are named
+            per service so that separate processes never write to the same rotating
+            file (cleanup.md §3.3).
+    """
+    for handler_id in _handler_ids:
+        with contextlib.suppress(ValueError):
+            logger.remove(handler_id)
+    _handler_ids.clear()
+    # loguru's default stderr sink has id 0
+    with contextlib.suppress(ValueError):
         logger.remove(0)
-    except ValueError:
-        # already removed - handler called multiple times - likely during testing
-        pass
 
-    if log_cfg.write_console_logs:
-        add_console_logging(log_cfg.is_dev, log_cfg.log_level)
-    if log_cfg.write_human_readable_logs:
-        add_file_logs(
-            log_cfg.mcp_human_readable_log_file if for_mcp_server else log_cfg.human_readable_log_file,
-            log_cfg.log_level,
-            log_cfg.is_dev,
-            log_cfg.rotation_interval,
-            log_cfg.retention_period,
-            log_cfg.compression_method,
+    if settings.console:
+        _handler_ids.append(add_console_logging(is_dev, level))
+    if settings.human_readable_file:
+        _handler_ids.append(
+            add_file_logs(
+                f"{settings.file_dir}/human_readable/frag-{service}.log",
+                level,
+                is_dev,
+                settings.rotation,
+                settings.retention,
+                settings.compression,
+            )
         )
-    if log_cfg.write_machine_readable_logs:
-        add_machine_logs(
-            log_cfg.mcp_machine_readable_log_file if for_mcp_server else log_cfg.machine_readable_log_file,
-            log_cfg.log_level,
-            log_cfg.rotation_interval,
-            log_cfg.retention_period,
-            log_cfg.compression_method,
+    if settings.machine_readable_file:
+        _handler_ids.append(
+            add_machine_logs(
+                f"{settings.file_dir}/machine_readable/frag-{service}.log",
+                level,
+                settings.rotation,
+                settings.retention,
+                settings.compression,
+            )
         )
 
-    # Redirect everything from the standard logging module into loguru
-    logging.basicConfig(handlers=[InterceptHandler()], level=0, force=True)
-
-    # TODO: perhaps put the library levels in some pydantic config
-    set_library_log_levels()
-
-    # for now set all other levels to WARNING
-    logging.getLogger().setLevel(logging.WARNING)
+    # redirect the standard logging module into loguru; the root logger stays at
+    # WARNING and the libraries listed in settings get their own levels
+    logging.basicConfig(
+        handlers=[InterceptHandler()], level=logging.WARNING, force=True
+    )
+    set_library_log_levels(settings.library_levels)

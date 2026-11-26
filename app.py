@@ -1,69 +1,87 @@
-"""This is the starting point for the project."""
+"""Chainlit entrypoint: `chainlit run app.py`."""
 
+import shutil
+import string
+from contextlib import AsyncExitStack
+from pathlib import Path
+from typing import Optional
+
+import chainlit as cl
+from chainlit import secret as _cl_secret
+from chainlit.data.dynamodb import DynamoDBDataLayer
+from chainlit.data.storage_clients.s3 import S3StorageClient
+from dotenv import load_dotenv
+from langchain_core.callbacks import UsageMetadataCallbackHandler
+from langgraph.types import Command
 from loguru import logger as log
 
-# START MONKEYPATCH
-# monkey patch since in the redirect state parameter chainlit uses characters that are invalid for aws cognito
+from frag.rag_pipeline.rag_agent import FashionAgent
+from frag.runtime import Resources, open_resources
+from frag.settings import get_settings
+from frag.tokens import append_usage_csv
+from frag.utils.logger_setup import setup_logging
+from frag.utils.ui_node_updates import NODE_META
+
+# make .env visible to libraries that read os.environ themselves (LangSmith, Chainlit
+# OAuth, boto3, ...); idempotent and never overrides variables that are already set
+load_dotenv()
+
+# START MONKEYPATCH (moves to frag/ui/chainlit_patches.py in cleanup.md Phase 8)
+# the redirect `state` parameter chainlit generates uses characters that AWS Cognito
+# rejects; restrict the alphabet. Applied at import, before any request is served.
 # https://github.com/Chainlit/chainlit/issues/2707
 # https://github.com/Chainlit/chainlit/issues/972
-from chainlit import secret as _cl_secret  # the secret.py file in the .venv folder
-import string
-
 _cl_secret.chars = string.ascii_letters + string.digits + "-_"
-# END MONKEYPATCH
 
-from chainlit.data.storage_clients.s3 import S3StorageClient
 
-# START S3 CLOSE MONKEYPATCH
-# Fixes Chainlit bug where it tries to await a synchronous boto3 close method
-from chainlit.data.storage_clients.s3 import S3StorageClient
-
+# Chainlit awaits the synchronous boto3 close(); call it without awaiting instead
 async def patched_s3_close(self):
     try:
-        # Call the synchronous close without awaiting
-        if hasattr(self, 'client') and self.client:
+        if hasattr(self, "client") and self.client:
             self.client.close()
     except Exception as e:
         log.warning(f"Failed to close S3 client: {e}")
 
+
 S3StorageClient.close = patched_s3_close
-# END S3 CLOSE MONKEYPATCH
+# END MONKEYPATCH
 
-from typing import Optional
-from pathlib import Path
-import shutil
 
-import chainlit as cl
-import chainlit.data as cl_data
-from chainlit.data.dynamodb import DynamoDBDataLayer
-from langchain_core.callbacks import UsageMetadataCallbackHandler
-from langgraph.types import Command
+class _AppState:
+    """Process-wide resources, opened at app startup and closed at shutdown."""
 
-# dependency wiring must be done before frag imports
-from frag.config.container import Container
+    exit_stack: AsyncExitStack | None = None
+    resources: Resources | None = None
 
-container = Container()
 
-from frag.rag_pipeline.rag_agent import FashionAgent
-from frag.utils.common_utils import update_token_use
-from frag.utils.ui_node_updates import NODE_META
-
-cfg = Container.config.provided
+_app = _AppState()
 
 
 @cl.data_layer
 def get_data_layer():
-    # chainlit first dynamically launches the app before registering with sys.modules registry.
-    # this interferes with the DI using sys.modules to perform its wiring.
-    # thus, instead of doing inject, we directly use container.config()
-    app_config = container.config()
-    s3_bucket_name = app_config.data.chainlit_persistence.s3_bucket_name
-    s3_region = app_config.data.chainlit_persistence.s3_region
-    dynamodb_table_name = app_config.data.chainlit_persistence.dynamodb_table_name
-
-    storage_client = S3StorageClient(bucket=s3_bucket_name, region_name=s3_region)
+    # Chainlit calls this before on_app_startup; that is fine since settings are pure
+    settings = get_settings()
+    history = settings.chat_history
+    if not (history.dynamodb_table and history.s3_bucket):
+        msg = "Set CHAT_HISTORY__DYNAMODB_TABLE and CHAT_HISTORY__S3_BUCKET in .env."
+        raise ValueError(msg)
+    storage_client = S3StorageClient(
+        bucket=history.s3_bucket, region_name=settings.aws_region
+    )
     return DynamoDBDataLayer(
-        table_name=dynamodb_table_name, storage_provider=storage_client
+        table_name=history.dynamodb_table, storage_provider=storage_client
+    )
+
+
+def _new_agent(metadata_callback: UsageMetadataCallbackHandler) -> FashionAgent:
+    """One agent per chat session, sharing the process-wide resources."""
+    resources = _app.resources
+    return FashionAgent(
+        llm=resources.llm,
+        tools=resources.tools,
+        checkpointer=resources.checkpointer,
+        settings=resources.settings.agent,
+        callbacks=[metadata_callback],
     )
 
 
@@ -97,12 +115,24 @@ def oauth_callback(
 
 @cl.on_app_startup
 async def startup():
-    await container.init_resources()
+    settings = get_settings()
+    setup_logging(
+        settings.logging,
+        level=settings.log_level,
+        is_dev=settings.is_dev,
+        service="agent",
+    )
+    _app.exit_stack = AsyncExitStack()
+    _app.resources = await _app.exit_stack.enter_async_context(
+        open_resources(settings, "agent")
+    )
 
 
 @cl.on_app_shutdown
 async def shutdown():
-    await container.shutdown_resources()
+    if _app.exit_stack is not None:
+        await _app.exit_stack.aclose()
+    await log.complete()
 
     # .files/ folder is created by chainlit as a temp staging area during execution
     temp_dir_path = Path(".files")
@@ -116,11 +146,9 @@ async def start_chat():
     log.info("in start")
     # we want to have a separate callback handler and fashion agent object per connection
     metadata_callback = UsageMetadataCallbackHandler()
-    agent = FashionAgent({"callbacks": [metadata_callback]})
+    agent = _new_agent(metadata_callback)
     cl.user_session.set("metadata_callback", metadata_callback)
     cl.user_session.set("agent", agent)
-
-    await agent.compile_graph()
 
     # we use thread_id since that is stable across reconnects - the session.id is just the websocket id which will change on refresh / re-connect - when we switch to adding users - we should use user_id:conversation_id
     config = {"configurable": {"thread_id": cl.context.session.thread_id}}
@@ -141,11 +169,9 @@ async def chat_resume(thread):
     log.info("In chat resume")
 
     metadata_callback = UsageMetadataCallbackHandler()
-    agent = FashionAgent({"callbacks": [metadata_callback]})
+    agent = _new_agent(metadata_callback)
     cl.user_session.set("metadata_callback", metadata_callback)
     cl.user_session.set("agent", agent)
-
-    await agent.compile_graph()
 
     # we use thread_id since that is stable across reconnects - the session.id is just the websocket id which will change on refresh / re-connect - when we switch to adding users - we should use user_id:conversation_id
     config = {"configurable": {"thread_id": thread["id"]}}
@@ -204,7 +230,9 @@ async def end_chat():
 
     metadata_callback = cl.user_session.get("metadata_callback")
     if metadata_callback is not None:
-        update_token_use(metadata_callback.usage_metadata)
+        csv_path = get_settings().token_usage_csv
+        if csv_path:
+            append_usage_csv(csv_path, metadata_callback.usage_metadata)
     else:
         log.warning("metadata callback not set; skipping token update.")
     log.info("updated token use")

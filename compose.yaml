@@ -22,3 +22,28 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # optional LangGraph checkpointer backend:
+  #   podman compose --profile postgres up -d   +   CHECKPOINTER__BACKEND=postgres
+  # credentials match the default CHECKPOINTER__POSTGRES_DSN (local development only)
+  postgres:
+    image: docker.io/library/postgres:17
+    container_name: frag-postgres
+    profiles: ["postgres"]
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: frag
+      POSTGRES_PASSWORD: frag
+      POSTGRES_DB: frag
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - frag-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U frag -d frag"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  frag-postgres-data:

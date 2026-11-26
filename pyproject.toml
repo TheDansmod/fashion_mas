@@ -8,11 +8,9 @@ dependencies = [
     "aiosqlite>=0.22.1",
     "boto3>=1.42.78",
     "chainlit>=2.10.0",
-    "dependency-injector>=4.49.0",
     "fastmcp>=3.1.0",
     "langchain>=1.2.12",
     "langchain-aws>=1.4.5",
-    "langchain-google-genai>=4.5.3",
     "langchain-mcp-adapters>=0.2.1",
     "langgraph>=1.0.10",
     "langgraph-checkpoint-aws>=1.0.6",
@@ -49,6 +47,9 @@ dev = [
 ingest = [
     "h5py>=3.16.0",
 ]
+local-llm = [
+    "langchain-ollama>=1.2.0",
+]
 siglip = [
     "open-clip-torch>=4.2.2",
     "torch>=2.15.0",
@@ -83,7 +84,19 @@ addopts = [
     "-v",
     # the import mode controls how pytest imports modules. by default, the imports are done by adding the parent directory prepended to the sys.path. importlib means that sys.path is not touched and importlib module is used instead for imports. This (importlib) is the modern recommendation.
     "--import-mode=importlib",
+    # tests that touch real AWS are opt-in: `pytest -m aws` (free-tier scale only) or
+    # `pytest -m bedrock` (costs money - ask first, see cleanup.md §0.2)
+    "-m", "not aws and not bedrock",
 ]
+markers = [
+    "aws: uses real AWS resources at free-tier / test scale (S3 reads, DynamoDB)",
+    "bedrock: calls Bedrock models, which costs money",
+]
+# async tests and fixtures need no explicit marker
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+# lets tests import shared helpers as `tests.fakes`
+pythonpath = ["."]
 # coverage is opt-in to keep plain `pytest` fast; see the README for the coverage command
 # this tells pytest where to search for test files - by restricting to tests folder we ensure that things are a little faster - pytest does not spend time walking through src folder
 testpaths = ["tests"]
