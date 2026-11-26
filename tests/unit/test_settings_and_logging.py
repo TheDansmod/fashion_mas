@@ -17,7 +17,7 @@ def test_settings_defaults_with_empty_environment(clean_env):
     assert settings.checkpointer.backend == "sqlite"
     assert settings.tools.mode == "local"
     assert settings.llm.provider == "bedrock"
-    assert settings.collection == "nova_fashion_gen"
+    assert settings.collection == "fashion_gen"
     assert settings.log_level == "DEBUG"
 
 
@@ -47,16 +47,13 @@ def test_invalid_or_mistyped_nested_values_fail_loudly(
         clean_env()
 
 
-def test_image_key_template(clean_env):
-    assert clean_env().catalogue.image_key(12345) == "images/012/12345.png"
-
-
 def test_modules_import_without_environment_or_side_effects(tmp_path):
     """Every module imports in an empty environment with no .env (cleanup.md §0.5)."""
     code = (
         "import frag.settings, frag.runtime, frag.llm, frag.checkpointer, frag.tokens, "
         "frag.prompts, frag.rag_pipeline.rag_agent, frag.evaluation.llm_as_judge, "
-        "frag.mcp_server.server, frag.data_manager.catalogue"
+        "frag.mcp_server.server, frag.catalogue.service, frag.catalogue.embedders, "
+        "frag.tools.local, frag.tools.mcp_client"
     )
     env = {"PATH": os.environ.get("PATH", ""), "HOME": str(tmp_path)}
     result = subprocess.run(  # noqa: S603  fixed interpreter and arguments

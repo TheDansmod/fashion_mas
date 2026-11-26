@@ -9,7 +9,7 @@ import asyncio
 from dotenv import load_dotenv
 from loguru import logger as log
 
-from frag.mcp_server.server import main as server_main
+from frag.mcp_server.server import serve
 from frag.runtime import open_resources
 from frag.settings import get_settings
 from frag.utils.logger_setup import setup_logging
@@ -26,7 +26,7 @@ async def main() -> None:
     )
     try:
         async with open_resources(settings, "mcp") as resources:
-            await server_main(resources.catalogue, settings.tools)
+            await serve(resources.catalogue, settings.tools)
     except Exception:  # noqa: BLE001  top-level: log any failure before exiting
         log.exception("Unhandled exception in the MCP server.")
     finally:

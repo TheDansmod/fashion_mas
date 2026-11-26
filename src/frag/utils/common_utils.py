@@ -127,20 +127,11 @@ def save_numpy_image_to_folder(folder_path: str, image_array: np.ndarray) -> Pat
     return file_path
 
 
-def save_image_url_to_folder(folder_path: str, image_url: str) -> Path:
-    """Saves image_url to temporary folder, returns path."""
+def save_image_b64(folder_path: str, image_b64: str) -> str:
+    """Write a base64-encoded PNG to a uniquely named file in `folder_path`."""
     directory = Path(folder_path)
     directory.mkdir(parents=True, exist_ok=True)
-    filename = f"{uuid.uuid4()}.png"
-    file_path = directory / filename
-    # if it is of the form data:image/png;base64,{the-url}
-    if "," in image_url:
-        base64_string = image_url.split(",")[1]
-        image_data = base64.b64decode(base64_string)
-    else:
-        # if it is directly the base64 encoded component
-        image_data = base64.b64decode(image_url)
-    with open(file_path, "wb") as file:
-        file.write(image_data)
+    file_path = directory / f"{uuid.uuid4()}.png"
+    file_path.write_bytes(base64.b64decode(image_b64))
     return str(file_path)
 

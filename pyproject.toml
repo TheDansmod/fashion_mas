@@ -54,6 +54,7 @@ siglip = [
     "open-clip-torch>=4.2.2",
     "torch>=2.15.0",
     "torchvision>=0.29.2",
+    "transformers>=5.2.0",
 ]
 
 # CPU-only torch wheels for the `siglip` group: the app only embeds short query texts

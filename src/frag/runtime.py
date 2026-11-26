@@ -13,11 +13,13 @@ from typing import Literal
 from langchain_core.language_models import BaseChatModel
 from langgraph.checkpoint.base import BaseCheckpointSaver
 
+from frag.catalogue.service import Catalogue, open_catalogue
 from frag.checkpointer import open_checkpointer
-from frag.data_manager.catalogue import Catalogue, open_catalogue
 from frag.llm import build_llm
 from frag.settings import Settings
-from frag.utils.llm_tools_setup import ToolsClient, get_tools_client
+from frag.tools.base import ToolsClient
+from frag.tools.local import LocalToolsClient
+from frag.tools.mcp_client import MCPToolsClient
 
 Role = Literal["agent", "eval", "mcp"]
 
@@ -31,6 +33,16 @@ class Resources:
     checkpointer: BaseCheckpointSaver | None = None
     tools: ToolsClient | None = None
     catalogue: Catalogue | None = None
+
+
+def build_tools_client(settings: Settings, catalogue: Catalogue | None) -> ToolsClient:
+    """Return MCP-backed or in-process tools, depending on `settings.tools.mode`."""
+    if settings.tools.mode == "mcp":
+        return MCPToolsClient(settings.tools.mcp_url)
+    if catalogue is None:
+        msg = "local tools need an open catalogue"
+        raise ValueError(msg)
+    return LocalToolsClient(catalogue)
 
 
 @asynccontextmanager
@@ -63,6 +75,6 @@ async def open_resources(settings: Settings, role: Role) -> AsyncIterator[Resour
                 settings=settings,
                 llm=build_llm(settings.llm, settings.aws_region),
                 checkpointer=checkpointer,
-                tools=get_tools_client(settings.tools, catalogue),
+                tools=build_tools_client(settings, catalogue),
                 catalogue=catalogue,
             )

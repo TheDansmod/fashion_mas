@@ -1,16 +1,23 @@
-"""Offline stand-ins for the LLM, the agent factory and the catalogue tools."""
+"""Offline stand-ins for the LLM, the agent factory, the tools and the catalogue."""
 
 import base64
+import io
 import itertools
 import json
 from pathlib import Path
-from typing import Literal
 
 from langchain_core.messages import AIMessage
 from langchain_core.tools import StructuredTool
 from loguru import logger as log
+from qdrant_client import AsyncQdrantClient, models
 
+from frag.catalogue.models import CatalogueItem
+from frag.catalogue.service import Catalogue
+from frag.catalogue.store import CATEGORY, DESCRIPTION, PRICE, S3ImageStore
+from frag.catalogue.vector_db import QdrantConnector
 from frag.prompts import EXPLANATION_PROMPT, REQUEST_FOCUS_PROMPT
+from frag.settings import CatalogueSettings
+from frag.tools.base import item_to_blocks, text_blocks
 
 FIXTURE_IMAGE = Path(__file__).parent / "fixtures" / "shirt.jpg"
 FIXTURE_IMAGE_B64 = base64.b64encode(FIXTURE_IMAGE.read_bytes()).decode()
@@ -130,36 +137,27 @@ def make_create_agent(chosen_ids=None, relevant_image_indexes=(0, 2)):
     return create_agent
 
 
-def _item_blocks(item_id: int, shape: Literal["local", "mcp"]) -> list[dict]:
+def fake_item(item_id: int, score: float | None = None) -> CatalogueItem:
     category, description = FAKE_ITEMS[item_id]
-    text = {
-        "type": "text",
-        "text": json.dumps(
-            {
-                "id": item_id,
-                "category": category,
-                "description": description,
-                "price": 10.0,
-                "score": 0.5,
-            }
-        ),
-    }
-    if shape == "mcp":
-        # what langchain-mcp-adapters returns for MCP ImageContent
-        image = {"type": "image", "base64": FIXTURE_IMAGE_B64, "mime_type": "image/png"}
-    else:
-        image = {
-            "type": "image_url",
-            "image_url": {"url": f"data:image/png;base64,{FIXTURE_IMAGE_B64}"},
-        }
-    return [text, image]
+    return CatalogueItem(
+        id=item_id,
+        category=category,
+        description=description,
+        price=10.0,
+        image_b64=FIXTURE_IMAGE_B64,
+        score=score,
+    )
 
 
 class FakeToolsClient:
-    """Same interface as LocalToolsClient / MCPToolsClient, over FAKE_ITEMS."""
+    """Same interface as LocalToolsClient / MCPToolsClient, over FAKE_ITEMS.
 
-    def __init__(self, shape: Literal["local", "mcp"] = "local"):
-        self.shape = shape
+    Ids in `failing_ids` raise on lookup, like an S3 or MCP error; unknown ids return
+    None, like a real catalogue miss.
+    """
+
+    def __init__(self, failing_ids: frozenset[int] = frozenset()):
+        self._failing_ids = failing_ids
 
         async def semantic_search(
             description: str,  # noqa: ARG001  mirrors the real tool's LLM-facing schema
@@ -168,26 +166,116 @@ class FakeToolsClient:
         ):
             """Fake semantic search."""
             ids = [i for i, (cat, _) in FAKE_ITEMS.items() if cat in categories]
-            return [b for i in ids[:num_matches] for b in _item_blocks(i, shape)]
+            return [b for i in ids[:num_matches] for b in item_to_blocks(fake_item(i))]
 
-        def get_product_categories() -> list[str]:
+        def get_product_categories():
             """Fake categories."""
-            return sorted({cat for cat, _ in FAKE_ITEMS.values()})
-
-        async def get_datapoint_by_index(index: int):
-            """Fake item lookup; unknown ids fail like a real catalogue miss."""
-            if index not in FAKE_ITEMS:
-                raise KeyError(index)
-            return _item_blocks(index, shape)
+            return text_blocks(json.dumps(sorted({c for c, _ in FAKE_ITEMS.values()})))
 
         self._llm_tools = [
             StructuredTool.from_function(coroutine=semantic_search),
             StructuredTool.from_function(func=get_product_categories),
         ]
-        self._db_tool = StructuredTool.from_function(coroutine=get_datapoint_by_index)
 
     async def get_llm_tools(self):
         return self._llm_tools
 
-    async def get_db_tool(self):
-        return self._db_tool
+    async def get_item(self, item_id: int) -> CatalogueItem | None:
+        if item_id in self._failing_ids:
+            raise RuntimeError(f"lookup of {item_id} failed")
+        return fake_item(item_id) if item_id in FAKE_ITEMS else None
+
+
+# --- a real Catalogue over fake S3, a fake embedder and an in-memory Qdrant ----------
+
+CATALOGUE_SETTINGS = CatalogueSettings()
+# vectors per item: the fake embedder maps every text to [1, 0]
+FAKE_VECTORS = {101: [1.0, 0.0], 102: [0.9, 0.1], 103: [0.0, 1.0]}
+# in Qdrant but missing from the metadata (e.g. the index is larger than a subset)
+ORPHAN_ID, ORPHAN_CATEGORY = 104, "JEANS"
+
+
+class FakeS3:
+    """Records requested keys; serves the fixture image and an optional Parquet."""
+
+    def __init__(
+        self, parquet: bytes = b"", missing_keys: frozenset[str] = frozenset()
+    ):
+        self.keys: list[tuple[str, str]] = []
+        self._parquet = parquet
+        self._missing = missing_keys
+
+    def get_object(self, Bucket, Key):  # noqa: N803  boto3 parameter names
+        self.keys.append((Bucket, Key))
+        if Key in self._missing:
+            raise KeyError(Key)
+        return {"Body": io.BytesIO(FIXTURE_IMAGE.read_bytes())}
+
+    def download_fileobj(self, bucket, key, buffer):
+        self.keys.append((bucket, key))
+        buffer.write(self._parquet)
+
+
+class FakeEmbedder:
+    dim = 2
+
+    def __init__(self):
+        self.texts: list[str] = []
+
+    async def embed_text(self, text: str) -> list[float]:
+        self.texts.append(text)
+        return [1.0, 0.0]
+
+
+async def fake_qdrant(collection: str = "test") -> AsyncQdrantClient:
+    client = AsyncQdrantClient(location=":memory:")
+    await client.create_collection(
+        collection,
+        vectors_config={
+            "images": models.VectorParams(size=2, distance=models.Distance.COSINE)
+        },
+    )
+    points = [(i, vec, FAKE_ITEMS[i][0]) for i, vec in FAKE_VECTORS.items()]
+    points.append((ORPHAN_ID, [1.0, 0.0], ORPHAN_CATEGORY))
+    await client.upsert(
+        collection,
+        [
+            models.PointStruct(
+                id=pid,
+                vector={"images": vec},
+                payload={
+                    CATALOGUE_SETTINGS.index_field: pid,
+                    CATALOGUE_SETTINGS.category_field: cat,
+                },
+            )
+            for pid, vec, cat in points
+        ],
+    )
+    return client
+
+
+def fake_connector(
+    client: AsyncQdrantClient, collection: str = "test"
+) -> QdrantConnector:
+    return QdrantConnector(
+        client=client,
+        collection=collection,
+        vector_name="images",
+        category_key=CATALOGUE_SETTINGS.category_field,
+        index_key=CATALOGUE_SETTINGS.index_field,
+    )
+
+
+def build_fake_catalogue(
+    client: AsyncQdrantClient, s3: FakeS3 | None = None
+) -> Catalogue:
+    metadata = {
+        i: {CATEGORY: cat, DESCRIPTION: desc, PRICE: 10.0}
+        for i, (cat, desc) in FAKE_ITEMS.items()
+    }
+    store = S3ImageStore(
+        CATALOGUE_SETTINGS.s3_bucket,
+        CATALOGUE_SETTINGS.image_key_template,
+        s3 or FakeS3(),
+    )
+    return Catalogue(metadata, store, FakeEmbedder(), fake_connector(client))
