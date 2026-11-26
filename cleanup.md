@@ -356,7 +356,7 @@ under `scripts/`, and the pytest fixtures. Each one runs this sequence:
 
 ## Phase 2: Dependencies and environment
 
-- [ ] **2.1 Dependencies** in `pyproject.toml`:
+- [x] **2.1 Dependencies** in `pyproject.toml`:
   - **Remove:**
     - `awscli`: a heavy CLI tool, not a library. Install it with
       `uv tool install awscli` or the system package, and document that in the README.
@@ -378,19 +378,48 @@ under `scripts/`, and the pytest fixtures. Each one runs this sequence:
     - `ingest = ["h5py"]`, needed only for `scripts/ingest_fashiongen.py`.
   - Keep `pandas` and `pyarrow` (metadata). Add `rich` explicitly; it's currently only
     a transitive dependency (decision 1.14).
-- [ ] **2.2 Don't change the link mode** (decision 1.2).
+- [x] **2.2 Don't change the link mode** (decision 1.2).
   - The current `.venv` is broken because the shell sets `UV_LINK_MODE=symlink`, and
     the cache entries the symlinks point to (under `$UV_CACHE_DIR/archive-v0/…`) were
     pruned.
   - Fix it with `uv sync --reinstall --all-groups`. Add a README note: with symlink
     mode, `uv cache clean`/`prune` breaks the venv, and `uv sync --reinstall` repairs
     it.
-- [ ] **2.3 Add `[project.scripts] frag = "frag.cli:main"`.**
-- [ ] **2.4 Run `uv lock` and `uv sync --all-groups`.**
-- [ ] **2.5 Remove the `--cov*` options from pytest `addopts`** so a plain `pytest` is
+- [x] **2.3 Add `[project.scripts] frag = "frag.cli:main"`.**
+- [x] **2.4 Run `uv lock` and `uv sync --all-groups`.**
+- [x] **2.5 Remove the `--cov*` options from pytest `addopts`** so a plain `pytest` is
   fast. Document `pytest --cov=frag --cov-report=term-missing` in the README instead.
 
 ---
+
+**Phase 2 done (2026-11-26).** Notes:
+- Removed `awscli` and `langchain-mistralai`. `dependency-injector` stays until the end
+  of Phase 4.
+- Added `numpy`, `tqdm`, `rich`, `langgraph-checkpoint-sqlite`, `aiosqlite`,
+  `langgraph-checkpoint-postgres`, `psycopg-pool` and `langchain-google-genai`.
+- New groups:
+  - `ingest = [h5py]`
+  - `siglip = [torch, torchvision, open-clip-torch]`. `torchvision` was added because
+    `open-clip-torch` depends on it and it must come from the same index as torch.
+    Both are pinned to `https://download.pytorch.org/whl/cpu` (`explicit = true`), so
+    the lock has `torch 2.15.0+cpu` on Linux and Windows and no `nvidia-*` or `triton`
+    packages.
+- The venv was repaired with `uv sync --reinstall --all-groups` (symlink mode kept),
+  and there are now 0 broken symlinks. Chainlit was reinstalled as real files with
+  `uv sync --all-groups --reinstall-package chainlit --link-mode copy`. That single
+  command replaces the README's `uv remove`/`uv add` workaround, and the README is
+  updated.
+- `[project.scripts] frag = "frag.cli:main"` is installed, but invoking it raises
+  `ModuleNotFoundError` until Phase 8 creates `frag.cli`.
+- Coverage options were removed from `addopts`; the README documents the coverage
+  command. The commented-out `log_file` pytest block was removed too.
+- **No AWS CLI is left on the machine.** It was previously only available through the
+  venv. The README now says to install v2 system-wide (on Arch:
+  `sudo pacman -S aws-cli-v2`). It's needed before Phase 13.
+- The existing test was **not run**, because its mock agent invokes the real
+  `semantic_search` tool, which calls Bedrock Nova (§0.2C). `pytest --collect-only`
+  succeeds. Phase 5 replaces the test with offline ones.
+- Ruff is unchanged at 993 violations.
 
 ## Phase 3: Fix the outright bugs (small, targeted)
 
