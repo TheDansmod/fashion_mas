@@ -60,7 +60,7 @@ async def run_fashion_agent_single_input(eval_input, callback_config):
     recommended_clothes_descriptions = []
     try:
         await agent.compile_graph()
-        config = {"configurable": {"thread_id": uuid4()}}
+        config = {"configurable": {"thread_id": str(uuid4())}}
         result = await agent.ainvoke({"is_chat_start": True}, config)
         # single run
         resume_payload = {
@@ -146,14 +146,16 @@ def get_final_score(
     comp_score = reco_eval.completeness_coverage_score
     if has_input_image:
         wt_sum = vis_wt + suit_wt + comp_wt
-        return vis_wt * vis_score + suit_wt * suit_score + comp_wt * comp_score / wt_sum
+        weighted = vis_wt * vis_score + suit_wt * suit_score + comp_wt * comp_score
+        return weighted / wt_sum
     else:
         wt_sum = suit_wt + comp_wt
-        return suit_wt * suit_score + comp_wt * comp_score / wt_sum
+        return (suit_wt * suit_score + comp_wt * comp_score) / wt_sum
 
 
 # this judges the outputs that are present - ignores those that have no outputs
 @track_token_use
+@inject
 def judge_evaluation_outputs(
     model=PV[Container.llm_model.provided],
     eval_response_file_path=PV[cfg.evaluation.eval_response_file_path],
@@ -205,7 +207,9 @@ def judge_evaluation_outputs(
             response = structured_model.invoke(msg, config=callback_config)
         except Exception as e:
             log.exception(
-                "For group: {eval_run['group_num']}, query: {eval_run['query_num_in_group']} There was an exception while invoking the structured model for judgement."
+                "Judge model failed for group {}, query {}.",
+                eval_run["group_num"],
+                eval_run["query_num_in_group"],
             )
             continue
         log.debug(

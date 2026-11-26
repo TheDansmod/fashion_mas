@@ -160,5 +160,5 @@ def create_checkpointer_provider(
         case _:
             raise ValueError(
                 f"Unsupported checkpointer backend: {backend!r}. "
-                "Expected 'sqlite' or 'postgres'."
+                "Expected 'sqlite', 'postgres' or 'dynamodb'."
             )

@@ -116,8 +116,7 @@ class CriticalEvaluation(BaseModel):
         description="Yes, if the recommendations satisfy the user request. No, if the recommendations don't satisfy the user request.",
     )
     correction: str = Field(
-        ...,
-        default_factory=str,
+        "",
         description="The correction to make if the recommendations do not satisfy the user request.",
     )
 

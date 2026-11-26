@@ -18,16 +18,12 @@ cfg = Container.config.provided
 
 @inject
 async def main(
-    recreate_vector_db: bool = PV[cfg.data.vector_db.recreate],
     eval_mode: bool = PV[cfg.evaluation.eval_mode],
 ):
     """Launch the current main task for the project."""
     try:
         await container.init_resources()
-        if recreate_vector_db:
-            log.info("Creating / re-creating Vector DB.")
-            populate_vector_db()
-        elif eval_mode:
+        if eval_mode:
             log.info("Running full evaluation pipeline.")
             await run_full_evaluation_pipeline()
         else:
