@@ -5,31 +5,44 @@ from typing import Literal
 from uuid import uuid4
 
 from langchain.agents import create_agent
-from langgraph.graph import END, START, StateGraph
-from langgraph.types import interrupt, Command
+from langchain_core.language_models import BaseChatModel
+from langgraph.checkpoint.base import BaseCheckpointSaver
+from langgraph.graph import START, StateGraph
+from langgraph.graph.state import CompiledStateGraph
+from langgraph.types import Command, interrupt
 from loguru import logger as log
-from dependency_injector.wiring import inject, Provide as PV
 
+from frag.prompts import (
+    CRITIQUE_PROMPT,
+    EXPLANATION_PROMPT,
+    HUMAN_INPUT_UPDATE_PROMPT,
+    MATCH_CLOTHES_PROMPT,
+    MODIFIER_IMAGES_ABSENT_PROMPT,
+    MODIFIER_IMAGES_PRESENT_PROMPT,
+    NUM_RECOMMENDATIONS_PROMPT,
+    REQUEST_FOCUS_PROMPT,
+    VISION_PROMPT,
+)
 from frag.rag_pipeline.llm_schemas import (
+    AgentState,
+    CriticalEvaluation,
     MatchedImageId,
     NumRecommendations,
     RequiredClothes,
     SingleImageDescription,
     UpdatedUserRequest,
-    CriticalEvaluation,
-    AgentState,
 )
+from frag.runtime import Resources
+from frag.settings import AgentSettings
+from frag.tokens import track_tokens
 from frag.utils.common_utils import (
     draw_langraph_topology,
     get_image_prompt_message,
+    get_multi_image_multi_prompt_message,
     get_multi_image_prompt_message,
     save_image_url_to_folder,
-    track_token_use,
-    get_multi_image_multi_prompt_message,
 )
-from frag.config.container import Container
-
-cfg = Container.config.provided
+from frag.utils.llm_tools_setup import ToolsClient
 
 
 class FashionAgent:
@@ -41,34 +54,34 @@ class FashionAgent:
     via LangGraph topologies.
     """
 
-    @inject
     def __init__(
         self,
-        callback_config,
-        model = PV[Container.llm_model.provided],
+        llm: BaseChatModel,
+        tools: ToolsClient,
+        checkpointer: BaseCheckpointSaver,
+        settings: AgentSettings,
+        callbacks: list | None = None,
     ) -> None:
-        """Inits the agentic state representations and external client integrations.
-
-        Instantiates the underlying generative models, the specialized SigLIP embedding
-        architecture for multimodal vectorization, and the SQLite-backed vector database
-        reader required for semantic similarity operations.
+        """Store the dependencies and compile the graph.
 
         Args:
-            callback_config (dict): A config object to be used with each llm call in
-                order to track the number of input, output, and total tokens used. It
-                is useful for Mistral API calls since they are rate limited to 500k
-                tokens per minute.
+            llm: Chat model used by every node.
+            tools: Catalogue tools (local or MCP-backed).
+            checkpointer: LangGraph checkpointer; conversation state is keyed by the
+                `thread_id` in the invocation config.
+            settings: Agent behaviour settings.
+            callbacks: LangChain callbacks passed to every LLM call, e.g. a
+                `UsageMetadataCallbackHandler` for token tracking.
         """
-        self._model = model
-        # setup embeddings
-        self._callback_config = callback_config
-        self._graph = None
+        self._model = llm
+        self._tools = tools
+        self._settings = settings
+        self._callback_config = {"callbacks": callbacks or []}
+        self._graph = self._build_graph(checkpointer)
 
-    @inject
     async def human_node(
         self,
         state: AgentState,
-        input_update_prompt: str = PV[cfg.prompts.human_node.input_update_prompt],
     ) -> AgentState:
         """Node for human interaction.
 
@@ -98,7 +111,7 @@ class FashionAgent:
                 resp_img_descr.append(f"Index {base_len + idx}: {descr}")
             resp_img_descr = "\n".join(resp_img_descr)
             # construct the input message for LLM agent
-            prompt = input_update_prompt.format(
+            prompt = HUMAN_INPUT_UPDATE_PROMPT.format(
                 original_image_descriptions=org_img_descr,
                 original_text_input=state.input_text,
                 response_image_descriptions=resp_img_descr,
@@ -169,16 +182,9 @@ class FashionAgent:
         log.debug("State update: {}", json.dumps(state_update, indent=2))
         return state_update
 
-    @inject
     def quantifier_node(
         self,
         state: AgentState,
-        num_recommendations_prompt: str = PV[
-            cfg.prompts.quantifier_node.num_recommendations_prompt
-        ],
-        default_num_recommendations: int = PV[
-            cfg.orchestration.default_num_recommendations
-        ],
     ) -> AgentState:
         """Figures out how many recommendations need to be made to the user.
 
@@ -194,17 +200,20 @@ class FashionAgent:
                 `num_recommendations` scalar.
         """
         log.debug("Entered quantifier node.")
-        prompt = num_recommendations_prompt.format(user_request=state.input_text)
+        prompt = NUM_RECOMMENDATIONS_PROMPT.format(user_request=state.input_text)
         structured_model = self._model.with_structured_output(NumRecommendations)
         log.debug("Invoking model.")
         response = structured_model.invoke(
             prompt, config=self._callback_config
         )  # text prompt - structured
         log.debug("Received response from model.")
-        log.debug("default num recommendations: {}", default_num_recommendations)
+        log.debug(
+            "default num recommendations: {}",
+            self._settings.default_num_recommendations,
+        )
         log.debug("response.num_recommendations: {}", response.num_recommendations)
         num_recommendations = (
-            default_num_recommendations
+            self._settings.default_num_recommendations
             if response.num_recommendations == 0
             else response.num_recommendations
         )
@@ -213,11 +222,9 @@ class FashionAgent:
         )
         return {"num_recommendations": num_recommendations}
 
-    @inject
     def intent_node(
         self,
         state: AgentState,
-        request_focus_prompt: str = PV[cfg.prompts.intent_node.request_focus_prompt],
     ) -> AgentState:
         """Formulates specialized instructions for the downstream visual parsing phase.
 
@@ -232,7 +239,7 @@ class FashionAgent:
             AgentState: The updated state dictionary populated with `vlm_instructions`.
         """
         log.debug("Entered intent node.")
-        prompt = request_focus_prompt.format(user_request=state.input_text)
+        prompt = REQUEST_FOCUS_PROMPT.format(user_request=state.input_text)
         log.debug("Invoking model.")
         response = self._model.invoke(
             prompt, config=self._callback_config
@@ -241,11 +248,9 @@ class FashionAgent:
         log.debug(f"Instructions for the VLM:\n{response.content}")
         return {"vlm_instructions": response.content}
 
-    @inject
     def vision_node(
         self,
         state: AgentState,
-        user_prompt: str = PV[cfg.prompts.vision_node.user_prompt],
     ) -> AgentState:
         """Executes targeted visual feature extraction across the user-supplied image.
 
@@ -269,7 +274,7 @@ class FashionAgent:
                 continue
             msg = get_image_prompt_message(
                 image_path=image_path,
-                text_prompt=user_prompt.format(
+                text_prompt=VISION_PROMPT.format(
                     image_focus_instructions=state.vlm_instructions
                 ),
             )
@@ -282,17 +287,9 @@ class FashionAgent:
         log.debug(f"Descriptions obtained from vision node:\n{descr}")
         return {"input_images_descriptions": descr}
 
-    @inject
     def modifier_node(
         self,
         state: AgentState,
-        images_present_prompt: str = PV[
-            cfg.prompts.modifier_node.images_present_prompt
-        ],
-        images_absent_prompt: str = PV[cfg.prompts.modifier_node.images_absent_prompt],
-        num_recommendation_attempts: int = PV[
-            cfg.orchestration.num_recommendation_attempts
-        ],
     ) -> AgentState:
         """Produces text descriptions of clothing items requested by user.
 
@@ -316,20 +313,20 @@ class FashionAgent:
             ]
         )
         if state.has_input_images:
-            prompt = images_present_prompt.format(
+            prompt = MODIFIER_IMAGES_PRESENT_PROMPT.format(
                 reference_descriptions=ref_descr,
                 user_request=state.input_text,
                 num_recommendations=state.num_recommendations,
                 critique_node_correction=state.critique_text,
             )
         else:
-            prompt = images_absent_prompt.format(
+            prompt = MODIFIER_IMAGES_ABSENT_PROMPT.format(
                 user_request=state.input_text,
                 num_recommendations=state.num_recommendations,
                 critique_node_correction=state.critique_text,
             )
         structured_model = self._model.with_structured_output(RequiredClothes)
-        for attempt_num in range(num_recommendation_attempts):
+        for attempt_num in range(self._settings.num_recommendation_attempts):
             log.debug("Invoking model.")
             response = structured_model.invoke(
                 prompt, config=self._callback_config
@@ -348,15 +345,9 @@ class FashionAgent:
         )
         return {"required_clothes_descriptions": response.required_clothes_descriptions}
 
-    @inject
     async def recommender_node(
         self,
         state: AgentState,
-        match_clothes_prompt: str = PV[
-            cfg.prompts.recommender_node.match_clothes_prompt
-        ],
-        temporary_images_folder: str = PV[cfg.orchestration.temporary_images_folder],
-        tools_client = PV[Container.tools_client.provided],
     ) -> AgentState:
         """Executes semantic similarity search within the vector embedding space.
 
@@ -376,7 +367,7 @@ class FashionAgent:
         # clothing items
         recommended_clothes_images = []
         log.debug("Entered recommender node.")
-        tools = await tools_client.get_llm_tools()
+        tools = await self._tools.get_llm_tools()
         agent = create_agent(
             model=self._model,
             tools=tools,
@@ -384,7 +375,7 @@ class FashionAgent:
             debug=False,
         )
         for descr in state.required_clothes_descriptions:
-            prompt = match_clothes_prompt.format(item_description=descr)
+            prompt = MATCH_CLOTHES_PROMPT.format(item_description=descr)
             log.debug("Invoking agent.")
             response = await agent.ainvoke(
                 {"messages": prompt}, config=self._callback_config
@@ -392,7 +383,7 @@ class FashionAgent:
             recommended_clothes_images.append(response["structured_response"].image_id)
             log.debug("Received response from agent.")
         # saving the images to path and storing the path - this is a bit of a repeat from human node, but for now does not matter
-        tool = await tools_client.get_db_tool()
+        tool = await self._tools.get_db_tool()
         recommended_clothes_image_paths = []
         recommended_clothes_descriptions = []
         for img_index in recommended_clothes_images:
@@ -424,7 +415,7 @@ class FashionAgent:
                     img_index,
                 )
                 continue
-            path = save_image_url_to_folder(temporary_images_folder, image_url)
+            path = save_image_url_to_folder(self._settings.temp_dir, image_url)
             recommended_clothes_image_paths.append(path)
             recommended_clothes_descriptions.append(image_descr)
         log.debug(
@@ -435,12 +426,9 @@ class FashionAgent:
             "recommended_clothes_descriptions": recommended_clothes_descriptions,
         }
 
-    @inject
     def critique_node(
         self,
         state: AgentState,
-        max_num_critiques: int = PV[cfg.orchestration.max_num_critiques],
-        critique_prompt: str = PV[cfg.prompts.critique_node.critique_prompt],
     ) -> AgentState:
         """Critiques the recommendations and proposes suggestions.
 
@@ -459,7 +447,7 @@ class FashionAgent:
         """
         # check if we are done with critiquing
         log.debug("Entered critique node.")
-        if state.num_times_critiqued >= max_num_critiques:
+        if state.num_times_critiqued >= self._settings.max_num_critiques:
             return {
                 "num_times_critiqued": state.num_times_critiqued,
                 "critique_text": "",
@@ -476,7 +464,7 @@ class FashionAgent:
         )
         for idx, img_descr in enumerate(state.recommended_clothes_descriptions):
             prompts.append(("text", f"Description of Item {idx + 1}: {img_descr}\n\n"))
-        prompts.append(("text", critique_prompt))
+        prompts.append(("text", CRITIQUE_PROMPT))
         msg = get_multi_image_multi_prompt_message(prompts)
         # make and invoke the model
         structured_model = self._model.with_structured_output(CriticalEvaluation)
@@ -492,11 +480,9 @@ class FashionAgent:
                 "critique_text": response.correction,
             }
 
-    @inject
     def explanation_node(
         self,
         state: AgentState,
-        explanation_prompt: str = PV[cfg.prompts.explanation_node.explanation_prompt],
     ) -> AgentState:
         """Formulates analytical justifications elucidating the retrieval congruence.
 
@@ -530,7 +516,7 @@ class FashionAgent:
                     f"Above is Recommended Image {idx + 1}.\nDescription of Item {idx + 1}: {img_descr}\n\n",
                 )
             )
-        prompts.append(("text", explanation_prompt))
+        prompts.append(("text", EXPLANATION_PROMPT))
         msg = get_multi_image_multi_prompt_message(prompts)
         # invoke model
         log.debug("Invoking model")
@@ -570,13 +556,7 @@ class FashionAgent:
             return "modifier_node"
         return "explanation_node"
 
-    @inject
-    async def compile_graph(
-        self,
-        checkpointer=PV[Container.checkpointer.provided],
-        node_diagram_path: str = PV[cfg.orchestration.node_diagram_path],
-        draw_node_diagram: bool = PV[cfg.orchestration.draw_node_diagram],
-    ):
+    def _build_graph(self, checkpointer: BaseCheckpointSaver) -> CompiledStateGraph:
         builder = StateGraph(AgentState)
         # nodes
         builder.add_node("human_node", self.human_node)
@@ -597,10 +577,10 @@ class FashionAgent:
         builder.add_edge("recommender_node", "critique_node")
         builder.add_conditional_edges("critique_node", self.critique_node_router)
         builder.add_edge("explanation_node", "human_node")
-        # compile and run
-        self._graph = builder.compile(checkpointer=checkpointer)
-        if draw_node_diagram:
-            draw_langraph_topology(self._graph, node_diagram_path)
+        graph = builder.compile(checkpointer=checkpointer)
+        if self._settings.draw_graph_path:
+            draw_langraph_topology(graph, self._settings.draw_graph_path)
+        return graph
 
     async def ainvoke(self, initial_state, config):
         return await self._graph.ainvoke(initial_state, config)
@@ -617,11 +597,21 @@ class FashionAgent:
 # there is no resume from checkpoint for this - you always start fresh
 # chainlit handles the resume when required
 # here we use uuid to have fresh start everytime
-@track_token_use
-async def run_fashion_agent(callback_config):
+async def run_fashion_agent(resources: Resources) -> None:
+    """Terminal chat loop (moves to frag.cli in cleanup.md Phase 8)."""
+    with track_tokens(resources.settings.token_usage_csv) as usage:
+        await _chat_loop(resources, usage)
+
+
+async def _chat_loop(resources: Resources, usage) -> None:  # noqa: ANN001  callback handler
     log.debug("running fashion agent")
-    fashion_agent = FashionAgent(callback_config)
-    await fashion_agent.compile_graph()
+    fashion_agent = FashionAgent(
+        llm=resources.llm,
+        tools=resources.tools,
+        checkpointer=resources.checkpointer,
+        settings=resources.settings.agent,
+        callbacks=[usage],
+    )
     config = {"configurable": {"thread_id": str(uuid4())}}
     result = await fashion_agent.ainvoke({"is_chat_start": True}, config)
     while True:

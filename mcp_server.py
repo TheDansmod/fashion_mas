@@ -1,30 +1,38 @@
-"""Shim for launching the mcp server."""
+"""MCP server entrypoint: `uv run mcp_server.py`.
+
+Serves the catalogue tools over streamable HTTP; the agent uses them when
+TOOLS__MODE=mcp. Replaced by `frag mcp` in cleanup.md Phase 8.
+"""
+
 import asyncio
 
+from dotenv import load_dotenv
 from loguru import logger as log
-from dependency_injector.wiring import inject, Provide as PV
-from dependency_injector import providers
-
-# dependency wiring must be done before frag imports
-from frag.config.container import Container
-
-container = Container()
-# we are in the mcp server process
-container.in_mcp_server_process.override(providers.Object(True))
 
 from frag.mcp_server.server import main as server_main
+from frag.runtime import open_resources
+from frag.settings import get_settings
+from frag.utils.logger_setup import setup_logging
 
-@inject
-async def main(use_mcp_server: bool = PV[Container.config.provided.env.use_mcp_server]):
-    if not use_mcp_server:
-        raise ValueError("Did you mean to run the MCP server? The USE_MCP_SERVER environment variable is set to False!")
+
+async def main() -> None:
+    """Open the catalogue and serve the MCP tools until interrupted."""
+    settings = get_settings()
+    setup_logging(
+        settings.logging,
+        level=settings.log_level,
+        is_dev=settings.is_dev,
+        service="mcp",
+    )
     try:
-        await container.init_resources()
-        await server_main()
-    except Exception as e:
-        log.exception("Some Exception in mcp_server.py main function.")
+        async with open_resources(settings, "mcp") as resources:
+            await server_main(resources.catalogue, settings.tools)
+    except Exception:  # noqa: BLE001  top-level: log any failure before exiting
+        log.exception("Unhandled exception in the MCP server.")
     finally:
-        await container.shutdown_resources()
+        await log.complete()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
+    load_dotenv()
     asyncio.run(main())

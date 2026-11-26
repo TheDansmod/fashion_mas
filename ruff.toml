@@ -17,10 +17,18 @@ ignore = [
     "D",       # test names are self-describing; docstrings add noise
     "PLR2004", # literal expected values are the point of assertions
     "INP001",  # pytest runs with --import-mode=importlib; tests/ is deliberately not a package
+    "ANN",     # fixtures are injected by name; annotating test signatures adds noise
 ]
 "scripts/**" = [
     "T201",    # scripts report progress on stdout by design
     "INP001",  # standalone scripts run by path, not an importable package
+]
+
+# provider / backend packages are imported lazily so that only the selected one needs to
+# be importable (e.g. postgres or google packages are not loaded when unused)
+"src/frag/{llm,checkpointer}.py" = ["PLC0415"]
+"**/prompts.py" = [
+    "E501",    # prompt prose: wrapping would insert newlines into the text sent to the LLM
 ]
 
 [lint.pydocstyle]

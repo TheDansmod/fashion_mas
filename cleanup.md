@@ -514,7 +514,7 @@ At the end of this phase, nothing under `src/frag` imports `dependency_injector`
 
 ### 4.1 Settings (`src/frag/settings.py`); follows §3.1
 
-- [ ] Merge `config/app_config.py`, `envs.py`, `data.py`, `models.py`,
+- [x] Merge `config/app_config.py`, `envs.py`, `data.py`, `models.py`,
   `orchestration.py`, `logs.py`, `tracking.py` and `eval.py` into one
   `Settings(BaseSettings)` with nested `BaseModel` sections. Keep the current default
   values. Suggested shape:
@@ -555,7 +555,7 @@ At the end of this phase, nothing under `src/frag` imports `dependency_injector`
   @lru_cache
   def get_settings() -> Settings: return Settings()
   ```
-- [ ] **Declare only what the app reads itself.** These read their own environment
+- [x] **Declare only what the app reads itself.** These read their own environment
   variables, so don't declare them:
   - LangSmith (`LANGSMITH_*`)
   - Chainlit and Cognito (`OAUTH_COGNITO_*`, `CHAINLIT_AUTH_SECRET`, `OAUTH_PROMPT`)
@@ -568,14 +568,14 @@ At the end of this phase, nothing under `src/frag` imports `dependency_injector`
   which stops boto3 falling back to an instance role. Drop `MISTRAL_API_KEY` and
   `use_mcp_server` (it becomes `TOOLS__MODE`). Use `extra="ignore"`: `.env` is shared
   with those libraries.
-- [ ] **Remove the hard-coded values:**
+- [x] **Remove the hard-coded values:**
   - One `aws_region` replaces the four `"us-east-1"` literals.
   - `num_datapoints` is gone; the catalogue size is `len(metadata)`.
   - `product_categories` is gone; it's derived from the metadata at startup
     (Phase 6.5).
   - `fashion_gen_image_s3_key_lambda` is replaced by `image_key_template`. No lambdas
     in config.
-- [ ] **Delete the dead fields:**
+- [x] **Delete the dead fields:**
   - SigLIP *ingestion* fields: `embedding_batch_size`, `data_fetch_batch_size`,
     `migration_batch_size`, `payload_update_batch_size`, `upload_batch_size`,
     `upload_parallel`. These become `scripts/build_vector_db.py` arguments if needed.
@@ -588,13 +588,13 @@ At the end of this phase, nothing under `src/frag` imports `dependency_injector`
     `host_transport_method`, and the S3 pool and retry fields (hard-code one boto
     `Config` in `catalogue/store.py`).
   - `eval_mode` (it becomes a CLI subcommand) and `query_images_path`.
-- [ ] **Move prompts out of config** into `src/frag/prompts.py` as constants. Fix the
+- [x] **Move prompts out of config** into `src/frag/prompts.py` as constants. Fix the
   typos while moving them: "You are a expert", "expert fashion_assistant", "Your role
   is judge", "You task is". The evaluation prompt moves to `evaluation/`.
 
 ### 4.2 LLM factory (`src/frag/llm.py`)
 
-- [ ] Replace `utils/model_factory.py` and the `ModelsConfig.llm_provider`
+- [x] Replace `utils/model_factory.py` and the `ModelsConfig.llm_provider`
   `computed_field`, which makes config import utils (a layering inversion):
   ```python
   def build_llm(s: LLMSettings, region: str) -> BaseChatModel:
@@ -610,7 +610,7 @@ At the end of this phase, nothing under `src/frag` imports `dependency_injector`
               return ChatGoogleGenerativeAI(model=s.model_id, temperature=s.temperature,
                                             rate_limiter=limiter)
   ```
-- [ ] **Gemini caveats to verify.** Each check is one or two free-tier Google calls,
+- [ ] **Gemini caveats to verify.** *(pending: no `GOOGLE_API_KEY` in `.env` yet)* Each check is one or two free-tier Google calls,
   which is allowed; Google isn't AWS.
   1. Pick a current vision-capable Gemini model that has free-tier access; check
      Google AI Studio for the current list. Set a conservative `rate_limit_rps` for
@@ -629,7 +629,7 @@ At the end of this phase, nothing under `src/frag` imports `dependency_injector`
 
 ### 4.3 Resource composition (`src/frag/runtime.py`)
 
-- [ ] Replace `config/container.py` (14 `manage_*` functions, the
+- [x] Replace `config/container.py` (14 `manage_*` functions, the
   `in_mcp_server_process` override and the `_conditional_checkpointer` wrapper) with:
   ```python
   @dataclass
@@ -657,19 +657,19 @@ At the end of this phase, nothing under `src/frag` imports `dependency_injector`
                        else MCPToolsClient(settings.tools.mcp_url))
           yield Resources(settings, llm, checkpointer, catalogue, tools)
   ```
-- [ ] Logging is **not** a resource. Entrypoints call `setup_logging` first (§3.2).
+- [x] Logging is **not** a resource. Entrypoints call `setup_logging` first (§3.2).
 
 ### 4.4 Thread resources through explicitly
 
-- [ ] `FashionAgent(llm, tools, checkpointer, settings: AgentSettings, callbacks=None)`.
+- [x] `FashionAgent(llm, tools, checkpointer, settings: AgentSettings, callbacks=None)`.
   Remove every `@inject`/`PV[...]`; nodes read `self._settings` and `prompts.*`.
   Compile the graph in `__init__`, which is synchronous.
-- [ ] `mcp_server.server.build_server(catalogue) -> FastMCP` (Phase 6.7).
-- [ ] Evaluation functions take `(resources, eval_settings)` (Phase 9).
+- [x] `mcp_server.server.build_server(catalogue) -> FastMCP` (Phase 6.7).
+- [x] Evaluation functions take `(resources, eval_settings)` (Phase 9).
 
 ### 4.5 Checkpointer (`src/frag/checkpointer.py`); decision 1.7
 
-- [ ] Settings:
+- [x] Settings:
   ```python
   class CheckpointerSettings(BaseModel):
       backend: Literal["memory", "sqlite", "postgres", "dynamodb"] = "sqlite"
@@ -682,7 +682,7 @@ At the end of this phase, nothing under `src/frag` imports `dependency_injector`
   ```
   Replace `POSTGRES_USER/PASSWORD/DB` with a single DSN, and replace
   `AWS_DYNAMODB_CHECKPOINTER_TABLE_NAME` with `CHECKPOINTER__DYNAMODB_TABLE`.
-- [ ] Implementation, replacing the ABC, the three provider classes and the factory
+- [x] Implementation, replacing the ABC, the three provider classes and the factory
   (164 lines):
   ```python
   @asynccontextmanager
@@ -708,23 +708,89 @@ At the end of this phase, nothing under `src/frag` imports `dependency_injector`
               yield DynamoDBSaver(table_name=c.dynamodb_table, ...)  # same args as today; check the installed signature
   ```
   Keep the explanatory comments about `autocommit`/`prepare_threshold`; they're good.
-- [ ] Add a `postgres` service to `compose.yaml` under `profiles: ["postgres"]`
+- [x] Add a `postgres` service to `compose.yaml` under `profiles: ["postgres"]`
   (`postgres:17`, bound to loopback, with a named volume and a healthcheck), so that
   `podman compose --profile postgres up -d` plus `CHECKPOINTER__BACKEND=postgres` is
   the whole toggle.
-- [ ] Unit-test `memory` and `sqlite` offline. Test `postgres` only if the compose
+- [x] Unit-test `memory` and `sqlite` offline. Test `postgres` only if the compose
   service is running; skip otherwise with `pytest.mark.skipif` on connection failure.
   Test `dynamodb` only under `@pytest.mark.aws` (§0.2B allows it, but it stays
   deselected by default).
 
 ### 4.6 Remove the DI package
 
-- [ ] Delete `config/container.py` and the `config/` package.
-- [ ] `grep -rn "dependency_injector\|Provide\[\|@inject\|Container" src tests app.py`
+- [x] Delete `config/container.py` and the `config/` package.
+- [x] `grep -rn "dependency_injector\|Provide\[\|@inject\|Container" src tests app.py`
   returns nothing.
-- [ ] Remove `dependency-injector` from `pyproject.toml` and run `uv lock`.
+- [x] Remove `dependency-injector` from `pyproject.toml` and run `uv lock`.
 
 ---
+
+**Phase 4 done (2026-11-26)**, except the Gemini checks in 4.2, which need a
+`GOOGLE_API_KEY` from the user. Notes:
+- **New modules:** `settings.py`, `prompts.py`, `llm.py`, `checkpointer.py`,
+  `runtime.py`, `tokens.py`, `evaluation/prompts.py` and `data_manager/catalogue.py`.
+- **Deleted:** the `config/` package, `utils/model_factory.py`, `utils/checkpointer.py`
+  and `dependency-injector`. A grep for DI references across `src`, `tests`, `scripts`
+  and the entrypoints comes back empty.
+- **Pulled forward from later phases**, because removing DI touched the same code:
+  - 7.5: `tokens.track_tokens` replaces the exception-swallowing `track_token_use`.
+  - 11.2: the DI-only `get_qdrant_points_by_id` is deleted.
+  - 6.2: the metadata loader reads only the 4 columns it uses.
+  - 6.5: categories are derived from the metadata (48 for the full catalogue).
+  - 6.7 (partly): `FastMCP` is no longer a module-level global.
+  - 11.3 (partly): `setup_logging` is idempotent and uses a per-service file name
+    (`logs/*/frag-{agent,cli,eval,mcp}.log`). The Rich console is kept.
+  - 8.1 (partly): `cli_main.py` takes `chat|eval` with argparse, since the eval-mode
+    setting is gone. `mcp_server.py` no longer checks `USE_MCP_SERVER`.
+- **Interim structure until Phase 6:** `get_fashion_gen_data` became
+  `FashionGenData.get()`, and `Catalogue` is a plain frozen dataclass (data, vector DB,
+  embedder, categories) opened by `open_catalogue()`. `EMBEDDING__BACKEND` defaults to
+  `nova`; the default switches to `siglip` once Phase 6 restores that embedder.
+- **Behaviour changes:**
+  - Eval uses the in-memory checkpointer (§3.3).
+  - The token CSV timestamp is now ISO UTC (`+00:00`).
+  - `FashionAgent` compiles its graph in `__init__`, so `compile_graph()` is gone.
+  - In `app.py`, all imports come first, then `load_dotenv()` and the monkeypatches.
+    Nothing reads env or patched globals at import time.
+- **`.env` renames needed** (the user does these; the agent doesn't edit `.env`):
+  - `AWS_DYNAMODB_CHECKPOINTER_TABLE_NAME` becomes `CHECKPOINTER__DYNAMODB_TABLE`
+  - `AWS_DYNAMODB_CHAINLIT_PERSISTENCE_TABLE_NAME` becomes
+    `CHAT_HISTORY__DYNAMODB_TABLE`
+  - `AWS_S3_CHAINLIT_PERSISTENCE_BUCKET_NAME` becomes `CHAT_HISTORY__S3_BUCKET`
+  - `USE_MCP_SERVER=false|true` becomes `TOOLS__MODE=local|mcp`
+  - Add `CHECKPOINTER__BACKEND=dynamodb` to keep the current behaviour (the default is
+    now `sqlite`).
+  - Optional: `POSTGRES_*` becomes `CHECKPOINTER__POSTGRES_DSN`.
+  - `MISTRAL_API_KEY` can go.
+  - `.env.example` is rewritten to match (part of Phase 14.1, done early).
+- **`compose.yaml`:** a `postgres` service under `profiles: ["postgres"]`, bound to
+  loopback, with a named volume and a healthcheck.
+- **Ruff:** new and rewritten files are clean, and changed lines in partially edited
+  files are clean. Total 984 → 396. New justified ignores:
+  - tests: `ANN` (fixtures are injected by name)
+  - `**/prompts.py`: `E501` (wrapping would change the prompt text)
+  - `src/frag/{llm,checkpointer}.py`: `PLC0415` (lazy backend imports)
+  - inline `BLE001` on the eval loops and the entrypoint top-level handlers
+  - inline `S105` on `token_usage_csv` (false positive)
+- **Smoke checks** (not the pytest suite; no Bedrock calls):
+  - Empty-environment import of every module: passes. `Settings() == Settings()`.
+  - Checkpoint put/get/delete on `memory`, `sqlite` (temp dir), `postgres` (compose
+    profile) and `dynamodb` (the existing table; test thread deleted): all pass.
+  - `open_resources(role="mcp")`: S3 metadata (260,490 items, 48 categories) and local
+    Qdrant `nova_fashion_gen` (**10,000 points**). The search path, using a stored
+    vector instead of an embedding, the image fetch, an unknown ID (`{}`) and the local
+    lookup tool all pass.
+  - `mcp_server.py` plus `MCPToolsClient`: tool discovery passes. The lookup tool
+    returns `['text', 'image']` blocks, which the recommender's 3.17 parsing handles.
+  - Containers were stopped afterwards.
+- **AWS call log (§0.2E):**
+  - (B) DynamoDB checkpointer table: about 6 requests (put, get, delete thread, get).
+  - (B) S3 `frag-fashion-gen-dataset`: the metadata Parquet downloaded twice (the
+    catalogue check and the MCP server startup), plus 4 image GETs.
+  - No Bedrock calls, and no resource changes.
+- The integration test's `container` fixture is removed, so the old test can't run
+  until Phase 5 rewrites it.
 
 ## Phase 5: Offline tests (the safety net for Phases 6–9)
 

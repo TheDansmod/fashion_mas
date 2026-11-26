@@ -1,26 +1,14 @@
 """This file will contain commonly re-used utility functions."""
 
-from pathlib import Path
-import numpy as np
-import uuid
-import asyncio
 import base64
-import csv
-import functools
-from datetime import datetime
+import uuid
 from io import BytesIO
+from pathlib import Path
 
-from langchain_core.callbacks import UsageMetadataCallbackHandler
+import numpy as np
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables.graph import MermaidDrawMethod
 from PIL import Image
-from qdrant_client import QdrantClient, models
-from loguru import logger as log
-from dependency_injector.wiring import inject, Provide as PV
-
-from frag.config.container import Container
-
-cfg = Container.config.provided
 
 
 def encode_image(image_path=None, numpy_image=None):
@@ -127,88 +115,6 @@ def draw_langraph_topology(app, path):
     with open(path, "wb") as f:
         f.write(png_bytes)
 
-
-@inject
-def get_qdrant_points_by_id(
-    ids=None,
-    collection_name: str = PV[cfg.data.vector_db.collection_name],
-    url: str = PV[cfg.data.vector_db.vector_store_network_path],
-    prefer_grpc: bool = PV[cfg.data.vector_db.prefer_grpc],
-):
-    """Logs payload information for Qdrant points using provided IDs."""
-    if len(ids) < 1:
-        raise ValueError("ids should be a list of ids of length at least 1")
-    client = QdrantClient(url=url, prefer_grpc=prefer_grpc)
-    # returned values are list of Records, it has an attribute called payload
-    points = client.retrieve(
-        collection_name=collection_name, ids=ids, with_payload=True, with_vectors=False
-    )
-    for point in points:
-        log.debug(point.payload["input_category"])
-        log.debug(point.payload["input_description"])
-        log.debug(point.payload.keys())
-
-
-@inject
-def update_token_use(
-    usage_metadata,
-    tracker_path=PV[cfg.tracking.token_usage_tracker_path],
-):
-    """Updates the token usage tracking csv file with the data from the callback."""
-    log.info(
-        f"Saving token use data for {len(usage_metadata)} models. "
-        "Should be invoked just once every full run."
-    )
-    with open(tracker_path, "a", newline="") as csv_file:
-        writer = csv.writer(csv_file)
-        for model_name, metadata in usage_metadata.items():
-            writer.writerow(
-                [
-                    datetime.now().isoformat(timespec="seconds"),
-                    model_name,
-                    metadata["input_tokens"],
-                    metadata["output_tokens"],
-                    metadata["total_tokens"],
-                ]
-            )
-
-
-def track_token_use(func):
-    """Decorator to track token usage for LLM calls - useful for Mistral."""
-    if asyncio.iscoroutinefunction(func):
-
-        @functools.wraps(func)
-        async def wrapper(*args, **kwargs):
-            callback = UsageMetadataCallbackHandler()
-            callback_config = {"callbacks": [callback]}
-            kwargs["callback_config"] = callback_config
-            result = None
-            try:
-                result = await func(*args, **kwargs)
-            except Exception as e:
-                log.exception("Exception caught inside track_token_use function.")
-            finally:
-                update_token_use(callback.usage_metadata)
-            return result
-
-        return wrapper
-    else:
-
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            callback = UsageMetadataCallbackHandler()
-            callback_config = {"callbacks": [callback]}
-            kwargs["callback_config"] = callback_config
-            result = None
-            try:
-                result = func(*args, **kwargs)
-            except Exception as e:
-                log.exception("Exception caught inside track_token_use function.")
-            finally:
-                update_token_use(callback.usage_metadata)
-            return result
-
-        return wrapper
 
 def save_numpy_image_to_folder(folder_path: str, image_array: np.ndarray) -> Path:
     """Saves numpy image to temporary folder, returns path."""
