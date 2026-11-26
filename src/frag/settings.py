@@ -44,9 +44,9 @@ class LLMSettings(_Section):
 class EmbeddingSettings(_Section):
     """Query-time text embedder; must match the vectors in the selected collection."""
 
-    # "siglip" (Marqo-FashionSigLIP, local) becomes the default once its embedder is
-    # restored in cleanup.md Phase 6; until then only "nova" is implemented
-    backend: Literal["siglip", "nova"] = "nova"
+    # "siglip": Marqo-FashionSigLIP run locally (needs the `siglip` dependency group);
+    # "nova": Amazon Nova on Bedrock (billed per query)
+    backend: Literal["siglip", "nova"] = "siglip"
     siglip_model: str = "hf-hub:Marqo/marqo-fashionSigLIP"
     nova_model_id: str = "amazon.nova-2-multimodal-embeddings-v1:0"
     # Nova supports 3072, 1024, 384 and 256; the existing collection uses 1024
@@ -67,10 +67,6 @@ class CatalogueSettings(_Section):
     description_field: str = "input_description"
     price_field: str = "input_msrpUSD"
 
-    def image_key(self, idx: int) -> str:
-        """Return the S3 key of the image for catalogue item `idx`."""
-        return self.image_key_template.format(shard=idx // 1000, idx=idx)
-
 
 class VectorDBSettings(_Section):
     """Qdrant connection and collection selection."""
@@ -89,7 +85,7 @@ class VectorDBSettings(_Section):
 class ToolsSettings(_Section):
     """How the agent reaches the catalogue tools."""
 
-    # "local": in-process tools; "mcp": tools served by `mcp_server.py`
+    # "local": in-process tools; "mcp": tools served by the MCP server process
     mode: Literal["local", "mcp"] = "local"
     mcp_url: str = "http://localhost:9000/mcp"
     mcp_host: str = "127.0.0.1"

@@ -5,7 +5,13 @@ from pathlib import Path
 import pytest
 
 from frag.rag_pipeline.llm_schemas import AgentState
-from tests.fakes import FAKE_ITEMS, UNKNOWN_ITEM_ID, make_create_agent
+from tests.fakes import (
+    FAKE_ITEMS,
+    FIXTURE_IMAGE,
+    UNKNOWN_ITEM_ID,
+    FakeToolsClient,
+    make_create_agent,
+)
 
 
 @pytest.mark.parametrize(
@@ -35,29 +41,28 @@ def test_critique_node_stops_at_limit(make_agent):
     assert agent.critique_node(state) == {"num_times_critiqued": 2, "critique_text": ""}
 
 
-@pytest.mark.parametrize("shape", ["local", "mcp"])
-async def test_recommender_parses_both_tool_block_shapes(
-    make_agent, monkeypatch, shape
-):
-    # regression for cleanup.md 3.17: MCP returns `image` blocks, local `image_url`
+async def test_recommender_saves_item_image_and_description(make_agent, monkeypatch):
     monkeypatch.setattr(
         "frag.rag_pipeline.rag_agent.create_agent", make_create_agent(chosen_ids=[101])
     )
-    agent = make_agent(shape=shape)
+    agent = make_agent()
     state = AgentState(is_chat_start=False, required_clothes_descriptions=["jeans"])
     update = await agent.recommender_node(state)
     (path,) = update["recommended_clothes_image_paths"]
-    assert Path(path).read_bytes()  # the image was decoded and written
+    assert Path(path).read_bytes() == FIXTURE_IMAGE.read_bytes()
     assert update["recommended_clothes_descriptions"] == [FAKE_ITEMS[101][1]]
 
 
-async def test_recommender_skips_unknown_items(make_agent, monkeypatch):
-    # regression for cleanup.md 3.12: a hallucinated id is skipped, not fatal
+async def test_recommender_skips_unknown_and_failing_items(make_agent, monkeypatch):
+    # regression for cleanup.md 3.12: a hallucinated id is skipped, not fatal; so is
+    # a lookup that raises (S3 or MCP error)
     monkeypatch.setattr(
         "frag.rag_pipeline.rag_agent.create_agent",
-        make_create_agent(chosen_ids=[UNKNOWN_ITEM_ID, 102]),
+        make_create_agent(chosen_ids=[UNKNOWN_ITEM_ID, 101, 102]),
     )
-    agent = make_agent()
-    state = AgentState(is_chat_start=False, required_clothes_descriptions=["a", "b"])
+    agent = make_agent(tools=FakeToolsClient(failing_ids=frozenset({101})))
+    state = AgentState(
+        is_chat_start=False, required_clothes_descriptions=["a", "b", "c"]
+    )
     update = await agent.recommender_node(state)
     assert update["recommended_clothes_descriptions"] == [FAKE_ITEMS[102][1]]

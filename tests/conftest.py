@@ -8,7 +8,13 @@ from loguru import logger
 
 from frag.rag_pipeline.rag_agent import FashionAgent
 from frag.settings import AgentSettings, Settings
-from tests.fakes import ChatMockLLM, FakeToolsClient, make_create_agent
+from tests.fakes import (
+    ChatMockLLM,
+    FakeToolsClient,
+    build_fake_catalogue,
+    fake_qdrant,
+    make_create_agent,
+)
 
 
 @pytest.fixture
@@ -21,10 +27,10 @@ def mocked_create_agent(monkeypatch):
 def make_agent(tmp_path):
     """Factory for a FashionAgent wired entirely to fakes."""
 
-    def _make(shape="local", **agent_settings):
+    def _make(tools=None, **agent_settings):
         return FashionAgent(
             llm=ChatMockLLM(),
-            tools=FakeToolsClient(shape),
+            tools=tools or FakeToolsClient(),
             checkpointer=InMemorySaver(),
             settings=AgentSettings(
                 temp_dir=str(tmp_path / "temp_images"), **agent_settings
@@ -32,6 +38,20 @@ def make_agent(tmp_path):
         )
 
     return _make
+
+
+@pytest.fixture
+async def qdrant():
+    """An in-memory Qdrant with the fake catalogue's vectors in collection "test"."""
+    client = await fake_qdrant()
+    yield client
+    await client.close()
+
+
+@pytest.fixture
+def catalogue(qdrant):
+    """A real Catalogue over fake S3, a fake embedder and the in-memory Qdrant."""
+    return build_fake_catalogue(qdrant)
 
 
 @pytest.fixture

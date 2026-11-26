@@ -126,7 +126,7 @@ count go down.
 | 1.1 | **Remove `dependency-injector`.** Keep the Pydantic configs, but make them pure and idempotent (no I/O beyond reading env, no instances built at import). Side effects only happen in entrypoints, under the rules in §3. |
 | 1.2 | **Keep uv's link mode as configured** (`UV_LINK_MODE=symlink` in the user's shell). Don't add `link-mode = "copy"`. The README keeps the Chainlit `--link-mode copy` workaround. |
 | 1.3 | **AWS usage** follows §0.2. |
-| 1.4 | **Two embedding backends, both kept.** `siglip` is the local default: Marqo-FashionSigLIP runs locally for query text, against the `fashion_gen` collection in `data/qdrant_storage` (768-d, about 260k points). `nova` is the AWS mode: Amazon Nova Multimodal Embeddings on Bedrock, against a 5k–10k collection. **This is feasible.** Qdrant point IDs and `payload.index_2` match the S3 image keys (`images/{idx//1000:03d}/{idx}.png`) and the Parquet index, so the SigLIP collection works unchanged with S3 images and metadata. In both modes, the LLM is remote. |
+| 1.4 | **Two embedding backends, both kept.** `siglip` is the local default: Marqo-FashionSigLIP runs locally for query text, against the `fashion_gen` collection in `data/qdrant_storage` (768-d, about 260k points). `nova` is the AWS mode: Amazon Nova Multimodal Embeddings on Bedrock, against the full ~10k Nova collection (decided 2026-11-26: use all of it rather than a 5k subset; no new embeddings are needed and the extra S3/RAM cost is a fraction of a cent per month). **This is feasible.** Qdrant point IDs and `payload.index_2` match the S3 image keys (`images/{idx//1000:03d}/{idx}.png`) and the Parquet index, so the SigLIP collection works unchanged with S3 images and metadata. In both modes, the LLM is remote. |
 | 1.5 | **Catalogue images and metadata Parquet always come from S3.** Cognito auth and the Chainlit chat history (DynamoDB + S3) are always on, locally included. There's no local-filesystem catalogue backend. **Consequence:** the full 260k-image bucket must be **kept** (the local SigLIP mode needs it), which reverses the plan's "delete the full-size buckets". |
 | 1.6 | **LLM providers: `bedrock` (Claude Haiku 4.5) and `ollama` (local, free, for development).** Gemini was dropped (2026-11-26) because its API wanted billing set up; Mistral is dropped too. `langchain-ollama` is the optional `local-llm` group. |
 | 1.7 | **Checkpointer:** toggling between `memory`, `sqlite`, `postgres` and `dynamodb` should be as seamless as possible, through one setting. |
@@ -134,7 +134,7 @@ count go down.
 | 1.9 | **Remove the Bedrock batch-inference code and the JSONL files entirely.** Batch inference is blocked by an account limitation, so embeddings are produced with individual `InvokeModel` calls, and the AWS catalogue stays small. |
 | 1.10 | **One graph run per user message** instead of interrupt and resume (Phase 7.6), since it's simpler with the same functionality. |
 | 1.11 | **Ruff: start from `ALL`**, and add justified exceptions (§0.4). |
-| 1.12 | **No new embeddings are generated.** The SigLIP collection (`fashion_gen`) and the Nova collection (`nova_fashion_gen`) already exist. Only the SigLIP *query-text* path is needed at runtime. The vector-DB build script is kept only as a reproducible record and isn't run. The 5k AWS catalogue is copied out of the existing Nova collection (`qdrant_admin.py copy-subset`). |
+| 1.12 | **No new embeddings are generated.** The SigLIP collection (`fashion_gen`) and the Nova collection (`nova_fashion_gen`) already exist. Only the SigLIP *query-text* path is needed at runtime. The vector-DB build script is kept only as a reproducible record and isn't run. The AWS catalogue is the whole existing Nova collection (~10k points, decision 1.4); `qdrant_admin.py copy-subset` stays as a tool but no 5k cut is needed. |
 | 1.13 | **Cognito sign-up is admin-only** (`AllowAdminCreateUserOnly: true`). |
 | 1.14 | **Keep the Rich console logging.** It's per process and loguru sinks are thread-safe, so it's fine with several processes, each writing to its own console. |
 | 1.15 | **Branching and merging are the user's.** PRs go into `main`. The agent may add GitHub Actions CI (Phase 16) as long as it involves no AWS integration and costs nothing. It doesn't change the existing branch-naming, commit-message or PR-title workflows. |
@@ -500,7 +500,7 @@ meantime. Notes:
     everything.
   - **Interim fix:** the recommender now also accepts `image` blocks. Phase 6.6 still
     replaces this parsing with `ToolsClient.get_item()`.
-  - **Still open for Phase 6.6:** `make_mistral_compatible` (used on the MCP *LLM*
+  - **Done in Phase 6.6:** `make_mistral_compatible` (used on the MCP *LLM*
     tools) emits `{"type": "image_url", "image_url": "<data-url string>"}`, a string
     rather than the `{"url": ...}` dict the local tools use. Normalise it there.
 - No new ruff violations on changed lines. The total went from 993 to 984: both F821s
@@ -891,9 +891,9 @@ Right now the same logic exists twice: `rag_pipeline/local_tools.py` and
 `mcp_server/server.py` have identical method bodies. `QdrantConnector` also imports the
 DI-injected S3 fetch inside a method to dodge an import cycle.
 
-- [ ] **6.1 `catalogue/models.py`**:
+- [x] **6.1 `catalogue/models.py`**:
   `@dataclass(frozen=True) class CatalogueItem: id: int; category: str; description: str; price: float; image_b64: str; score: float | None = None`.
-- [ ] **6.2 `catalogue/store.py`** (S3 only, decision 1.5):
+- [x] **6.2 `catalogue/store.py`** (S3 only, decision 1.5):
   - `S3ImageStore(bucket, key_template, client)` with
     `async def get_png_bytes(idx) -> bytes`, implemented with
     `asyncio.to_thread(client.get_object, ...)`.
@@ -902,7 +902,7 @@ DI-injected S3 fetch inside a method to dodge an import cycle.
     price), and `set_index(index_field)` / `to_dict("index")`. With 260k rows in
     SigLIP mode, the column pruning noticeably reduces RAM.
   - One shared boto3 `Config` (pool size 20, adaptive retries, 3 attempts) for S3.
-- [ ] **6.3 `catalogue/embedders.py`** (decision 1.4):
+- [x] **6.3 `catalogue/embedders.py`** (decision 1.4):
   - `class Embedder(Protocol)`: `dim: int`, `async def embed_text(self, text: str) -> list[float]`.
   - `NovaEmbedder(model_id, dim, purpose, region)` wraps `invoke_model` in
     `asyncio.to_thread`. Remove the `get_text_embedding_batch` loop; the only caller
@@ -915,13 +915,13 @@ DI-injected S3 fetch inside a method to dodge an import cycle.
     model loads once per process (only in the MCP server, or the agent when
     `tools.mode=local`), and it takes a few seconds; log when it's ready.
   - `build_embedder(settings) -> Embedder`.
-- [ ] **6.4 `catalogue/vector_db.py`**: `QdrantConnector`.
+- [x] **6.4 `catalogue/vector_db.py`**: `QdrantConnector`.
   - `async validate(expected_dim)` checks that the collection exists **and** that its
     `image_vector_name` vector size equals the embedder's `dim` (768 for SigLIP, 1024
     for Nova). This catches backend/collection mismatches at startup.
   - `async search(vector, categories, k) -> list[tuple[int, float]]` returns IDs and
     scores only, and no longer calls the S3 fetch.
-- [ ] **6.5 `catalogue/service.py`**:
+- [x] **6.5 `catalogue/service.py`**:
   ```python
   class Catalogue:
       categories: list[str]   # sorted(set(m[category] for m in metadata.values())) - honest for subsets
@@ -933,7 +933,7 @@ DI-injected S3 fetch inside a method to dodge an import cycle.
   Plus `open_catalogue(settings)`, an async context manager that builds the S3 client,
   loads the metadata, builds the embedder, and opens and validates Qdrant. Delete
   `data_manager/`.
-- [ ] **6.6 `tools/`**:
+- [x] **6.6 `tools/`**:
   - `base.py`:
     - `ToolsClient` protocol with `get_llm_tools()` and `get_item(id)`. `get_item`
       replaces `get_db_tool()`, so the agent no longer parses tool blocks.
@@ -950,7 +950,7 @@ DI-injected S3 fetch inside a method to dodge an import cycle.
     `CatalogueItem`.
   - Delete `utils/llm_tools_setup.py`, `rag_pipeline/local_tools.py` and
     `get_tool_with_name`.
-- [ ] **6.7 `mcp_server/server.py`**:
+- [x] **6.7 `mcp_server/server.py`**:
   - `build_server(catalogue) -> FastMCP` creates the instance (replacing the
     module-level global) and registers three plain async functions with `@mcp.tool`,
     which return `TextContent` + `ImageContent(mimeType="image/png")`.
@@ -958,8 +958,66 @@ DI-injected S3 fetch inside a method to dodge an import cycle.
     `base64`/`numpy`/`asyncio` imports.
   - Add a `GET /health` custom route.
   - Run with `run_async(transport="http", host=settings.tools.mcp_host, port=...)`.
-- [ ] **6.8** The recommender node uses `await self._tools.get_item(id)` and
+- [x] **6.8** The recommender node uses `await self._tools.get_item(id)` and
   `save_image_b64(temp_dir, item.image_b64)`.
+
+**Phase 6 done (2026-11-26).** Notes:
+- **New packages:** `frag/catalogue/` (`models`, `store`, `embedders`, `vector_db`,
+  `service`) and `frag/tools/` (`base`, `local`, `mcp_client`). Deleted:
+  `data_manager/`, `utils/llm_tools_setup.py`, `rag_pipeline/local_tools.py`.
+  `build_tools_client()` lives in `runtime.py`, since `tools/base.py` can't import its
+  own implementations.
+- **Deviations from the spec:**
+  - `load_metadata` renames the Parquet columns to the canonical keys `category`,
+    `description` and `price`, so nothing past the store needs the field-name settings.
+  - `CatalogueSettings.image_key()` was removed; `S3ImageStore.key()` replaced it.
+  - `QdrantConnector` takes an open `AsyncQdrantClient` (so tests can pass an in-memory
+    one), and `validate()` also checks that the named vector exists.
+  - `Catalogue.search` raises `InvalidCategoryError`; both tool modes turn it into the
+    same `Error: ...` text block. Hits missing from the metadata, or whose S3 image
+    fetch fails, are dropped (the failures are logged).
+  - The tool descriptions are shared constants in `tools/base.py`. Both modes return
+    the categories as a JSON text block, so the LLM sees byte-identical tool output in
+    both modes (tested over real HTTP).
+  - `score` is `null` (not `0`) for items that didn't come from a search.
+  - `save_image_url_to_folder` became `save_image_b64` in `utils/common_utils.py`
+    (`messages.py` is a later phase).
+- **SigLIP is the default backend again** (`EMBEDDING__BACKEND=siglip`, decision 1.4).
+  The `siglip` group gained `transformers>=5.2.0`, because open_clip's tokenizer for
+  this model needs it (the old pyproject had it). The lock also bumped
+  `huggingface-hub` and `tokenizers`. The model loads in about 5 s on CPU and gives
+  768-d unit vectors.
+- **Tests:** 45 passed, 1 skipped (postgres), 1 deselected (aws). It still passes inside
+  `unshare -rn` with only loopback up.
+  - New: `tests/unit/test_tools.py` covers the formatter round trip, the MCP block
+    normaliser (the 5.5 test deferred here), the local tools, and the real MCP server
+    on a local port, with parity against the local tools plus `/health`.
+  - `test_catalogue.py` was rewritten for the new modules: dimension validation, dropped
+    hits, and the Nova request body via a stub client.
+  - `FakeToolsClient` now implements `get_item`.
+- **Real smoke tests (scripts kept out of the repo):**
+  - Nova path: the compose Qdrant (`nova_fashion_gen`, **10,000 points**, 1024-d
+    `images` and `texts`) with real S3. A stored text vector stood in for Bedrock.
+    Local and MCP `semantic_search` output was identical, `get_item` matched across
+    modes, and unknown IDs gave `None`.
+  - SigLIP path: run against a **copy** of `data/qdrant_storage` in a throwaway
+    container (the original was never opened, because Qdrant may migrate the storage
+    format on open). "black leather ankle boots" in BOOTS returned black calfskin ankle
+    boots.
+  - **Watch out:** with `prefer_grpc=true`, the client uses gRPC port 6334 whatever port
+    `VECTOR_DB__URL` gives. A Qdrant on a non-default port needs `prefer_grpc=false`
+    (or a `grpc_port` setting later).
+  - **For the AWS catalogue phase:** categories are derived from the metadata, and the
+    full Parquet has 260,490 rows and 48 categories. With the 10k Nova collection,
+    categories that have no vectors would still be offered until a matching Parquet
+    is used.
+- **Ruff:** the new and touched files are clean (there's one pre-existing long log line in
+  `rag_agent.py`, which Phase 7 rewrites). Total 353 → 293.
+- **AWS call log:**
+  - (A) 1× `s3api head-object` on the metadata Parquet.
+  - (B) 2× metadata Parquet GET (5.9 MB each) and about 10 image GETs from the smoke
+    tests. About 6 DynamoDB requests from one `pytest -m aws` run.
+  - No Bedrock calls.
 
 ---
 
@@ -1146,8 +1204,9 @@ call Bedrock or write to S3 print a cost estimate and require `--yes` or typing 
   - `snapshot`, from `create_nova_qdrant_snapshot.py`
   - `restore`, taking a snapshot path argument instead of the hard-coded nonsense path
   - `copy-subset --from X --to Y --ids-file F`, which copies points with their vectors
-    and payloads without re-embedding. This is the core of the plan's Phase 1 5k
-    catalogue, and it's local only.
+    and payloads without re-embedding. The AWS catalogue now uses the full ~10k Nova
+    collection (decision 1.4), so this is a utility rather than a required step; it's
+    local only.
 
   The collection comes from settings or `--collection`, with no hard-coded
   `"nova_fashion_gen"`.

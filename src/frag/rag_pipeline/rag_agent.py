@@ -35,14 +35,14 @@ from frag.rag_pipeline.llm_schemas import (
 from frag.runtime import Resources
 from frag.settings import AgentSettings
 from frag.tokens import track_tokens
+from frag.tools.base import ToolsClient
 from frag.utils.common_utils import (
     draw_langraph_topology,
     get_image_prompt_message,
     get_multi_image_multi_prompt_message,
     get_multi_image_prompt_message,
-    save_image_url_to_folder,
+    save_image_b64,
 )
-from frag.utils.llm_tools_setup import ToolsClient
 
 
 class FashionAgent:
@@ -382,42 +382,29 @@ class FashionAgent:
             )
             recommended_clothes_images.append(response["structured_response"].image_id)
             log.debug("Received response from agent.")
-        # saving the images to path and storing the path - this is a bit of a repeat from human node, but for now does not matter
-        tool = await self._tools.get_db_tool()
         recommended_clothes_image_paths = []
         recommended_clothes_descriptions = []
-        for img_index in recommended_clothes_images:
-            # the image id is chosen by the LLM and may not exist in the catalogue
-            # (hallucinated, or outside the loaded subset) - skip such items rather than
+        for item_id in recommended_clothes_images:
+            # the id is chosen by the LLM and may not exist in the catalogue
+            # (hallucinated, or outside the loaded subset): skip such items rather than
             # failing the whole turn
-            image_url, image_descr = None, None
             try:
-                response = await tool.ainvoke({"index": img_index})
-                # block is a dictionary
-                for block in response:
-                    # local tools return OpenAI-style `image_url` blocks (see
-                    # _reformat_image_data); the MCP adapter returns LangChain standard
-                    # `image` blocks with a `base64` field
-                    if block["type"] == "image_url":
-                        image_url = block["image_url"]["url"].split("base64,")[-1]
-                    elif block["type"] == "image":
-                        image_url = block["base64"]
-                    elif block["type"] == "text":
-                        image_descr = json.loads(block["text"])["description"]
-            except Exception:  # noqa: BLE001  failures differ per tool backend (KeyError, S3 404, MCP ToolException); any of them means skip this item
+                item = await self._tools.get_item(item_id)
+            # failures differ per tool backend (S3 errors, MCP ToolException); any of
+            # them means skip this item
+            except Exception:  # noqa: BLE001
                 log.opt(exception=True).warning(
-                    "Skipping recommended item {}: catalogue lookup failed.", img_index
+                    "Skipping recommended item {}: catalogue lookup failed.", item_id
                 )
                 continue
-            if (image_url is None) or (image_descr is None):
+            if item is None:
                 log.warning(
-                    "Skipping recommended item {}: no image or description returned.",
-                    img_index,
+                    "Skipping recommended item {}: not in the catalogue.", item_id
                 )
                 continue
-            path = save_image_url_to_folder(self._settings.temp_dir, image_url)
+            path = save_image_b64(self._settings.temp_dir, item.image_b64)
             recommended_clothes_image_paths.append(path)
-            recommended_clothes_descriptions.append(image_descr)
+            recommended_clothes_descriptions.append(item.description)
         log.debug(
             f"recommended_clothes_image_paths: {recommended_clothes_image_paths}\n recommended_clothes_descriptions: {recommended_clothes_descriptions}"
         )
