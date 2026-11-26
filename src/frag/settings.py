@@ -7,11 +7,11 @@ Rules (see cleanup.md §3.1):
   per process) or construct `Settings(...)` directly in tests.
 - Paths are plain strings; the code that uses a path checks or creates it.
 - Only settings the application reads itself are declared. Variables read directly by
-  libraries (LangSmith, Chainlit/Cognito OAuth, Google, FastMCP, Hugging Face, boto3
+  libraries (LangSmith, Chainlit/Cognito OAuth, Ollama, FastMCP, Hugging Face, boto3
   credentials) are deliberately absent.
 
 Nested sections are set from the environment with a double underscore, e.g.
-`CHECKPOINTER__BACKEND=dynamodb` or `LLM__PROVIDER=google`.
+`CHECKPOINTER__BACKEND=dynamodb` or `LLM__PROVIDER=ollama`.
 """
 
 from functools import lru_cache
@@ -30,12 +30,12 @@ class _Section(BaseModel):
 class LLMSettings(_Section):
     """The chat / vision LLM used by every agent node and by the evaluation judge."""
 
-    provider: Literal["bedrock", "google"] = "bedrock"
+    provider: Literal["bedrock", "ollama"] = "bedrock"
     model_id: str = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
     temperature: float = 0.6
     # client-side request rate limit (LangChain InMemoryRateLimiter: a token bucket);
     # None disables it. Kept below the provider quota since token-per-minute limits
-    # are not modelled. Free-tier Gemini needs a much lower value than Bedrock.
+    # are not modelled. A local Ollama server can use None.
     rate_limit_rps: float | None = 0.8
     rate_limit_max_bucket: float = 1.0
     rate_limit_check_every_s: float = 1.0

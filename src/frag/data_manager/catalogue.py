@@ -29,6 +29,17 @@ class Catalogue:
     categories: list[str]
 
 
+def derive_categories(metadata: dict[int, dict], category_field: str) -> list[str]:
+    """Sorted distinct categories present in the metadata (missing values ignored)."""
+    return sorted(
+        {
+            item[category_field]
+            for item in metadata.values()
+            if isinstance(item.get(category_field), str)
+        }
+    )
+
+
 def _build_embedder(settings: Settings) -> AWSEmbedder:
     emb = settings.embedding
     if emb.backend == "nova":
@@ -59,13 +70,7 @@ async def open_catalogue(settings: Settings) -> AsyncIterator[Catalogue]:
         metadata = await load_metadata(s3_client, settings.catalogue)
         data = FashionGenData(s3_client, settings.catalogue, metadata)
         category_field = settings.catalogue.category_field
-        categories = sorted(
-            {
-                item[category_field]
-                for item in metadata.values()
-                if isinstance(item[category_field], str)
-            }
-        )
+        categories = derive_categories(metadata, category_field)
         vector_db = QdrantConnector(
             url=settings.vector_db.url,
             prefer_grpc=settings.vector_db.prefer_grpc,

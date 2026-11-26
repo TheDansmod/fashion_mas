@@ -31,12 +31,12 @@ def build_llm(settings: LLMSettings, aws_region: str) -> BaseChatModel:
                 rate_limiter=rate_limiter,
                 region_name=aws_region,
             )
-        case "google":
-            from langchain_google_genai import (
-                ChatGoogleGenerativeAI,
-            )
+        case "ollama":
+            # needs the `local-llm` dependency group and a running Ollama server with
+            # a vision + tool-calling model pulled (e.g. `ollama pull <model>`)
+            from langchain_ollama import ChatOllama
 
-            return ChatGoogleGenerativeAI(
+            return ChatOllama(
                 model=settings.model_id,
                 temperature=settings.temperature,
                 rate_limiter=rate_limiter,

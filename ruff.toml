@@ -18,6 +18,9 @@ ignore = [
     "PLR2004", # literal expected values are the point of assertions
     "INP001",  # pytest runs with --import-mode=importlib; tests/ is deliberately not a package
     "ANN",     # fixtures are injected by name; annotating test signatures adds noise
+    "EM",      # exception-message style is irrelevant in test doubles
+    "TRY003",  # same reason as EM
+    "ASYNC240",# synchronous file checks inside async tests are fine
 ]
 "scripts/**" = [
     "T201",    # scripts report progress on stdout by design

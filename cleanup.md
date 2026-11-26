@@ -65,7 +65,7 @@ anything above the default free tier, whether or not credits would pay for it.
 - **Any Bedrock runtime call** (`InvokeModel`, `Converse`, and therefore running the
   agent with `llm.provider=bedrock` or `embedding.backend=nova`, or running the eval
   against Bedrock). Bedrock is billed per token or per embedding, and there is no
-  free tier. Prefer `llm.provider=google` (§1.6) for development runs.
+  free tier. Prefer `llm.provider=ollama` (§1.6, local and free) for development runs.
 - **Any create, update or delete of an AWS resource**, even a free one:
   CloudFormation deploy, change set execution, resource import or stack deletion;
   creating buckets or tables; `PutObject`/`DeleteObject`; IAM changes; SSM
@@ -128,7 +128,7 @@ count go down.
 | 1.3 | **AWS usage** follows §0.2. |
 | 1.4 | **Two embedding backends, both kept.** `siglip` is the local default: Marqo-FashionSigLIP runs locally for query text, against the `fashion_gen` collection in `data/qdrant_storage` (768-d, about 260k points). `nova` is the AWS mode: Amazon Nova Multimodal Embeddings on Bedrock, against a 5k–10k collection. **This is feasible.** Qdrant point IDs and `payload.index_2` match the S3 image keys (`images/{idx//1000:03d}/{idx}.png`) and the Parquet index, so the SigLIP collection works unchanged with S3 images and metadata. In both modes, the LLM is remote. |
 | 1.5 | **Catalogue images and metadata Parquet always come from S3.** Cognito auth and the Chainlit chat history (DynamoDB + S3) are always on, locally included. There's no local-filesystem catalogue backend. **Consequence:** the full 260k-image bucket must be **kept** (the local SigLIP mode needs it), which reverses the plan's "delete the full-size buckets". |
-| 1.6 | **LLM providers: `bedrock` (Claude Haiku 4.5) plus one development provider.** The development provider is `google` (Gemini free tier) **if it accepts images inside tool results** (Phase 4.2). If it doesn't, use `ollama` instead and drop Gemini. Mistral is dropped either way. |
+| 1.6 | **LLM providers: `bedrock` (Claude Haiku 4.5) and `ollama` (local, free, for development).** Gemini was dropped (2026-11-26) because its API wanted billing set up; Mistral is dropped too. `langchain-ollama` is the optional `local-llm` group. |
 | 1.7 | **Checkpointer:** toggling between `memory`, `sqlite`, `postgres` and `dynamodb` should be as seamless as possible, through one setting. |
 | 1.8 | **Every AWS resource is created by committed code** (CloudFormation templates, plus scripts that deploy them or upload data). No one-off console or CLI setup. Resources that already exist but were made by hand get codified (Phase 13). |
 | 1.9 | **Remove the Bedrock batch-inference code and the JSONL files entirely.** Batch inference is blocked by an account limitation, so embeddings are produced with individual `InvokeModel` calls, and the AWS catalogue stays small. |
@@ -232,7 +232,7 @@ The entrypoints are `app.py`, `frag.cli:main` (`chat`, `eval`, `mcp`), each scri
 under `scripts/`, and the pytest fixtures. Each one runs this sequence:
 
 1. `load_dotenv()`. It's idempotent and doesn't override variables that are already
-   set. It's needed so LangSmith, Chainlit, boto3 and `langchain-google-genai` see
+   set. It's needed so LangSmith, Chainlit, boto3 and the Ollama client see
    their variables in `os.environ`.
 2. `settings = get_settings()`
 3. `setup_logging(settings.logging, service="agent" | "mcp" | "eval" | "<script>")`.
@@ -366,7 +366,7 @@ under `scripts/`, and the pytest fixtures. Each one runs this sequence:
     `langgraph-checkpoint-sqlite`, `aiosqlite`, `langgraph-checkpoint-postgres` and
     `psycopg-pool`. Keep `psycopg[binary]` for local development, and leave the plan's
     production note about building against `libpq` to the plan.
-  - **Add** `langchain-google-genai` (decision 1.6). If Phase 4.2 shows Gemini can't take
+  - ~~**Add** `langchain-google-genai`~~, superseded: Ollama is used instead (Phase 5 notes). If Phase 4.2 shows Gemini can't take
     images in tool results, replace it with an optional group
     `local-llm = ["langchain-ollama"]`.
   - **Add optional groups:**
@@ -526,7 +526,7 @@ At the end of this phase, nothing under `src/frag` imports `dependency_injector`
       )
       app_env: Literal["development", "production"] = "development"
       aws_region: str = "us-east-1"
-      llm: LLMSettings                  # provider: Literal["bedrock","google"]="bedrock" (or "ollama", see 4.2), model_id, temperature,
+      llm: LLMSettings                  # provider: Literal["bedrock","ollama"]="bedrock", model_id, temperature,
                                         # rate_limit_rps: float | None, rate_limit_bucket, rate_limit_check_s
       embedding: EmbeddingSettings      # backend: Literal["siglip","nova"]="siglip",
                                         # siglip_model="hf-hub:Marqo/marqo-fashionSigLIP",
@@ -559,7 +559,7 @@ At the end of this phase, nothing under `src/frag` imports `dependency_injector`
   variables, so don't declare them:
   - LangSmith (`LANGSMITH_*`)
   - Chainlit and Cognito (`OAUTH_COGNITO_*`, `CHAINLIT_AUTH_SECRET`, `OAUTH_PROMPT`)
-  - Google (`GOOGLE_API_KEY`)
+  - Ollama (`OLLAMA_HOST`)
   - FastMCP (`FASTMCP_*`)
   - Hugging Face (`HF_TOKEN`)
   - boto3 (`AWS_*` credentials)
@@ -605,12 +605,12 @@ At the end of this phase, nothing under `src/frag` imports `dependency_injector`
               from langchain_aws import ChatBedrockConverse
               return ChatBedrockConverse(model_id=s.model_id, temperature=s.temperature,
                                          rate_limiter=limiter, region_name=region)
-          case "google":
-              from langchain_google_genai import ChatGoogleGenerativeAI
-              return ChatGoogleGenerativeAI(model=s.model_id, temperature=s.temperature,
+          case "ollama":
+              from langchain_ollama import ChatOllama
+              return ChatOllama(model=s.model_id, temperature=s.temperature,
                                             rate_limiter=limiter)
   ```
-- [ ] **Gemini caveats to verify.** *(pending: no `GOOGLE_API_KEY` in `.env` yet)* Each check is one or two free-tier Google calls,
+- [x] ~~**Gemini caveats to verify.**~~ *Superseded: the user chose Ollama (Gemini wanted billing set up). The Ollama equivalents of these checks (images in tool results, structured output) are still open and need a local Ollama server with a vision + tool-calling model; do them before relying on Ollama for development runs.* Each check is one or two free-tier Google calls,
   which is allowed; Google isn't AWS.
   1. Pick a current vision-capable Gemini model that has free-tier access; check
      Google AI Studio for the current list. Set a conservative `rate_limit_rps` for
@@ -797,23 +797,23 @@ At the end of this phase, nothing under `src/frag` imports `dependency_injector`
 The current test can't run offline: `container.init_resources()` touches S3, DynamoDB,
 Qdrant and Bedrock, and it needs an absolute-path image under the git-ignored `data/`.
 
-- [ ] **5.1** Add `tests/fixtures/shirt.jpg`, a small image generated with PIL (a
+- [x] **5.1** Add `tests/fixtures/shirt.jpg`, a small image generated with PIL (a
   64×64 solid colour is fine).
-- [ ] **5.2 `tests/fakes.py`:**
+- [x] **5.2 `tests/fakes.py`:**
   - `ChatMockLLM` (from `tests/mocks/`) with `ainvoke` added.
   - `MockAgent`/`mock_create_agent`, returning IDs from the fake catalogue instead of
     `random.randint(0, 260400)`.
   - `FakeToolsClient` (`get_llm_tools`, `get_item`) and `FakeEmbedder`.
-- [ ] **5.3** Rewrite the integration test as `tests/integration/test_agent_graph.py`:
+- [x] **5.3** Rewrite the integration test as `tests/integration/test_agent_graph.py`:
   - Build
     `FashionAgent(ChatMockLLM(), FakeToolsClient(), InMemorySaver(), AgentSettings(temp_dir=tmp_path))`.
   - Run one image turn, then one text follow-up.
   - **Assert on the returned state** rather than on log substrings: three image files
     exist, the explanation is non-empty, and the critique loop ran
     `max_num_critiques` times.
-- [ ] **5.4** Delete `tests/integration/conftest.py` and `tests/mocks/`. Keep the
+- [x] **5.4** Delete `tests/integration/conftest.py` and `tests/mocks/`. Keep the
   loguru `caplog` bridge. Make the session-wide `logs/pytest.log` sink opt-in.
-- [ ] **5.5 Unit tests:**
+- [x] **5.5 Unit tests:**
   - both routers
   - `get_final_score` (it would have caught bug 3.2)
   - `build_message` (it would have caught bug 3.1)
@@ -824,10 +824,66 @@ Qdrant and Bedrock, and it needs an absolute-path image under the git-ignored `d
   - `Catalogue.get`/`search` with a fake image store, vector DB and embedder
   - the MCP block normaliser
   - `open_checkpointer` with `memory` and `sqlite`
-- [ ] **5.6** Register the markers `aws` (real AWS, §0.2B scope only) and `bedrock`
+- [x] **5.6** Register the markers `aws` (real AWS, §0.2B scope only) and `bedrock`
   (costs money, §0.2C). Use `addopts = -m "not aws and not bedrock"`.
 
 ---
+
+**Phase 5 done (2026-11-26).** Notes:
+- **Done first:**
+  - **Switched Google to Ollama** (user decision). `llm.provider` is now
+    `bedrock | ollama`, `langchain-google-genai` was removed, and
+    `local-llm = [langchain-ollama]` was added. `ChatOllama` builds offline. Ollama
+    is installed but not running, so the Ollama image-in-tool-result check is still
+    open (Phase 4.2).
+  - **`.env` verified.** All renamed keys are present and the legacy names are gone.
+    The DynamoDB checkpointer table and the Chainlit table are ACTIVE, and the Chainlit
+    bucket exists (read-only `describe-table` / `head-bucket`).
+    **One problem: `TOOLS__MODE=false` is invalid.** It must be `local` (the old
+    `USE_MCP_SERVER=false`), and until it's fixed `Settings()` raises at startup. A
+    test now covers exactly this.
+- **New tests:** `tests/fakes.py`, `tests/conftest.py`, `tests/fixtures/shirt.jpg`
+  (64×64 JPEG, 693 bytes), `tests/integration/test_agent_graph.py`, and
+  `tests/unit/test_{agent_nodes,catalogue,infrastructure,settings_and_logging}.py`.
+  `tests/mocks/`, `tests/integration/conftest.py` and the old
+  `tests/integration/rag_pipeline/` were deleted.
+- **Coverage:**
+  - Two real turns through the compiled graph: an image turn, then a text follow-up
+    that asserts the bounds check (3.11) and description reuse.
+  - The text-only path, the routers, and the critique limit.
+  - The recommender with both tool-block shapes (3.17) and with an unknown ID (3.12).
+  - Settings: defaults, idempotence, nested overrides, invalid or mistyped values,
+    and a subprocess import with an empty environment that writes no files.
+  - Idempotent logging setup.
+  - Catalogue get, column pruning, category derivation, and Qdrant search via an
+    in-memory `AsyncQdrantClient` (category filter, metadata-missing skip).
+  - All four checkpointers. Postgres skips unless the compose profile is up;
+    DynamoDB is `@pytest.mark.aws`.
+  - The LLM factory, token tracking, message MIME types (3.1), the final score (3.2)
+    and the evaluation inputs.
+- **The MCP normaliser test (5.5) is deferred to Phase 6.6.** The normaliser's output
+  is meant to change there. The recommender's handling of MCP blocks is covered
+  instead.
+- **Small source change:** `derive_categories()` was extracted in
+  `data_manager/catalogue.py` so it can be unit-tested.
+- **pytest config:**
+  - `asyncio_mode = "auto"`
+  - `pythonpath = ["."]`
+  - markers `aws` and `bedrock`, deselected by default
+  - opt-in debug log via `FRAG_TEST_LOG_FILE`
+- **Results:**
+  - Default run: **35 passed, 1 skipped (postgres), 1 deselected (aws)** in about 3 s.
+  - It passes the same way inside `unshare -rn` (no network interfaces), so it's
+    genuinely offline.
+  - With Postgres up: the Postgres test passes.
+  - `pytest -m aws`: the DynamoDB test passes.
+- **Ruff:** clean on `tests/`. New justified test ignores: `EM`, `TRY003` and
+  `ASYNC240`, plus an inline `ARG001` on a fake tool's schema-mirroring parameter.
+  `tests/` was formatted with `ruff format`. Total 396 → 353.
+- **AWS call log:**
+  - (A) 2× `dynamodb describe-table` and 1× `s3 head-bucket` (`.env` verification).
+  - (B) About 6 DynamoDB requests from `pytest -m aws`; the test thread was deleted.
+  - No Bedrock calls.
 
 ## Phase 6: Catalogue, embedders and tools
 
@@ -926,7 +982,7 @@ DI-injected S3 fetch inside a method to dodge an import cycle.
     with a corrective message, then skip it. This is the plan's Phase 0.3.
   - Rewrite the docstring and remove the stale TODO.
   - Optional: run the per-description agent calls with `asyncio.gather`. The shared
-    rate limiter throttles them anyway. Keep it sequential if Gemini's free-tier
+    rate limiter throttles them anyway. Keep it sequential if a local Ollama model's
     limits make it pointless.
 - [ ] **7.5 `tokens.py`**: replace the `track_token_use` decorator. It injects a
   `callback_config` kwarg, duplicates its sync and async branches, and **swallows all
@@ -1046,7 +1102,7 @@ DI-injected S3 fetch inside a method to dodge an import cycle.
 - [ ] **9.6** `get_evaluation_inputs(queries_path, images_dir)` builds paths with
   `Path`. Merge the two near-identical dict literals.
 - [ ] **9.7** A full eval against Bedrock costs money, so it needs the user's approval
-  (§0.2C). The plan estimates $3–5. Test the pipeline with `--limit 2` on Gemini.
+  (§0.2C). The plan estimates $3–5. Test the pipeline with `--limit 2` on Ollama.
 
 ---
 
@@ -1126,7 +1182,7 @@ call Bedrock or write to S3 print a cost estimate and require `--yes` or typing 
 
 ## Phase 12: Verify feasibility of the local SigLIP + remote LLM mode
 
-These checks are allowed under §0.2B, plus free-tier Gemini calls.
+These checks are allowed under §0.2B, plus local Ollama calls.
 
 - [ ] **12.1** Start Qdrant on `data/qdrant_storage`, then run
   `scripts/qdrant_admin.py info --collection fashion_gen`. Record the point count, the
@@ -1136,7 +1192,7 @@ These checks are allowed under §0.2B, plus free-tier Gemini calls.
   `point.id == payload.index_2` and that `head-object` on the derived S3 image key
   exists. That's three HEAD requests.
 - [ ] **12.3** Run `frag chat` with `EMBEDDING__BACKEND=siglip`,
-  `TOOLS__MODE=local`, `LLM__PROVIDER=google` (or `ollama`, per Phase 4.2) and
+  `TOOLS__MODE=local`, `LLM__PROVIDER=ollama` and
   `CHECKPOINTER__BACKEND=sqlite`, and send one text-only and one image query. That's
   free-tier or local LLM calls and a few dozen S3 GETs.
 - [ ] **12.4** Repeat 12.3 with `TOOLS__MODE=mcp`, running `frag mcp` in another
@@ -1217,7 +1273,7 @@ anything needs the user's go-ahead (§0.2C).
 
 - [ ] **14.1 `.env.example`**: rewrite it to match `Settings` plus the third-party
   variables, grouped as **local development** and **AWS**.
-  - Development preset: `LLM__PROVIDER=google` with `GOOGLE_API_KEY`,
+  - Development preset: `LLM__PROVIDER=ollama` with a pulled vision model,
     `EMBEDDING__BACKEND=siglip` and `CHECKPOINTER__BACKEND=sqlite`.
   - AWS preset: `LLM__PROVIDER=bedrock`, `EMBEDDING__BACKEND=nova` and
     `CHECKPOINTER__BACKEND=dynamodb`.
@@ -1227,7 +1283,7 @@ anything needs the user's go-ahead (§0.2C).
   - Recommend `aws configure sso` or a named profile instead of static keys in `.env`.
 - [ ] **14.2 `README.md`**:
   - **Features.** Describe both embedding backends (Marqo-FashionSigLIP locally, Nova
-    on AWS), all four checkpointers, Bedrock and Gemini, and per-turn graph runs.
+    on AWS), all four checkpointers, Bedrock and Ollama, and per-turn graph runs.
     Replace the eval score with "pending re-run", and report the completion rate once
     Phase 9 is re-run.
   - **Install and run.**
@@ -1271,7 +1327,7 @@ anything needs the user's go-ahead (§0.2C).
   - findings that aren't in this document
   - the AWS call log (§0.2E)
   - the ruff baseline compared with the final state, and every added ignore
-  - the Gemini image-in-tool-result result (Phase 4.2)
+  - the Ollama image-in-tool-result result (Phase 4.2)
   - the Qdrant consolidation result (Phase 8.4)
   - the remaining manual tests that need Bedrock (§0.2C), for the user to approve:
     1. Bedrock LLM + SigLIP: one chat turn.
@@ -1319,7 +1375,7 @@ anything needs the user's go-ahead (§0.2C).
 | `src/frag/rag_pipeline/llm_schemas.py` | Splits into `agent/state.py`, `agent/schemas.py`, `evaluation/schemas.py` (7.2, 7.3) |
 | `src/frag/rag_pipeline/local_tools.py` | Becomes `tools/local.py` (6.6) |
 | `src/frag/utils/llm_tools_setup.py` | Becomes `tools/base.py` + `tools/mcp_client.py` (6.6) |
-| `src/frag/utils/model_factory.py` | Becomes `llm.py`: Bedrock + Google (4.2) |
+| `src/frag/utils/model_factory.py` | Becomes `llm.py`: Bedrock + Ollama (4.2) |
 | `src/frag/utils/checkpointer.py` | Becomes `checkpointer.py`: memory/sqlite/postgres/dynamodb (4.5) |
 | `src/frag/utils/common_utils.py` | Becomes `messages.py` + `tokens.py`; dead code deleted (7.5, 11) |
 | `src/frag/utils/logger_setup.py` | Becomes `logging_setup.py` (11.3) |
