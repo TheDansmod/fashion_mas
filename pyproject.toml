@@ -1,7 +1,7 @@
 [project]
 name = "frag"
 version = "0.1.0"
-description = "Add your description here"
+description = "FRAG: a multimodal, multi-agent fashion recommendation agent over a product catalogue (LangGraph, Qdrant, MCP, Chainlit)."
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
@@ -74,5 +74,5 @@ filterwarnings = [
 
 [tool.coverage.run]
 omit = [
-    "src/frag/exploration/*",
+    "scripts/*",
 ]

@@ -23,7 +23,9 @@ class EnvSettings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         frozen=True,
-        extra="forbid",
+        # "ignore" rather than "forbid": .env also holds variables read directly by
+        # third-party libraries (and removed settings may linger in older .env files)
+        extra="ignore",
         env_ignore_empty=True,
         validate_default=True,
     )
@@ -60,12 +62,6 @@ class EnvSettings(BaseSettings):
     # if the MCP server is not being used for the tools then we use
     # the tools that are locally defined
     use_mcp_server: bool
-
-    # this account id is required while we are creating batch job for generating image embeddings
-    aws_account_id: str
-
-    # this is the arn value that is required when invoking batch jobs
-    aws_bedrock_batch_inference_role_arn: str
 
     # aws credentials for when they aren't available on EC2 in ~/.aws/
     aws_access_key_id: str

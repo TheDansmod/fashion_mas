@@ -211,7 +211,6 @@ class Container(containers.DeclarativeContainer):
         packages=[
             "frag.data_manager",
             "frag.evaluation",
-            "frag.exploration",
             "frag.mcp_server",
             "frag.rag_pipeline",
             "frag.utils",
