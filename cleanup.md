@@ -1855,7 +1855,7 @@ anything needs the user's go-ahead (§0.2C).
 
 ## Phase 14: Documentation
 
-- [ ] **14.1 `.env.example`**: rewrite it to match `Settings` plus the third-party
+- [x] **14.1 `.env.example`**: rewrite it to match `Settings` plus the third-party
   variables, grouped as **local development** and **AWS**.
   - Development preset: `LLM__PROVIDER=ollama` with a pulled vision model,
     `EMBEDDING__BACKEND=siglip` and `CHECKPOINTER__BACKEND=sqlite`.
@@ -1865,7 +1865,12 @@ anything needs the user's go-ahead (§0.2C).
     `DYNAMODB_ENDPOINT_URL`, `AWS_ACCOUNT_ID`, `AWS_BEDROCK_BATCH_INFERENCE_ROLE_ARN`,
     and the misleading `AWS_ACCESS_KEY_ID=local`/`AWS_SECRET_ACCESS_KEY=local`.
   - Recommend `aws configure sso` or a named profile instead of static keys in `.env`.
-- [ ] **14.2 `README.md`**:
+
+  *Done: presets for local development and AWS, other options, and a shared section
+  (stack values via `write_env_from_stack.sh`, Chainlit, LangSmith). Both presets were
+  checked by loading `Settings` from a copy (ollama/qwen3.5:4b/siglip/sqlite;
+  bedrock/Haiku/0.8 rps/nova/dynamodb). LangSmith tracing is now off by default.*
+- [x] **14.2 `README.md`**:
   - **Features.** Describe both embedding backends (Marqo-FashionSigLIP locally, Nova
     on AWS), all four checkpointers, Bedrock and Ollama, and per-turn graph runs.
     Replace the eval score with "pending re-run", and report the completion rate once
@@ -1882,7 +1887,16 @@ anything needs the user's go-ahead (§0.2C).
   - **Contribution guidelines.** Keep them, but change "create branches from
     develop" to `main`, since PRs merge into `main` (decision 1.15). Remove the line
     about the `exploration` folder getting lighter review, since that folder is gone.
-- [ ] **14.3** Update `docs/frag_aws_completion_plan.md` wherever it conflicts with
+
+  *Done: rewritten Features (checked against the code: node names, MCP tools, ID
+  validation; token usage is written to a CSV per message, not shown in the UI). The
+  eval line says "pending re-run" and explains why the old 9.37 isn't quoted (31/60
+  completed). Install/configure/start/run are now separate steps, and the Ollama
+  memory command from the Phase 7 notes moved into the README, since it was the last
+  thing pointing at this file. The deployment notes, the MCP/Mangum sketch and the
+  psycopg TODO are gone; the plan covers them, and Phase 2 there already drops
+  `psycopg[binary]` from the image. The branch-prefix table now shows main → main.*
+- [x] **14.3** Update `docs/frag_aws_completion_plan.md` wherever it conflicts with
   §1:
   - Keep the full catalogue bucket (local SigLIP mode).
   - Delete the batch-inference leftovers instead of the catalogue.
@@ -1890,11 +1904,57 @@ anything needs the user's go-ahead (§0.2C).
   - Embedding is per-item `InvokeModel` only, and no new embeddings are needed
     (decision 1.12).
   - Make the image build use `--no-group siglip`.
-- [ ] **14.4** List the removal candidates for the user. Don't act on them.
+
+  *Done, and more than spot fixes:*
+  - *Section 1 and Phase 0 described pre-cleanup files and bugs; now they summarise
+    the current state, and Phase 0 is marked done, with its two leftovers (temp
+    files, Nova query purpose) moved to later phases.*
+  - *Phase 1 was a 5k-subset build; now it snapshots the whole existing Nova
+    collection (decisions 1.4, 1.12).*
+  - *Phase 2 uses `--no-group siglip --no-group local-llm --no-group ingest`,
+    `frag mcp`, and the existing `TOOLS__*`, `/health` and JSON logging.*
+  - *Phase 3 keeps the catalogue bucket and adds an artifacts bucket for the snapshot.*
+  - *Phase 4 points PR checks at cleanup Phase 16.*
+  - *Phase 5 no longer deletes buckets.*
+  - *The timeline is now ~49–76 h.*
+  - *The job-application recommendation and the pasted review summary moved,
+    unchanged, to an appendix marked historical, because they predate the decisions.
+    The plan file is git-ignored (`.gitignore`), so it stays private.*
+- [x] **14.4** List the removal candidates for the user. Don't act on them.
   - Local: `data/jsonl_files/`, the root `__pycache__/`, and `data/temp_images/`
     (which `eval_soln.json` references).
   - AWS: from the inventory in 13.1.
+
+  *Listed for the user (nothing deleted):*
+  - *Local:*
+    - *`data/jsonl_files/` (192 MB, batch-inference inputs)*
+    - *the root `__pycache__/` (bytecode of deleted modules)*
+    - *`src/frag/data_manager/` (only `__pycache__`)*
+    - *`data/temp_images/` (121 files)*
+    - *the tracked March outputs `data/evaluation_data/eval_soln.json` and
+      `eval_judgement.json` (not read by any code; they reference `temp_images`)*
+    - *`data/trendy-check-shirt-10212-2.jpg`*
+    - *`.env.bak` (a copy of `.env` with secrets)*
+    - *later, `data/aws_backup/`*
+  - *AWS: none. Phase 13 removed every candidate at the user's request.*
+
+  *The user deleted every local candidate except `data/trendy-check-shirt-10212-2.jpg`
+  (kept as a sample image).*
+
+  *Per the user, nothing outside this file mentions the deployment plan document (not
+  code, comments, tests, docs or `.gitignore`); its ignore rule lives in
+  `.git/info/exclude`. It will be deleted at the end of the deployment work.*
 - [ ] **14.5** Delete `cleanup.md` when done.
+
+  *Deferred until after Phase 16: Phases 15 and 16 are still in this file. It's also
+  still cited by about 20 places: docstrings and comments in `settings.py`,
+  `logging_setup.py`, `runtime.py`, `tokens.py`, `app.py`, `scripts/` and `tests/`
+  (§0.2, §3, decisions 1.x, bug numbers like 3.1), plus the plan and
+  `docs/cloudformation.md`. Before deleting it:*
+  - *move §1 (decisions) and §3 (configuration/side-effect rules) into a permanent
+    `docs/architecture.md`;*
+  - *repoint those references at it (`grep -rn cleanup.md`);*
+  - *reword the bug-number regression comments in the tests to describe the bug itself.*
 
 ---
 

@@ -1,18 +1,23 @@
 # FRAG: The Fashion Recommendation Agent
-A multi-modal, multi-agent RAG framework for getting clothing item recommendations from a product catalogue.
+A multi-modal agentic RAG application that recommends clothing items from a product catalogue, from a text request, a photo, or both.
 
 # Demo
 https://github.com/user-attachments/assets/cc40f339-4bd2-4075-aea9-9388405977f5
 
 # Features
-1. A stateful multi-agent pipeline using LangGraph with conditional branching and specialised nodes for intent parsing, visual feature extraction, retrieval, self-correction, and explanation.
-2. A **self-correcting RAG** loop inspired by Self-RAG, where a critique agent evaluates retrieval quality and feeds structured correction signals back into the generation stage."
-3. Uses a domain-specific multi-modal embedding model (marqo-fashionSigLIP) for cross-modal semantic search, enabling image-to-image and text-to-image retrieval across a 260k-item vector database - which acts as an analogue to the product catalogue.
-4. A production-grade **MCP server** (with streamable HTTP transport) exposing a Qdrant vector database as LLM-consumable tools, following the Model Context Protocol standard."
-5. Incorporates stateful multi-turn conversation with cross-turn image reference tracking and SQLite-backed checkpoint persistence for session resumability.
-6. Async-first agentic backend with real-time streaming updates to a **Chainlit UI**, including per-session token usage monitoring for API rate limit management, along with **LangSmith observability** for enhanced debugging.
-7. Evaluation pipeline which uses the **LLM-as-a-judge framework** to evaluate the agent across multiple different query types including "items that go well with X", "same item, different style", "items that look good on me", and "aesthetic from image"; then judges the output of the agent on various criteria like visual grounding, individual item suitability, completeness, and coverage; then assigns a weighted final score and produces the mean and standard deviation of all final scores across the entire evaluation dataset.
-8. Current Evaluation Score: **9.37 ± 0.78 / 10.00**
+1. **A stateful LangGraph agent** with conditional routing between specialised nodes: intake, quantity and item-type extraction, intent parsing, visual feature extraction from uploaded images, retrieval query generation, recommendation, critique and explanation. Each user message is one graph run; the conversation state carries over between turns.
+2. **A self-correcting RAG loop**, inspired by Self-RAG: a critique node checks the recommendations against the request and sends structured feedback back to the retrieval step, up to a configurable number of times. Item IDs the LLM returns are validated against what the tools actually returned.
+3. **Two embedding backends over the same 260k-item Fashion-Gen catalogue:**
+   - `siglip` (local default): Marqo-FashionSigLIP embeds queries locally and searches the `fashion_gen` Qdrant collection (260k items).
+   - `nova` (AWS): Amazon Nova Multimodal Embeddings on Bedrock, against the `nova_fashion_gen` collection (~10k items).
+   Images and metadata (Parquet) are always read from S3.
+4. **Two LLM providers**, switched with one setting: Claude Haiku 4.5 on **AWS Bedrock**, or a local vision model on **Ollama** (`qwen3.5:4b` tested) for free development.
+5. **An MCP server** (FastMCP, streamable HTTP) that exposes the catalogue as tools: semantic search, product categories, item lookup. The agent can use the same tools in-process instead.
+6. **Multi-turn conversations** that track images across turns, with **four interchangeable LangGraph checkpointers** (memory, SQLite, Postgres, DynamoDB) selected by one setting.
+7. **A Chainlit UI** with streamed progress, Cognito sign-in (admin-created users only), persistent chat history (DynamoDB + S3), token usage recorded per message (`data/token_usage.csv`), and optional **LangSmith** tracing.
+8. **LLM-as-a-judge evaluation** over 60 queries in four groups ("items that go well with X", "same item, different style", "items that look good on me", "aesthetic from image"). The judge scores visual grounding, item suitability and completeness. Each run records the models used, the completion rate (`completed/total`), and the mean ± std of the weighted score per group.
+9. **Current evaluation score: pending re-run.** The earlier figure (9.37 ± 0.78) was the average of only the 31 of 60 queries that completed, so it isn't reported here. The completion rate will be reported together with the score.
+10. **Infrastructure as code:** every AWS resource is owned by a CloudFormation stack and changed only through reviewed change sets (`infra/`).
 
 # Agent Orchestration Diagram
 <p align="center">
@@ -20,95 +25,100 @@ https://github.com/user-attachments/assets/cc40f339-4bd2-4075-aea9-9388405977f5
 </p>
 
 # Install and Run Instructions
-1. Clone git repo
-2. Run `uv sync --all-groups` from root directory (or pick groups: `dev`, `siglip` for the local Marqo-FashionSigLIP embedder - CPU-only torch, `local-llm` for the default local LLM (Ollama, `ollama pull qwen3.5:4b`), `ingest` for the HDF5 ingestion script)
-3. Chainlit does not play well with symlinked / hardlinked installs. Reinstall just chainlit as real files (re-run this whenever chainlit gets reinstalled):
-    `uv sync --all-groups --reinstall-package chainlit --link-mode copy`
-    - If you use `UV_LINK_MODE=symlink`: `uv cache clean` / `uv cache prune` deletes the files the venv links to and silently breaks it. Repair with `uv sync --reinstall --all-groups` followed by the chainlit command above.
-    - The AWS CLI is not a project dependency. Install v2 system-wide (e.g. `sudo pacman -S aws-cli-v2` on Arch, or AWS's official installer).
-4. Copy `.env.example` to `.env` and fill in what you need. The defaults use the local LLM (Ollama, `qwen3.5:4b`) and the local SigLIP embedder. Start Ollama with the memory settings in `cleanup.md` (Phase 7 notes, `LLAMA_ARG_CACHE_RAM=0`).
-5. Install podman / docker and podman-compose / docker-compose, and run `podman-compose up -d` to start Qdrant. It serves `data/qdrant_storage/` (override with `QDRANT_STORAGE_DIR`), which holds both collections: `fashion_gen` (SigLIP, the default) and `nova_fashion_gen` (Nova).
-6. Run `podman-compose down` to stop the containers when done.
-7. The catalogue images and metadata are read from S3, so AWS credentials must be configured (`aws configure`).
-8. Optional: serve the catalogue tools from a separate process with `uv run frag mcp` (port 9000) and set `TOOLS__MODE=mcp`. By default the agent uses the tools in-process.
-9. Start the Chainlit UI with `uv run chainlit run app.py` (http://localhost:8000; sign-in is through AWS Cognito), or chat in the terminal with `uv run frag chat`.
-10. Evaluation: `uv run frag eval` runs the agent over the 60 evaluation queries, then has the LLM judge the outputs. Each run is a self-contained directory `data/evaluation_runs/<UTC time>/` (`config.json` with the models and setup, `results.jsonl`, `judgement.jsonl`, `summary.json` with completed/total and mean ± std per group, and copies of the images). `--limit N` runs only the first N queries; `--skip-judge` only runs the agent; `--skip-run` judges a stored run (`--run-dir`, default the latest); `--sleep S` waits between queries. The judge uses the agent's LLM unless `EVALUATION__JUDGE_LLM__PROVIDER` (and optionally `..._MODEL_ID`) is set, so the agent can run locally while only the judging uses Bedrock (about $0.30 for 60 queries); running the agent on Bedrock as well costs about $3–5.
-11. Data pipeline scripts (run by path, e.g. `uv run python scripts/qdrant_admin.py info`): `scripts/ingest_fashiongen.py` (HDF5 to PNGs + Parquet on S3), `scripts/build_vector_db.py` (Nova embeddings into Qdrant; billed, asks first) and `scripts/qdrant_admin.py` (info, sample, snapshot, restore, copy-subset).
-12. To run the test(s), do `uv run pytest` (offline). The slow model-quality tests run the real agent on the local Ollama model, Qdrant and S3: `uv run pytest -m ollama` (see `tests/model/`). For a coverage report: `uv run pytest --cov=frag --cov-report=term-missing:skip-covered --cov-report=html:reports/htmlcov`
 
+### 1. Install
+1. Clone the repo, then from the root directory run:
+   `uv sync --group siglip --group local-llm`
+   Add `--group dev` for tests and lint, or `--group ingest` for the HDF5 ingestion script; `--all-groups` installs everything. The `siglip` group (CPU-only torch) is only needed for the local SigLIP embedder, and the `local-llm` group only for Ollama.
+2. Chainlit doesn't work from a symlinked or hard-linked install. Reinstall just Chainlit as real files, and re-run this whenever Chainlit gets reinstalled:
+   `uv sync --all-groups --reinstall-package chainlit --link-mode copy`
+   - If your shell sets `UV_LINK_MODE=symlink`: `uv cache clean` or `uv cache prune` deletes the files the venv links to, which silently breaks it. Repair it with `uv sync --reinstall --all-groups`, followed by the Chainlit command above.
+3. Install the AWS CLI v2 system-wide (it isn't a project dependency; e.g. `sudo pacman -S aws-cli-v2`, or AWS's installer), and configure credentials with a named profile or `aws configure sso`. The catalogue is read from S3 in every mode.
+4. Install podman or docker with compose.
+
+### 2. Configure
+1. Copy `.env.example` to `.env` and pick a preset: **local development** (Ollama + SigLIP + SQLite, the default) or **AWS** (Bedrock + Nova + DynamoDB).
+2. Fill in the AWS resource names and Cognito values from the CloudFormation stacks:
+   `infra/scripts/write_env_from_stack.sh --write`
+   This also writes the Cognito client secret, which it never prints. If the stacks don't exist yet, see [AWS resources](#aws-resources).
+3. Create the Chainlit auth secret with `uv run chainlit create-secret` and put it in `.env` as `CHAINLIT_AUTH_SECRET`.
+4. Create a login for yourself: `infra/scripts/create_user.sh <email>`. Sign-up is admin-only.
+
+### 3. Start the services
+1. Qdrant: `podman compose up -d`. It serves `data/qdrant_storage/` (override with `QDRANT_STORAGE_DIR`), which holds both collections: `fashion_gen` (SigLIP) and `nova_fashion_gen` (Nova). To create the storage folder: `mkdir -p data/qdrant_storage/`. Restore a collection with `scripts/qdrant_admin.py restore`.
+2. Optional Postgres checkpointer: `podman compose --profile postgres up -d`, and set `CHECKPOINTER__BACKEND=postgres`.
+3. Local LLM: `ollama pull qwen3.5:4b`, then start Ollama with its prompt cache in system RAM turned off. By default it can grow to 8 GiB, and with image-heavy agent calls it once filled 14 GB of RAM and froze the machine. The tested command, with a memory cap as a safety net, is:
+   ```bash
+   LLAMA_ARG_CACHE_RAM=0 OLLAMA_NUM_PARALLEL=1 OLLAMA_MAX_LOADED_MODELS=1 OLLAMA_CONTEXT_LENGTH=16384 \
+     systemd-run --user --scope -p MemoryMax=6G -p MemorySwapMax=0 ollama serve
+   ```
+   On an 8 GB GPU, `qwen3.5:4b` runs fully on the GPU, using about 3.7 GB of VRAM at a 16k context. Keep `LLM__REASONING=false`, the default: with thinking on, small models return empty or invalid structured output.
+4. Stop the containers with `podman compose down`.
+
+### 4. Run
+- **Chainlit UI:** `uv run chainlit run app.py`, then open http://localhost:8000 and sign in through Cognito.
+- **Terminal chat:** `uv run frag chat`.
+- **MCP server (optional):** `uv run frag mcp` (port 9000, health check at `/health`). Set `TOOLS__MODE=mcp` so the agent uses it; by default the tools run in-process.
+- **Evaluation:** `uv run frag eval` runs the agent over the 60 evaluation queries, then has the LLM judge the outputs.
+  - Each run is a self-contained directory, `data/evaluation_runs/<UTC time>/`, containing:
+    - `config.json`: the models and setup
+    - `results.jsonl` and `judgement.jsonl`
+    - `summary.json`: completed/total and mean ± std per group
+    - copies of the images
+  - Options:
+    - `--limit N` runs only the first N queries.
+    - `--skip-judge` runs only the agent.
+    - `--skip-run` judges a stored run (`--run-dir`; the default is the latest).
+    - `--sleep S` waits S seconds between queries.
+  - The judge uses the agent's LLM unless `EVALUATION__JUDGE_LLM__PROVIDER` (and optionally `..._MODEL_ID`) is set. That way the agent can run locally while only the judging uses Bedrock, which costs about $0.30 for 60 queries. Running the agent on Bedrock as well costs about $3–5.
+- **Tests:**
+  - `uv run pytest` runs offline.
+  - `uv run pytest -m ollama` runs the slow model-quality tests: the real agent on the local Ollama model, Qdrant and S3 (see `tests/model/`).
+  - For a coverage report: `uv run pytest --cov=frag --cov-report=term-missing:skip-covered --cov-report=html:reports/htmlcov`.
+- **Lint:** `uv run ruff check` and `uv run cfn-lint infra/cloudformation/*.yaml`.
+- **Data pipeline scripts** (run by path, e.g. `uv run python scripts/qdrant_admin.py info`):
+  - `scripts/ingest_fashiongen.py`: HDF5 to PNGs + Parquet on S3.
+  - `scripts/build_vector_db.py`: Nova embeddings into Qdrant; billed, and asks first. It's kept as a record; the collections already exist.
+  - `scripts/qdrant_admin.py`: `info`, `sample`, `snapshot`, `restore`, `copy-subset`.
 
 # AWS resources
-Every AWS resource the app uses (catalogue and chat-elements buckets, the two DynamoDB tables, the Cognito login) is owned by a CloudFormation stack in `infra/cloudformation/` (`frag-<env>-storage`, `frag-<env>-auth`). It's changed only through `infra/scripts/`, which shows a change set and waits for a typed confirmation. See `docs/cloudformation.md` for the workflow and `docs/aws_inventory.md` for what exists and why.
+Every AWS resource the app uses is owned by a CloudFormation stack in `infra/cloudformation/` (`frag-<env>-storage`, `frag-<env>-auth`): the catalogue and chat-elements buckets, the two DynamoDB tables, and the Cognito login. These resources are changed only through `infra/scripts/`, which shows a change set and waits for a typed confirmation. See `docs/cloudformation.md` for the workflow and `docs/aws_inventory.md` for what exists and why.
 - `infra/scripts/deploy.sh [layer] [Param=Value ...] [--dry-run]`: set up or update the stacks.
 - `infra/scripts/write_env_from_stack.sh [--write]`: put table, bucket and Cognito values (including the client secret) into `.env`.
-- `infra/scripts/create_user.sh <email>`: sign-up is admin-only, so users are created this way.
+- `infra/scripts/create_user.sh <email>`: create a user (sign-up is admin-only).
 - `infra/scripts/teardown.sh <layer>`: delete a layer; it refuses stacks that hold retained data.
 
-**Data uploads** go only through `scripts/ingest_fashiongen.py` (catalogue images and metadata Parquet) and, once the deployment plan adds it, the Qdrant snapshot upload. Nothing else writes catalogue data to S3.
-
-# AWS Deployment Considerations
-1. KNOWN: Embedding model - lives on the EC2 t3.large - can use Amazon Nova Embedding - but quality might be lower
-2. KNOWN: MCP server - AWS Lambda + API Gateway - each tool is a lambda function - use API Gateway to be called by agent - The core flow would be: API Gateway HTTP API → Lambda (FastMCP + Mangum) → External services. Might not actually need API Gateway since you are invoking the lambda internally from EC2
-3. Agent Orchestration - this runs on the EC2 t3.large
-4. Chainlit UI - this runs on the EC2 t3.large - points 3. 4. are being suggested to run together EC2 t3.small - which will cost around 15 / month - for always on. But perhaps you can have it on demand in some way - if you are willing to wait for the launch time. - also need to see how to setup static IP - that might cost extra
-6. KNOWN: Qdrant Docker Container - Can run on ECS Fargate 0.25vCPU and 1 GB RAM (or EC2 t4g.micro) - it will have 90 second startup time and 1-2 second query fetch time
-7. KNOWN: Qdrant Vector DB - this can live on an EBS, although EFS is better (more support with Fargate) but more expensive
-8. KNOWN: Fashion-Gen 14 GB database - use a single file (hdf5) entry on AWS S3 Standard - this supports random access with an object - see exploration folder
-9. KNOWN: Sqlite checkpointer db - use dynamo DB
-10. KNOWN: LLM Calls - AWS Bedrock - this is a very in-demand service - might have to use Mistral Medium directly for now since Bedrock does not have this model and others cost money - there is a simple ChatBedrockConverse API on LangChain which allows easy switching from Mistral to any Bedrock model
-11. .env - AWS Secrets Manager / Parameter Store
-
-Can use Qdrant Cloud Free Tier to host the docker container and the Qdrant DB - they have 0.5vCPU, 1 GB RAM, 4 GB disk space free forever
-
-## Changes to MCP Server
-1. Need to switch out code components that assume local stuff
-```python
-# Replace FashionSigLIPEmbedding with:
-class RemoteEmbedder:
-    def get_text_embedding_batch(self, texts):
-        response = httpx.post("https://your-embedding-api/embed", json={"texts": texts})
-        return response.json()["embeddings"]
-
-# Replace mcp.run() at the bottom with:
-from mangum import Mangum
-app = mcp.http_app()   # FastMCP exposes the underlying Starlette app
-handler = Mangum(app)  # this is your Lambda handler
-```
-
-
-TODO: you have added psycopg[binary] as a dependency - but the binary is not recommended for production - please libpq on the system in a production environment.
-
+**Data uploads** go only through `scripts/ingest_fashiongen.py` (catalogue images and metadata Parquet); nothing else writes catalogue data to S3.
 
 # Contribution Guidelines
-I have connected JIRA to github so please make use of the integration
-1. Pick up a JIRA ticket (story, task, sub-task) or create it if it does not exist (likely at the start) - create a branch named `<prefix>/<project-name>-<ticket-id>-short-description` (eg: `bugfix/FRAG-23-fix-graph-generation-bug`) - our project name is `FRAG`. If you don't use the right branch name, you will get a message due to a Github Action
-2. JIRA also allows you to create a github branch directly from JIRA - it also auto-suggests a name based on the ticket name.
-2. Every commit to that branch should start with `<project-name>-<ticket-id>` in the message (eg: `FRAG-42 Add google OAuth callback`)
-3. Use Smart Commit Syntax to automatically update JIRA through the commit.
-4. Open a PR with title `<project-name>-<ticket-id>: <description>` when ready for review. For reviews that only impact the `exploration` folder, I will simply approve. Any other project code should be reviewed seriously. In the start we might have lower scrutiny, while the project skeleton takes shape.
-5. Once the PR is merged, JIRA issue gets closed and the full history is tracked there.
-6. Ensure the email you use to commit to github is the one of the emails that is registered in JIRA for the project, else it will be silently ignored.
-7. Please mostly create branches from develop (at least for now) rather than main - main is for releases
+I have connected JIRA to GitHub, so please make use of the integration.
+1. Pick up a JIRA ticket (story, task, sub-task), or create one if it doesn't exist. Create a branch named `<prefix>/<project-name>-<ticket-id>-short-description` (e.g. `bugfix/FRAG-23-fix-graph-generation-bug`); our project name is `FRAG`. A GitHub Action flags branches that don't follow this pattern.
+2. JIRA can also create the GitHub branch for you, and suggests a name based on the ticket name.
+3. Start every commit message on that branch with `<project-name>-<ticket-id>` (e.g. `FRAG-42 Add google OAuth callback`).
+4. Use Smart Commit Syntax to update JIRA automatically through the commit.
+5. When ready for review, open a PR titled `<project-name>-<ticket-id>: <description>`.
+6. Once the PR is merged, the JIRA issue is closed and the full history is tracked there.
+7. Commit with an email address that is registered in JIRA for the project; otherwise the commits are silently ignored.
+8. Create branches from `main`. PRs merge into `main`.
 
-### Gitflow prefixes
-These are the prefixes which are allowed in git or github branches
-| Prefix   | Purpose                                                          | Branches from | Merges into               |
-| -------- | ---------------------------------------------------------------- | ------------- | ------------------------- |
-| feature/ | Developing new features or functionalities                       | develop       | develop            |
-| bugfix/  | Fixing bugs found during development (non-production)            | develop       | develop |
-| release/ | Preparing a new version for production (version bumps, final QA) | develop       | main + develop |
-| hotfix/  | Urgent, critical patches applied directly to production          | main          | main + develop |
-| support/ | Long-term support branches for maintaining older versions        | main          | Stays isolated 
-| refactor/ | Code improvements, restructuring, cleanup - no external change  | develop       | develop |
-| chore/   | Maintenance tasks eg updating dependencies, configs, or tooling  | develop       | develop |
-| docs/    | Documentation-only changes (READMEs, wikis, inline comments)     | develop       | develop |
-| test/    | Adding / updating tests without changing production code         | develop       | develop |
-| ci/      | Changes to CICD pipeline  Github Actions, Jenkins etc            | develop       | develop |
+### Branch prefixes
+These are the prefixes allowed in branch names. All branches start from `main` and merge back into `main`.
+| Prefix    | Purpose                                                          |
+| --------- | ---------------------------------------------------------------- |
+| feature/  | Developing new features or functionalities                       |
+| bugfix/   | Fixing bugs found during development (non-production)            |
+| release/  | Preparing a new version for production (version bumps, final QA) |
+| hotfix/   | Urgent, critical patches applied directly to production          |
+| support/  | Long-term support branches for maintaining older versions (these stay isolated) |
+| refactor/ | Code improvements, restructuring, cleanup; no external change    |
+| chore/    | Maintenance tasks, e.g. updating dependencies, configs or tooling |
+| docs/     | Documentation-only changes (READMEs, wikis, inline comments)     |
+| test/     | Adding or updating tests without changing production code        |
+| ci/       | Changes to the CI/CD pipeline (GitHub Actions, Jenkins, etc.)    |
 
 ### Smart Commit Syntax
 1. Syntax (for commits): `<ISSUE_KEY> <ignored_text> #<command 1> <command 1 arguments> #<command 2> <command 2 arguments> ...`
 2. Three key commands:
-    1. `#comment <comment text>` - add comment to jira issue
-    2. `#time <value> <optional worklog comment>` - add time you worked on the task (`w` weeks, `d` days, `h` hours, `m` minutes)
-    3. `#<transition-name>` - to move the ticket to a different flow state (eg: `#to-do`, `#in-progress`, `#done`, `#cancelled` - these are the only valid ones)
-
+    1. `#comment <comment text>`: add a comment to the JIRA issue.
+    2. `#time <value> <optional worklog comment>`: log time worked on the task (`w` weeks, `d` days, `h` hours, `m` minutes).
+    3. `#<transition-name>`: move the ticket to a different state. The only valid ones are `#to-do`, `#in-progress`, `#done` and `#cancelled`.

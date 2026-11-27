@@ -2,9 +2,7 @@
 
 All AWS resources are created and changed by committed templates and scripts
 (decision 1.8 in `cleanup.md`). Don't use the console or one-off CLI commands. What
-exists and why: `docs/aws_inventory.md`. The full deployment design (compute, edge,
-and the on-demand wake/sleep mode): the plan, `docs/frag_aws_completion_plan.md`,
-sections 2–3.
+exists and why: `docs/aws_inventory.md`.
 
 ## Layout
 
@@ -28,7 +26,7 @@ list of resources) and continues only after a typed confirmation. All are safe t
 | `deploy.sh [layer] [Key=Value ...] [--dry-run]` | Sets up or updates the stacks through change sets: all layers in order, or one layer. Parameters you don't pass keep their current values. `--dry-run` prints the change set and discards it. |
 | `write_env_from_stack.sh [--write]` | Prints the `.env` lines from the stack outputs. `--write` merges them, plus the Cognito client secret (never printed), into `.env`, keeping a `.env.bak`. |
 | `create_user.sh <email>` | Admin-creates a Cognito user. Cognito emails them a temporary password. |
-| `teardown.sh <layer>` | Deletes a layer stack and its resources. Refuses any stack that contains a Retain resource, which today means both layers; it's there for the plan's compute/edge layers. |
+| `teardown.sh <layer>` | Deletes a layer stack and its resources. Refuses any stack that contains a Retain resource, which today means both layers; it's meant for future stateless layers such as compute. |
 
 First-time setup order: `docs/aws_inventory.md`, "Setting it up".
 

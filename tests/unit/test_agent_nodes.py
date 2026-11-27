@@ -235,7 +235,7 @@ async def test_recommender_saves_item_image_and_description(make_agent, monkeypa
 
 
 async def test_recommender_corrects_an_id_that_was_not_offered(make_agent, monkeypatch):
-    # plan Phase 0.3: the first answer was never returned by semantic_search
+    # the first answer was never returned by semantic_search
     _use_agent(monkeypatch, choices={"jeans": [UNKNOWN_ITEM_ID, 101]})
     update = await _recommend(make_agent(), "jeans")
     assert update["recommended_clothes_descriptions"] == [FAKE_ITEMS[101][1]]

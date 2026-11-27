@@ -39,6 +39,3 @@ chainlit.md
 
 # Generated agent graph diagram
 fashion_agent_diagram.png
-
-# don't need to track frag completion plan (that is internal only)
-docs/frag_aws_completion_plan.md

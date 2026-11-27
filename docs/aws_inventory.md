@@ -32,12 +32,12 @@ features that AWS creates on demand.
 
 About **$0.18/month**, nearly all of it S3 storage for the catalogue (7.8 GB at
 $0.023/GB). DynamoDB on demand costs about $0.000001 per request, and Cognito is free
-up to 10,000 monthly active users. Bedrock is billed per call; see the deployment plan.
+up to 10,000 monthly active users. Bedrock is billed per call (about $0.035 per chat message with Claude Haiku 4.5).
 
 ## Stack layout
 
 Each layer is its own top-level stack: `frag-<env>-storage` and `frag-<env>-auth`.
-The deployment plan's later layers (network, compute, edge, wake, ops) follow the same
+Later layers (for example network, compute, edge) follow the same
 pattern and read values through `Export`/`!ImportValue`. Separate stacks keep teardown
 per layer: removing compute never touches the catalogue or the user pool. All
 stateful resources are `Retain`, so even deleting a stack leaves the data in place.
