@@ -114,7 +114,7 @@ def test_append_usage_csv(tmp_path):
 
 def test_track_tokens_records_even_when_the_body_raises(tmp_path):
     path = tmp_path / "usage.csv"
-    with (  # noqa: PT012
+    with (  # noqa: PT012  the raise must happen inside track_tokens
         pytest.raises(RuntimeError),
         track_tokens(str(path), "eval", "t-1") as handler,
     ):
@@ -133,7 +133,7 @@ def _image_urls(messages):
     ]
 
 
-def test_message_images_get_mime_types_from_their_names(tmp_path):
+def test_message_images_get_mime_types(tmp_path):
     # regression for cleanup.md 3.1 (a follow-up with a new image raised NameError)
     png = tmp_path / "x.png"
     Image.new("RGB", (4, 4)).save(png)
@@ -142,8 +142,29 @@ def test_message_images_get_mime_types_from_their_names(tmp_path):
     urls = _image_urls(build_message([FIXTURE_IMAGE, png, unknown, "hi"]))
     assert urls[0].startswith("data:image/jpeg;base64,")
     assert urls[1].startswith("data:image/png;base64,")
-    assert urls[2].startswith("data:image/png;base64,")  # the default
+    assert urls[2].startswith("data:image/png;base64,")  # from the content
     assert base64.b64decode(urls[0].split(",", 1)[1]) == FIXTURE_IMAGE.read_bytes()
+
+
+@pytest.mark.parametrize(
+    ("fmt", "mime"),
+    [("WEBP", "image/webp"), ("PNG", "image/png"), ("GIF", "image/gif")],
+)
+def test_misnamed_images_get_the_type_of_their_content(tmp_path, fmt, mime):
+    # a WebP saved as .jpg made Bedrock reject a follow-up (declared type != bytes)
+    path = tmp_path / "photo.jpg"
+    Image.new("RGB", (4, 4)).save(path, format=fmt)
+    assert _image_urls(build_message([path]))[0].startswith(f"data:{mime};base64,")
+
+
+def test_unrecognised_content_falls_back_to_the_name_then_the_default(tmp_path):
+    named = tmp_path / "x.jpg"
+    named.write_bytes(b"not an image signature")
+    nameless = tmp_path / "x"
+    nameless.write_bytes(b"not an image signature")
+    urls = _image_urls(build_message([named, nameless]))
+    assert urls[0].startswith("data:image/jpeg;base64,")
+    assert urls[1].startswith("data:image/png;base64,")
 
 
 def test_message_parts_keep_their_order_and_strings_stay_text():

@@ -49,7 +49,7 @@ async def _read_message() -> tuple[str, list[str]] | None:
         if (image := _existing_file(path)) is not None:
             images.append(image)
         else:
-            print(f"No such file: {path}")  # noqa: T201  terminal UI
+            print(f"No such file: {path}")
 
 
 async def chat(resources: Resources) -> None:
@@ -68,12 +68,12 @@ async def chat(resources: Resources) -> None:
             result = await agent.run_turn(text, images, thread_id, callbacks=[usage])
         paths = result["recommended_clothes_image_paths"]
         if not paths:
-            print("\nNo recommendations could be found for your request.")  # noqa: T201
+            print("\nNo recommendations could be found for your request.")
             continue
-        print("\nRecommended images:")  # noqa: T201
+        print("\nRecommended images:")
         for path in paths:
-            print(f"  {path}")  # noqa: T201
-        print(f"\n{result['recommended_clothes_explanation']}")  # noqa: T201
+            print(f"  {path}")
+        print(f"\n{result['recommended_clothes_explanation']}")
 
 
 def _parser() -> argparse.ArgumentParser:

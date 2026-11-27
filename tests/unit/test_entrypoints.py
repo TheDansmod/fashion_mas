@@ -12,7 +12,7 @@ from tests.fakes import FIXTURE_IMAGE
 
 
 def test_cli_parses_the_eval_flags():
-    args = cli._parser().parse_args(["eval", "--skip-run", "--limit", "2"])  # noqa: SLF001
+    args = cli._parser().parse_args(["eval", "--skip-run", "--limit", "2"])
     assert (args.command, args.skip_run, args.skip_judge, args.limit) == (
         "eval",
         True,
@@ -24,23 +24,23 @@ def test_cli_parses_the_eval_flags():
 @pytest.mark.parametrize("argv", [[], ["serve"], ["eval", "--limit", "x"]])
 def test_cli_rejects_bad_arguments(argv):
     with pytest.raises(SystemExit):
-        cli._parser().parse_args(argv)  # noqa: SLF001
+        cli._parser().parse_args(argv)
 
 
 async def test_chat_input_skips_image_paths_that_do_not_exist(monkeypatch, capsys):
     answers = iter(["shoes for this", "/no/such/file.jpg", str(FIXTURE_IMAGE), ""])
     monkeypatch.setattr(cli, "_ask", lambda _prompt: next(answers))
-    assert await cli._read_message() == ("shoes for this", [str(FIXTURE_IMAGE)])  # noqa: SLF001
+    assert await cli._read_message() == ("shoes for this", [str(FIXTURE_IMAGE)])
     assert "No such file: /no/such/file.jpg" in capsys.readouterr().out
 
 
 async def test_chat_input_quits(monkeypatch):
     monkeypatch.setattr(cli, "_ask", lambda _prompt: "QUIT")
-    assert await cli._read_message() is None  # noqa: SLF001
+    assert await cli._read_message() is None
 
 
 def test_cli_passes_the_eval_options_through():
-    args = cli._parser().parse_args(  # noqa: SLF001
+    args = cli._parser().parse_args(
         ["eval", "--sleep", "1.5", "--run-dir", "data/evaluation_runs/x"]
     )
     assert (args.sleep, args.run_dir) == (1.5, "data/evaluation_runs/x")

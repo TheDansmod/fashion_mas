@@ -432,6 +432,10 @@ class FashionAgent:
             model=self._model,
             tools=await self._tools.get_llm_tools(),
             response_format=MatchedImageId,
+            # don't inherit the graph's checkpointer: this inner agent's messages hold
+            # the base64 images of every search, which are only needed within this
+            # node and exceed DynamoDB's 400 KB item limit
+            checkpointer=False,
         )
         matched = await asyncio.gather(
             *(
@@ -447,7 +451,7 @@ class FashionAgent:
                 item = await self._tools.get_item(item_id)
             # failures differ per tool backend (S3 errors, MCP ToolException); any of
             # them means skip this item
-            except Exception:  # noqa: BLE001
+            except Exception:  # noqa: BLE001  see the comment above
                 log.opt(exception=True).warning(
                     "Skipping recommended item {}: catalogue lookup failed.", item_id
                 )
