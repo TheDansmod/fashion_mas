@@ -71,7 +71,7 @@ class _NodeCounter(BaseCallbackHandler):
     def __init__(self):
         self.names = []
 
-    def on_chain_start(self, serialized, inputs, *, name=None, **kwargs):  # noqa: ARG002
+    def on_chain_start(self, serialized, inputs, *, name=None, **kwargs):  # noqa: ARG002  LangChain callback signature
         self.names.append(name)
 
 
@@ -96,7 +96,7 @@ async def test_stream_turn_runs_to_the_end_and_passes_callbacks(make_agent):
     ]
     assert "explanation_node" in counter.names  # the callbacks reached the run
     # no interrupt: the thread is finished and waiting for the next message
-    snapshot = await agent._graph.aget_state(  # noqa: SLF001
+    snapshot = await agent._graph.aget_state(
         {"configurable": {"thread_id": "streamed"}}
     )
     assert snapshot.next == ()

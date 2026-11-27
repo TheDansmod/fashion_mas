@@ -21,6 +21,7 @@ ignore = [
     "EM",      # exception-message style is irrelevant in test doubles
     "TRY003",  # same reason as EM
     "ASYNC240",# synchronous file checks inside async tests are fine
+    "SLF001",  # white-box tests inspect and patch private members on purpose
 ]
 "scripts/**" = [
     "T201",    # scripts report progress on stdout by design
@@ -30,6 +31,8 @@ ignore = [
 # provider / backend packages are imported lazily so that only the selected one needs to
 # be importable (e.g. postgres or google packages are not loaded when unused)
 "src/frag/{llm,checkpointer}.py" = ["PLC0415"]
+# the terminal chat prints the conversation to stdout by design
+"src/frag/cli.py" = ["T201"]
 "**/prompts.py" = [
     "E501",    # prompt prose: wrapping would insert newlines into the text sent to the LLM
 ]

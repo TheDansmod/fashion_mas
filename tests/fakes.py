@@ -195,8 +195,10 @@ def make_create_agent(choices=None, *, search=True, prose=False):
     choices = DEFAULT_CHOICES if choices is None else choices
     calls = collections.Counter()
 
-    def create_agent(model, response_format, tools=None, **_kwargs):  # noqa: ARG001
+    def create_agent(model, response_format, tools=None, checkpointer=None, **_kwargs):  # noqa: ARG001  same signature as langchain's create_agent
         assert response_format is MatchedImageId  # only the recommender uses agents
+        # its image-heavy messages must not be checkpointed (DynamoDB 400 KB limit)
+        assert checkpointer is False
         return MockAgent(tools, choices, calls, search=search, prose=prose)
 
     return create_agent

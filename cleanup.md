@@ -1960,12 +1960,12 @@ anything needs the user's go-ahead (§0.2C).
 
 ## Phase 15: Final checks
 
-- [ ] `uv run ruff check` is clean, and every ignore has a justification comment.
-- [ ] The empty-environment import check from §0.5 passes.
-- [ ] `uv run pytest` passes offline.
-- [ ] `grep -rn "/mnt/windows\|650539477368\|260_490\|dependency_injector" --include=*.py .`
+- [x] `uv run ruff check` is clean, and every ignore has a justification comment.
+- [x] The empty-environment import check from §0.5 passes.
+- [x] `uv run pytest` passes offline.
+- [x] `grep -rn "/mnt/windows\|650539477368\|260_490\|dependency_injector" --include=*.py .`
   returns nothing outside `.venv`.
-- [ ] Final report to the user covering:
+- [x] Final report to the user covering:
   - what changed
   - skipped steps and why
   - findings that aren't in this document
@@ -1979,6 +1979,54 @@ anything needs the user's go-ahead (§0.2C).
     3. Chainlit with Cognito login: text query, image query, a follow-up with a new
        image (bug 3.1), and resuming a thread from history.
     4. `frag eval --limit 5` on Bedrock, then the full eval.
+
+**Phase 15 done (2026-11-28).** Notes:
+- **Ruff:** 993 violations at the Phase 1 baseline, 0 now (`ruff format --check`
+  clean too). 26 inline `noqa` comments had no reason. Two justified per-file rules
+  replace 28 of them:
+  - `SLF001` for `tests/**` (white-box tests);
+  - `T201` for `src/frag/cli.py` (the terminal chat prints by design).
+  Two test functions use `@pytest.mark.usefixtures` instead of an ARG001 noqa, and the
+  remaining four got inline reasons. None is left without one. (A
+  `ruff --fix --select RUF100` run stripped every `noqa` in the repo, because with
+  only RUF100 selected they all look unused. It was reverted from git at once and
+  the intended edits re-applied; a lesson for later runs.)
+- **Offline tests** are now proven, not assumed: `pytest` ran inside
+  `unshare -rn` (loopback up, no route out). Result: 91 passed and 1 skipped
+  (Postgres not running). Without loopback the two MCP tests fail, because they serve
+  on 127.0.0.1; that's expected.
+- **Ollama image-in-tool-result (4.2):** langchain-ollama 1.2.0 moves `image_url`
+  blocks from any message, `ToolMessage` included, into the `images` field of the
+  `tool`-role message. So the images are sent, and the Phase 7/12 runs show Ollama
+  accepts them. Whether qwen3.5:4b actually *uses* images in tool results wasn't
+  checked live: Ollama wasn't running with the memory caps, so no model was started.
+  It's on the manual list.
+- **Manual tests (2026-11-28), run with the user's approval. Bedrock total: $0.37**
+  (Haiku 4.5 priced at $1.10/$5.50 per MTok for the `us.` profile, from the token CSVs;
+  the Nova query calls are negligible). Item 4 (the eval) was skipped by the user.
+  1. Bedrock + SigLIP, one turn with an image: 3 matching trousers in 126 s, $0.036.
+     The first attempt ($0.043) was throttled: **the account quota is 10 Haiku 4.5
+     requests/minute**, and the default limiter was 0.8 rps. *Fixed:* the Bedrock
+     default is now 0.15 rps (comment and tests updated).
+  2. Bedrock + Nova (`nova_fashion_gen`), text only: completed in 279 s, $0.093. The
+     first attempt ($0.106) crashed: *fixed* the DynamoDB checkpointer exceeding the
+     400 KB item limit. The recommender's inner agent inherited the checkpointer and
+     saved base64 search images; it now gets `checkpointer=False` (regression check in
+     the fake `create_agent`). Quality was weak (1 casual belt for "two formal belts");
+     the 10k-item Nova catalogue is thin.
+  3. Chainlit + Cognito (user-driven), $0.097: login, text query, image query and
+     thread resume worked. *The follow-up with a new image crashed:* the upload was a
+     WebP named `.jpg`, the MIME type came from the extension, and Bedrock rejects a
+     declared type that doesn't match the bytes. Ollama doesn't check, so local runs
+     never showed it. *Fixed:* `messages.image_block` detects PNG/JPEG/GIF/WebP from
+     the file signature and falls back to the extension, then PNG. Tests cover
+     misnamed WebP/PNG/GIF and the fallbacks. Verified with the same file against
+     Bedrock (`image/webp`, correct answer, <$0.001).
+  5. Ollama image in a tool result: **the model sees it**. With the image it described
+     "dark navy blue trousers… with a plaid shirt"; without it, it said it couldn't
+     see one.
+  - Also *fixed:* the log file sink used `enqueue=True`, which pickles records and
+    failed on botocore's exceptions, so errors never reached the log file.
 
 ---
 

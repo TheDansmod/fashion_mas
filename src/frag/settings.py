@@ -39,8 +39,10 @@ _LLM_PROVIDER_DEFAULTS: dict[str, dict[str, Any]] = {
     },
     "bedrock": {
         "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
-        # kept below the account quota; token-per-minute limits are not modelled
-        "rate_limit_rps": 0.8,
+        # 9 requests/minute: the account's default quota for Haiku 4.5 cross-region
+        # inference is 10/minute (Service Quotas, adjustable); raise both together.
+        # Token-per-minute limits (5M) are not modelled
+        "rate_limit_rps": 0.15,
     },
 }
 

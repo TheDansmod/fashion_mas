@@ -59,7 +59,7 @@ async def test_validate_checks_collection_vector_name_and_dim(qdrant):
     with pytest.raises(ValueError, match="768-d vectors"):
         await fake_connector(qdrant).validate(expected_dim=768)
     conn = fake_connector(qdrant)
-    conn._vector_name = "text"  # noqa: SLF001
+    conn._vector_name = "text"
     with pytest.raises(ValueError, match="no vector named 'text'"):
         await conn.validate(expected_dim=2)
 
@@ -88,13 +88,13 @@ async def test_catalogue_search_returns_items_and_skips_ids_without_metadata(cat
 
 async def test_catalogue_search_clamps_the_number_of_matches(catalogue, monkeypatch):
     requested = []
-    search = catalogue._vector_db.search  # noqa: SLF001
+    search = catalogue._vector_db.search
 
     async def spy(vector, categories, k):
         requested.append(k)
         return await search(vector, categories, k)
 
-    monkeypatch.setattr(catalogue._vector_db, "search", spy)  # noqa: SLF001
+    monkeypatch.setattr(catalogue._vector_db, "search", spy)
     await catalogue.search("x", [], k=0)
     await catalogue.search("x", [], k=50)
     assert requested == [1, MAX_SEARCH_MATCHES]
@@ -136,10 +136,10 @@ async def test_nova_embedder_request_body():
     embedder = NovaEmbedder(
         "model-x", dim=256, purpose="GENERIC_INDEX", region="us-east-1"
     )
-    embedder._client = FakeBedrock()  # noqa: SLF001  no Bedrock call in tests
+    embedder._client = FakeBedrock()  # no Bedrock call in tests
     assert await embedder.embed_text("red dress") == [0.1, 0.2]
-    sent = json.loads(embedder._client.kwargs["body"])  # noqa: SLF001
-    assert embedder._client.kwargs["modelId"] == "model-x"  # noqa: SLF001
+    sent = json.loads(embedder._client.kwargs["body"])
+    assert embedder._client.kwargs["modelId"] == "model-x"
     params = sent["singleEmbeddingParams"]
     assert params["text"]["value"] == "red dress"
     assert params["embeddingDimension"] == 256

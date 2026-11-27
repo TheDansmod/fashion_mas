@@ -125,7 +125,9 @@ def setup_logging(
                     rotation=settings.rotation,
                     retention=settings.retention,
                     compression=settings.compression,
-                    enqueue=True,  # thread-safe; the file is this process's own
+                    # no enqueue: loguru sinks are already thread-safe, the file is this
+                    # process's own, and enqueue pickles records, which fails for
+                    # exceptions such as botocore's dynamically created error classes
                     backtrace=True,
                     diagnose=True,
                 )
