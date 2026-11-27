@@ -340,6 +340,23 @@ wheels = [
 ]
 
 [[package]]
+name = "cfn-lint"
+version = "1.61.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "jsonpatch" },
+    { name = "networkx" },
+    { name = "pyyaml" },
+    { name = "regex" },
+    { name = "sympy" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/9a/cd/82bc68b69eb8a1a6a09a88ad6a0b54e1990ea127665e4c9faa8b1ea0f4c9/cfn_lint-1.61.0.tar.gz", hash = "sha256:a408e1ae0a059b1e8cdcd581c01545ebc99a40961e2edd2a1c0a77e463dcc922", size = 5243970, upload-time = "2026-11-19T22:48:21.77Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/12/ee/19b224f0c957d748ed8ed22ecb615f099d5fdc4a9d8c488fae546d423f82/cfn_lint-1.61.0-py3-none-any.whl", hash = "sha256:0fe32c20bce54dde16b777f453c071b633a76de75e6ee32e5bb7fc12e052856e", size = 5862112, upload-time = "2026-11-19T22:48:19.509Z" },
+]
+
+[[package]]
 name = "chainlit"
 version = "2.12.0"
 source = { registry = "https://pypi.org/simple" }
@@ -765,6 +782,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "cfn-lint" },
     { name = "psutil" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
@@ -816,6 +834,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "cfn-lint", specifier = ">=1.61.0" },
     { name = "psutil", specifier = ">=7.2.2" },
     { name = "pytest", specifier = ">=9.0.2" },
     { name = "pytest-asyncio", specifier = ">=1.3.0" },

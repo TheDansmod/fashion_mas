@@ -29,6 +29,7 @@ wheels/
 
 # Secrets - see .env.example for the expected keys
 .env
+.env.bak
 
 # Chainlit: local config/translations (a production config.toml will be committed
 # later), the generated chainlit.md, and the .files/ upload staging folder

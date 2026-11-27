@@ -1,0 +1,167 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  FRAG storage: the Fashion-Gen catalogue bucket (images + metadata Parquet), the
+  Chainlit elements bucket, the LangGraph checkpointer table and the Chainlit
+  chat-history table. All four hold data, so they are Retain: deleting the stack
+  leaves them (and their contents) in place.
+
+Parameters:
+  EnvName:
+    Type: String
+    Default: dev
+    AllowedPattern: "[a-z][a-z0-9-]*"
+    Description: Environment name (used for stack tags and export names).
+  CatalogueBucketName:
+    Type: String
+    Default: frag-fashion-gen-dataset
+    Description: Bucket holding images/{idx//1000:03d}/{idx}.png and metadata/*.parquet.
+  ElementsBucketName:
+    Type: String
+    Default: frag-chainlit-elements-bucket
+    Description: Bucket for Chainlit chat-history elements (uploaded and shown images).
+  CheckpointTableName:
+    Type: String
+    Default: langgraph-checkpoints
+    Description: Must match CHECKPOINTER__DYNAMODB_TABLE.
+  ChatHistoryTableName:
+    Type: String
+    Default: chainlit_users
+    Description: Must match CHAT_HISTORY__DYNAMODB_TABLE.
+
+Resources:
+  # Filled by scripts/ingest_fashiongen.py. Needed by both embedding modes (decision 1.5).
+  CatalogueBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Ref CatalogueBucketName
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  ElementsBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Ref ElementsBucketName
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      # Needed if the browser loads elements straight from S3 through signed URLs.
+      # The deployment plan narrows AllowedOrigins to the CloudFront domain.
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ["*"]
+            AllowedMethods: [GET, PUT, POST, DELETE, HEAD]
+            AllowedOrigins: ["*"]
+            MaxAge: 3000
+
+  CheckpointTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref CheckpointTableName
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: false
+      SSESpecification:
+        SSEEnabled: false  # AWS-owned key (free); the deployment plan may switch to KMS
+
+  # Schema required by Chainlit's DynamoDB data layer. Chainlit doesn't use the TTL
+  # attribute, so TTL has no effect on its items.
+  ChatHistoryTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref ChatHistoryTableName
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: UserThreadPK
+          AttributeType: S
+        - AttributeName: UserThreadSK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: UserThread
+          KeySchema:
+            - AttributeName: UserThreadPK
+              KeyType: HASH
+            - AttributeName: UserThreadSK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: INCLUDE
+            NonKeyAttributes: [id, name]
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: false
+      SSESpecification:
+        SSEEnabled: false
+
+Outputs:
+  CatalogueBucketName:
+    Description: CATALOGUE__S3_BUCKET
+    Value: !Ref CatalogueBucket
+    Export:
+      Name: !Sub frag-${EnvName}-catalogue-bucket
+  CatalogueBucketArn:
+    Value: !GetAtt CatalogueBucket.Arn
+    Export:
+      Name: !Sub frag-${EnvName}-catalogue-bucket-arn
+  ElementsBucketName:
+    Description: CHAT_HISTORY__S3_BUCKET
+    Value: !Ref ElementsBucket
+    Export:
+      Name: !Sub frag-${EnvName}-elements-bucket
+  ElementsBucketArn:
+    Value: !GetAtt ElementsBucket.Arn
+    Export:
+      Name: !Sub frag-${EnvName}-elements-bucket-arn
+  CheckpointTableName:
+    Description: CHECKPOINTER__DYNAMODB_TABLE
+    Value: !Ref CheckpointTable
+    Export:
+      Name: !Sub frag-${EnvName}-checkpoint-table
+  CheckpointTableArn:
+    Value: !GetAtt CheckpointTable.Arn
+    Export:
+      Name: !Sub frag-${EnvName}-checkpoint-table-arn
+  ChatHistoryTableName:
+    Description: CHAT_HISTORY__DYNAMODB_TABLE
+    Value: !Ref ChatHistoryTable
+    Export:
+      Name: !Sub frag-${EnvName}-chat-history-table
+  ChatHistoryTableArn:
+    Value: !GetAtt ChatHistoryTable.Arn
+    Export:
+      Name: !Sub frag-${EnvName}-chat-history-table-arn

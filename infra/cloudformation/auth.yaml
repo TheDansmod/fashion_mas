@@ -1,0 +1,149 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  FRAG auth: the Cognito user pool, its hosted-UI domain, the Chainlit app client
+  (authorization-code flow) and the client's managed-login branding. Sign-up is
+  admin-only (decision 1.13): users are created with infra/scripts/create_user.sh.
+
+# Changing UsernameAttributes/AliasAttributes, Schema, GenerateSecret or the domain
+# prefix replaces the pool, client or domain (and loses its users/settings), so the
+# pool and its children are Retain and the pool has deletion protection on.
+
+Parameters:
+  EnvName:
+    Type: String
+    Default: dev
+    AllowedPattern: "[a-z][a-z0-9-]*"
+  UserPoolName:
+    Type: String
+    Default: frag-users
+  ClientName:
+    Type: String
+    Default: fashion-mas
+  DomainPrefix:
+    Type: String
+    AllowedPattern: "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
+    Description: >-
+      Hosted-UI prefix ({prefix}.auth.{region}.amazoncognito.com). Must be unique
+      across all AWS accounts in the region.
+  CallbackUrls:
+    Type: CommaDelimitedList
+    Default: http://localhost:8000/auth/oauth/aws-cognito/callback
+    Description: >-
+      Chainlit OAuth callbacks. Add https://<cloudfront-domain>/auth/oauth/aws-cognito/callback
+      once the edge stack exists.
+  LogoutUrls:
+    Type: CommaDelimitedList
+    Default: ""
+    Description: Optional sign-out redirect URLs; empty means none.
+
+Conditions:
+  HasLogoutUrls: !Not [!Equals [!Join ["", !Ref LogoutUrls], ""]]
+
+Resources:
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      UserPoolName: !Ref UserPoolName
+      UserPoolTier: ESSENTIALS
+      DeletionProtection: ACTIVE
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true  # decision 1.13
+      UsernameConfiguration:
+        CaseSensitive: false
+      AutoVerifiedAttributes: [email]
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Mutable: true
+          Required: true
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+          TemporaryPasswordValidityDays: 7
+        SignInPolicy:
+          AllowedFirstAuthFactors: [PASSWORD]
+      MfaConfiguration: "OFF"
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: verified_email
+            Priority: 1
+          - Name: verified_phone_number
+            Priority: 2
+      EmailConfiguration:
+        EmailSendingAccount: COGNITO_DEFAULT
+      VerificationMessageTemplate:
+        DefaultEmailOption: CONFIRM_WITH_CODE
+
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      UserPoolId: !Ref UserPool
+      Domain: !Ref DomainPrefix
+      ManagedLoginVersion: 2
+
+  AppClient:
+    Type: AWS::Cognito::UserPoolClient
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: !Ref ClientName
+      GenerateSecret: true  # Chainlit is a confidential client
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows: [code]
+      AllowedOAuthScopes: [email, openid, profile]
+      CallbackURLs: !Ref CallbackUrls
+      LogoutURLs: !If [HasLogoutUrls, !Ref LogoutUrls, !Ref AWS::NoValue]
+      SupportedIdentityProviders: [COGNITO]
+      ExplicitAuthFlows:
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_AUTH
+        - ALLOW_USER_SRP_AUTH
+      AccessTokenValidity: 60
+      IdTokenValidity: 60
+      RefreshTokenValidity: 5
+      TokenValidityUnits:
+        AccessToken: minutes
+        IdToken: minutes
+        RefreshToken: days
+      AuthSessionValidity: 3
+      PreventUserExistenceErrors: ENABLED
+      EnableTokenRevocation: true
+
+  # Managed login (v2) needs a branding style per client; this is the default look.
+  LoginBranding:
+    Type: AWS::Cognito::ManagedLoginBranding
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientId: !Ref AppClient
+      UseCognitoProvidedValues: true
+
+Outputs:
+  UserPoolId:
+    Value: !Ref UserPool
+    Export:
+      Name: !Sub frag-${EnvName}-user-pool-id
+  UserPoolArn:
+    Value: !GetAtt UserPool.Arn
+    Export:
+      Name: !Sub frag-${EnvName}-user-pool-arn
+  ClientId:
+    Description: OAUTH_COGNITO_CLIENT_ID (the secret is read by write_env_from_stack.sh)
+    Value: !Ref AppClient
+    Export:
+      Name: !Sub frag-${EnvName}-user-pool-client-id
+  CognitoDomain:
+    Description: OAUTH_COGNITO_DOMAIN
+    Value: !Sub ${DomainPrefix}.auth.${AWS::Region}.amazoncognito.com
+    Export:
+      Name: !Sub frag-${EnvName}-cognito-domain
