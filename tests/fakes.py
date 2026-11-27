@@ -43,7 +43,7 @@ class MockStructuredOutput:
         self.schema = schema
         self._llm = llm
 
-    async def ainvoke(self, prompt, *_args, **_kwargs):
+    async def ainvoke(self, prompt, *_args, **_kwargs):  # noqa: PLR0911  one answer per schema
         self._llm.calls.append((self.schema.__name__, prompt))
         match self.schema.__name__:
             case "NumRecommendations":
@@ -68,6 +68,15 @@ class MockStructuredOutput:
                 return self.schema(
                     relevant_image_indexes=self._llm.relevant_image_indexes,
                     updated_user_query="Show me similar items in red.",
+                )
+            case "RecommendationEvaluation":
+                return self.schema(
+                    visual_grounding_score=8,
+                    visual_grounding_explanation="Matches the upload.",
+                    item_suitability_score=7,
+                    item_suitability_explanation="Suitable.",
+                    completeness_coverage_score=9,
+                    completeness_coverage_explanation="Complete.",
                 )
             case "CriticalEvaluation":
                 if self._llm.critic_satisfied:

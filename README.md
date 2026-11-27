@@ -32,7 +32,7 @@ https://github.com/user-attachments/assets/cc40f339-4bd2-4075-aea9-9388405977f5
 7. The catalogue images and metadata are read from S3, so AWS credentials must be configured (`aws configure`).
 8. Optional: serve the catalogue tools from a separate process with `uv run frag mcp` (port 9000) and set `TOOLS__MODE=mcp`. By default the agent uses the tools in-process.
 9. Start the Chainlit UI with `uv run chainlit run app.py` (http://localhost:8000; sign-in is through AWS Cognito), or chat in the terminal with `uv run frag chat`.
-10. Evaluation: `uv run frag eval` runs the agent over the 60 evaluation queries and then judges the outputs with an LLM (mean score out of 10 and standard deviation). `--limit N` runs only the first N queries; `--skip-run` only judges the stored outputs; `--skip-judge` only runs the agent.
+10. Evaluation: `uv run frag eval` runs the agent over the 60 evaluation queries, then has the LLM judge the outputs. Each run is a self-contained directory `data/evaluation_runs/<UTC time>/` (`config.json` with the models and setup, `results.jsonl`, `judgement.jsonl`, `summary.json` with completed/total and mean ± std per group, and copies of the images). `--limit N` runs only the first N queries; `--skip-judge` only runs the agent; `--skip-run` judges a stored run (`--run-dir`, default the latest); `--sleep S` waits between queries. A full run on Bedrock costs money (about $3–5).
 11. To run the test(s), do `uv run pytest` (offline). The slow model-quality tests run the real agent on the local Ollama model, Qdrant and S3: `uv run pytest -m ollama` (see `tests/model/`). For a coverage report: `uv run pytest --cov=frag --cov-report=term-missing:skip-covered --cov-report=html:reports/htmlcov`
 
 

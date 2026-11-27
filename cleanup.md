@@ -1408,12 +1408,12 @@ DI-injected S3 fetch inside a method to dodge an import cycle.
 
 ## Phase 9: Evaluation (`evaluation/run.py`)
 
-- [ ] **9.1** Apply fixes 3.2–3.5 if they haven't been done.
-- [ ] **9.2 Count failures.** 29 of the 60 stored runs have no recommendations, and the
+- [x] **9.1** Apply fixes 3.2–3.5 if they haven't been done.
+- [x] **9.2 Count failures.** 29 of the 60 stored runs have no recommendations, and the
   judge skips them, so the README's "9.37 ± 0.78" covers only 31 runs. Record a
   `status` and `error` for each run and each judgement. The summary prints
   `completed/total`, mean ± std over the completed runs, and a per-group breakdown.
-- [ ] **9.3 Self-contained runs.** Write to `data/evaluation_runs/<UTC timestamp>/`,
+- [x] **9.3 Self-contained runs.** Write to `data/evaluation_runs/<UTC timestamp>/`,
   containing:
   - `config.json`: the **agent LLM provider and model ID**, the **judge LLM provider
     and model ID**, the temperature, the embedding backend and model, the collection
@@ -1429,14 +1429,60 @@ DI-injected S3 fetch inside a method to dodge an import cycle.
   whole JSON on every result, the absolute `/mnt/windows/...` paths into
   `temp_images/`, and the no-op `absolute_image_paths` loop. Leave the historical
   `eval_soln.json`/`eval_judgement.json` alone.
-- [ ] **9.4** Judge with `ainvoke`. Record judge errors instead of `continue`-ing
+- [x] **9.4** Judge with `ainvoke`. Record judge errors instead of `continue`-ing
   silently.
-- [ ] **9.5** Remove `asyncio.sleep(5)`; the rate limiter throttles. Add a `--sleep`
+- [x] **9.5** Remove `asyncio.sleep(5)`; the rate limiter throttles. Add a `--sleep`
   flag if it's needed.
-- [ ] **9.6** `get_evaluation_inputs(queries_path, images_dir)` builds paths with
+- [x] **9.6** `get_evaluation_inputs(queries_path, images_dir)` builds paths with
   `Path`. Merge the two near-identical dict literals.
-- [ ] **9.7** A full eval against Bedrock costs money, so it needs the user's approval
+- [x] **9.7** A full eval against Bedrock costs money, so it needs the user's approval
   (§0.2C). The plan estimates $3–5. Test the pipeline with `--limit 2` on Ollama.
+
+**Phase 9 done (2026-11-27).** Notes:
+- **9.1:** fixes 3.2–3.5 were already done (Phases 3, 4 and 7.5).
+- **Module:** `evaluation/llm_as_judge.py` is replaced by `evaluation/run.py`;
+  `frag eval` calls `evaluate(resources, run=, judge=, limit=, sleep_s=, run_dir=)`.
+  `EvalSettings.eval_response_file_path` and `judgement_file_path` are replaced by
+  `runs_dir` (default `data/evaluation_runs`, git-ignored). The historical
+  `eval_soln.json` and `eval_judgement.json` are untouched.
+- **Run directory (9.3):** `data/evaluation_runs/<UTC time>/` holds `config.json`
+  (agent and judge model, temperature, reasoning, embedding backend and model,
+  collection and its exact point count, tools mode, limit, weights, and the git
+  commit with `-dirty` when the tree has uncommitted changes), `results.jsonl` and
+  `judgement.jsonl` (appended line by line; every line carries `agent_model`, and
+  judgements also `judge_model`), `summary.json`, and `images/` with copies of the
+  input and recommended images. All paths are relative to the run directory.
+  - The judge is the same LLM as the agent (there is no separate judge setting).
+    Judging a stored run later (`--skip-run`) records the judging model in
+    `config.json`.
+  - A new run refuses to write into a directory that already has results.
+- **Failures (9.2, 9.4):** every query gets a results line with `status` `ok`,
+  `no_recommendations` or `error` (with the exception), plus its time and token usage.
+  Every query gets a judgement line with `status` `ok`, `skipped` (with the run
+  status) or `error`. The judge uses `ainvoke`. The summary reports
+  `completed/total`, the run statuses, `judged` and judge errors, mean ± std over the
+  judged queries, and the same per group; it's logged with the models and written to
+  `summary.json`.
+- **9.5:** the `asyncio.sleep(5)` is gone; `frag eval --sleep S` waits between
+  queries if a provider ever needs it.
+- **9.6:** `get_evaluation_inputs(queries_path, images_dir)` uses `Path` and builds
+  one dict per query.
+- **9.7, real run:** `frag eval --limit 2` on Ollama `qwen3.5:4b` (local SigLIP,
+  `fashion_gen`, S3 images): both queries completed (100 s and 50 s, 2 items each:
+  trousers and oxfords; cargo pants and sneakers for "one pant and one pair of
+  shoes"), both judged (7.8 and 9.7; 8.75 ± 0.95). The agent used about 18–38k input
+  and 3–5k output tokens per query, which on Haiku 4.5 would be about $0.03–0.06 per
+  query. **The full 60-query eval on Bedrock was not run**: it needs the user's
+  approval (§0.2C, about $3–5 plus judging).
+- **Tests:** 87 passed, 1 skipped. `tests/integration/test_evaluation.py` runs the
+  pipeline offline with the fakes: a self-contained run that gets judged (relative
+  image paths, scores with and without an uploaded image), agent failures counted as
+  `error` and judged as `skipped`, judge errors recorded, judging the latest run with
+  `--skip-run`, and refusing to overwrite a run. The fake LLM answers
+  `RecommendationEvaluation`.
+- **Ruff:** the touched files are clean; total 179.
+- **AWS call log:** no direct calls. The real run read the metadata Parquet and the
+  catalogue images its two queries returned from S3 (§0.2-B); no Bedrock.
 
 ---
 
