@@ -33,6 +33,16 @@ def test_llm_defaults_follow_the_provider(clean_env, monkeypatch):
     assert clean_env().llm.model_id == "other-model"
 
 
+def test_the_judge_llm_is_set_separately(clean_env, monkeypatch):
+    assert clean_env().evaluation.judge_llm is None  # same as the agent's LLM
+    monkeypatch.setenv("EVALUATION__JUDGE_LLM__PROVIDER", "bedrock")
+    settings = clean_env()
+    assert settings.llm.provider == "ollama"
+    judge = settings.evaluation.judge_llm
+    assert (judge.provider, judge.rate_limit_rps) == ("bedrock", 0.8)
+    assert judge.model_id.startswith("us.anthropic.claude-haiku")
+
+
 def test_settings_are_idempotent(clean_env):
     assert clean_env() == clean_env()
 

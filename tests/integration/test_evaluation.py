@@ -1,5 +1,6 @@
 """The evaluation pipeline end to end with fake LLM and tools (offline)."""
 
+import dataclasses
 import json
 import shutil
 from pathlib import Path
@@ -10,6 +11,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from frag.agent.graph import FashionAgent
 from frag.evaluation import run as evaluation
 from frag.runtime import Resources
+from frag.settings import LLMSettings
 from tests.fakes import FIXTURE_IMAGE, ChatMockLLM, FakeToolsClient, make_create_agent
 
 
@@ -37,9 +39,11 @@ def resources(tmp_path, clean_env, monkeypatch):
 
     monkeypatch.setattr(evaluation, "_collection_size", collection_size)
     monkeypatch.setattr(evaluation, "_git_commit", lambda: "abc123")
+    llm = ChatMockLLM(critic_satisfied=True)
     return Resources(
         settings=settings,
-        llm=ChatMockLLM(critic_satisfied=True),
+        llm=llm,
+        judge_llm=llm,
         checkpointer=InMemorySaver(),
         tools=FakeToolsClient(),
     )
@@ -120,7 +124,7 @@ async def test_judge_errors_are_recorded(resources, monkeypatch):
         ainvoke = staticmethod(broken_judge)
 
     monkeypatch.setattr(
-        resources.llm, "with_structured_output", lambda _schema: BrokenModel()
+        resources.judge_llm, "with_structured_output", lambda _schema: BrokenModel()
     )
     await evaluation.evaluate(resources, run=False)  # judges the latest run
     (judgement,) = _read(run_dir, evaluation.JUDGEMENT)
@@ -135,3 +139,25 @@ async def test_a_stored_run_is_not_overwritten(resources):
     run_dir = await evaluation.evaluate(resources, judge=False, limit=1)
     with pytest.raises(FileExistsError):
         await evaluation.evaluate(resources, run_dir=str(run_dir))
+
+
+async def test_the_judge_can_be_a_different_llm(resources):
+    judge = ChatMockLLM()
+    settings = resources.settings.model_copy(
+        update={
+            "evaluation": resources.settings.evaluation.model_copy(
+                update={"judge_llm": LLMSettings(provider="bedrock")}
+            )
+        }
+    )
+    resources = dataclasses.replace(resources, settings=settings, judge_llm=judge)
+    run_dir = await evaluation.evaluate(resources, limit=1)
+
+    config = json.loads((run_dir / evaluation.CONFIG).read_text())
+    assert config["agent_model"] == "ollama:qwen3.5:4b"
+    assert config["judge_model"].startswith("bedrock:us.anthropic.claude-haiku")
+    (judgement,) = _read(run_dir, evaluation.JUDGEMENT)
+    assert judgement["judge_model"] == config["judge_model"]
+    # only the judge model was asked to judge
+    assert [name for name, _ in judge.calls] == ["RecommendationEvaluation"]
+    assert "RecommendationEvaluation" not in [n for n, _ in resources.llm.calls]

@@ -30,6 +30,8 @@ class Resources:
 
     settings: Settings
     llm: BaseChatModel | None = None
+    # role "eval" only: the judge (the agent's `llm` unless evaluation.judge_llm is set)
+    judge_llm: BaseChatModel | None = None
     checkpointer: BaseCheckpointSaver | None = None
     tools: ToolsClient | None = None
     catalogue: Catalogue | None = None
@@ -71,9 +73,19 @@ async def open_resources(settings: Settings, role: Role) -> AsyncIterator[Resour
             checkpointer = await stack.enter_async_context(
                 open_checkpointer(checkpointer_settings, settings.aws_region)
             )
+            llm = build_llm(settings.llm, settings.aws_region)
+            judge_llm = None
+            if role == "eval":
+                judge_settings = settings.evaluation.judge_llm
+                judge_llm = (
+                    build_llm(judge_settings, settings.aws_region)
+                    if judge_settings
+                    else llm
+                )
             yield Resources(
                 settings=settings,
-                llm=build_llm(settings.llm, settings.aws_region),
+                llm=llm,
+                judge_llm=judge_llm,
                 checkpointer=checkpointer,
                 tools=build_tools_client(settings, catalogue),
                 catalogue=catalogue,

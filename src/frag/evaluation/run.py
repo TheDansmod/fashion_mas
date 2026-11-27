@@ -33,7 +33,7 @@ from frag.agent.graph import FashionAgent
 from frag.evaluation.prompts import EVALUATION_PROMPT
 from frag.evaluation.schemas import RecommendationEvaluation
 from frag.runtime import Resources
-from frag.settings import EvalWeights, Settings
+from frag.settings import EvalWeights, LLMSettings, Settings
 from frag.tokens import track_tokens
 from frag.utils.common_utils import get_multi_image_multi_prompt_message
 
@@ -76,8 +76,16 @@ def _key(item: dict[str, Any]) -> str:
 # --- run directory and configuration --------------------------------------------------
 
 
-def _model_name(settings: Settings) -> str:
-    return f"{settings.llm.provider}:{settings.llm.model_id}"
+def _model_name(llm: LLMSettings) -> str:
+    return f"{llm.provider}:{llm.model_id}"
+
+
+def _agent_model(settings: Settings) -> str:
+    return _model_name(settings.llm)
+
+
+def _judge_model(settings: Settings) -> str:
+    return _model_name(settings.evaluation.judge_llm or settings.llm)
 
 
 def _git_commit() -> str | None:
@@ -120,9 +128,9 @@ async def build_config(settings: Settings, limit: int | None) -> dict[str, Any]:
     return {
         "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "git_commit": _git_commit(),
-        "agent_model": _model_name(settings),
-        # the judge uses the same LLM settings; updated if a later pass judges
-        "judge_model": _model_name(settings),
+        "agent_model": _agent_model(settings),
+        # updated if a later pass judges the run with another model
+        "judge_model": _judge_model(settings),
         "temperature": settings.llm.temperature,
         "reasoning": settings.llm.reasoning,
         "embedding_backend": embedding.backend,
@@ -190,7 +198,7 @@ async def run_query(
             _copy_image(path, run_dir, f"{key}_input_{i + 1}")
             for i, path in enumerate(eval_input["input_images_path"])
         ],
-        "agent_model": _model_name(resources.settings),
+        "agent_model": _agent_model(resources.settings),
         "status": "ok",
         "error": None,
         "recommendations": [],
@@ -324,7 +332,7 @@ async def judge_record(
         "group_num": record["group_num"],
         "query_num_in_group": record["query_num_in_group"],
         "agent_model": record["agent_model"],
-        "judge_model": _model_name(resources.settings),
+        "judge_model": _judge_model(resources.settings),
         "status": "ok",
         "error": None,
         "final_score": None,
@@ -332,7 +340,7 @@ async def judge_record(
     if record["status"] != "ok":
         judgement.update(status="skipped", error=f"run status: {record['status']}")
         return judgement
-    model = resources.llm.with_structured_output(RecommendationEvaluation)
+    model = resources.judge_llm.with_structured_output(RecommendationEvaluation)
     try:
         response: RecommendationEvaluation = await model.ainvoke(
             judge_message(record, run_dir), config={"callbacks": [usage]}
@@ -353,7 +361,7 @@ async def judge_evaluation_outputs(resources: Resources, run_dir: Path) -> None:
     results = read_jsonl(run_dir / RESULTS)
     # a stored run may be judged later by another model: record which one did
     config = json.loads((run_dir / CONFIG).read_text())
-    config["judge_model"] = _model_name(resources.settings)
+    config["judge_model"] = _judge_model(resources.settings)
     (run_dir / CONFIG).write_text(json.dumps(config, indent=2))
     out = run_dir / JUDGEMENT
     out.unlink(missing_ok=True)

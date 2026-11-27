@@ -180,6 +180,10 @@ class EvalSettings(_Section):
     images_dir: str = "data/evaluation_data/eval_images"
     # each evaluation writes a self-contained <runs_dir>/<UTC time>/ directory
     runs_dir: str = "data/evaluation_runs"
+    # the judge LLM; None = the same LLM as the agent (`llm`). For example
+    # EVALUATION__JUDGE_LLM__PROVIDER=bedrock judges with Claude Haiku while the agent
+    # runs locally; its model id and rate limit default per provider like `llm`'s
+    judge_llm: LLMSettings | None = None
     weights: EvalWeights = Field(default_factory=EvalWeights)
 
 

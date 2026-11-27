@@ -1483,6 +1483,16 @@ DI-injected S3 fetch inside a method to dodge an import cycle.
 - **Ruff:** the touched files are clean; total 179.
 - **AWS call log:** no direct calls. The real run read the metadata Parquet and the
   catalogue images its two queries returned from S3 (§0.2-B); no Bedrock.
+- **Added 2026-11-27 at the user's request: a separate judge LLM.**
+  `EvalSettings.judge_llm: LLMSettings | None` (None = the agent's LLM), e.g.
+  `EVALUATION__JUDGE_LLM__PROVIDER=bedrock` judges with Claude Haiku while the agent
+  runs on Ollama; its model id and rate limit default per provider, as for `llm`.
+  `open_resources(role="eval")` builds `Resources.judge_llm`; `config.json` and every
+  judgement line record the judge model. Judging only on Bedrock costs about $0.005 per
+  query (one call: 1.5–3k input tokens, mostly images, and ~250 output tokens), so
+  about $0.30 for the 60 queries; the $3–5 estimate is for running the agent on
+  Bedrock too (about 15 LLM calls and 20–40k tokens per query). Tests: the setting
+  and its provider defaults, and an eval run whose judge differs from the agent.
 
 ---
 
@@ -1493,7 +1503,7 @@ and an interactive confirmation before anything destructive or billable. Scripts
 call Bedrock or write to S3 print a cost estimate and require `--yes` or typing `YES`
 (§0.2C).
 
-- [ ] **10.1 `scripts/ingest_fashiongen.py`**: restore the HDF5 → PNG + Parquet → S3
+- [x] **10.1 `scripts/ingest_fashiongen.py`**: restore the HDF5 → PNG + Parquet → S3
   pipeline from git history
   (`git show 54890dd^:src/frag/exploration/dataset_wrangling/split_hdf5.py`). It was
   deleted in commit 54890dd, but it's the only way to rebuild the catalogue
@@ -1503,7 +1513,7 @@ call Bedrock or write to S3 print a cost estimate and require `--yes` or typing 
   - Uploads skip existing keys (`head_object`), so it can be re-run without
     re-uploading.
   - Needs the `ingest` group. **Don't run it**; the data is already on S3.
-- [ ] **10.2 `scripts/build_vector_db.py`**, ported from
+- [x] **10.2 `scripts/build_vector_db.py`**, ported from
   `utils/aws_create_vector_db_local.py` as a **reproducible record of how the Nova
   collection was built** (decision 1.12). It isn't run, so keep it small:
   - Replace the module globals with argparse: `--collection`, `--start/--end` or
@@ -1520,7 +1530,7 @@ call Bedrock or write to S3 print a cost estimate and require `--yes` or typing 
   - Note in the module docstring that the SigLIP collection was built by the deleted
     `vector_db_writer.py` (commit `2583639^`), and say where to recover it from.
 
-- [ ] **10.3 `scripts/qdrant_admin.py`** with these subcommands:
+- [x] **10.3 `scripts/qdrant_admin.py`** with these subcommands:
   - `info`, from `explore_nova_qdrant.py`
   - `sample`, from `check_collection_count`
   - `snapshot`, from `create_nova_qdrant_snapshot.py`
@@ -1532,8 +1542,58 @@ call Bedrock or write to S3 print a cost estimate and require `--yes` or typing 
 
   The collection comes from settings or `--collection`, with no hard-coded
   `"nova_fashion_gen"`.
-- [ ] **10.4** Delete `src/frag/utils/aws_create_vector_db_local.py` once its
+- [x] **10.4** Delete `src/frag/utils/aws_create_vector_db_local.py` once its
   replacements exist.
+
+**Phase 10 done (2026-11-27).** Notes:
+- **Shared setup:** `scripts/_common.py` has `start(service)` (§3.2: `load_dotenv`,
+  `get_settings`, `setup_logging`) and `confirm(question, assume_yes=)`, which accepts
+  only a typed `YES`. The scripts run by path, so they import it as `_common`
+  (`ruff.toml` lists it as a local import).
+- **`ingest_fashiongen.py` (10.1):** restored from `split_hdf5.py` (the HDF5 field
+  names, the nine string attributes, Latin-1 decoding and zstd Parquet come from the
+  deleted config at `54890dd^`). Arguments: HDF5 path, output folder, `--s3-bucket`,
+  `--ids-file` or `--limit`, `--workers`, `--compression`, `--no-upload`,
+  `--overwrite-metadata`, `--yes`. Keys come from `settings.catalogue`. Before
+  uploading it prints the request and storage cost and asks for `YES`; uploads skip
+  existing keys (`head_object`), and an existing metadata Parquet is kept unless
+  `--overwrite-metadata`. Dense selections are read from the HDF5 file in
+  contiguous blocks, sparse ones (`--ids-file`) row by row, so a sparse list can't
+  pull in the whole 14 GB file. **Not run against the real data or S3.** Tested locally
+  on a synthetic 2,500-item HDF5 file with `--no-upload` (sparse and dense
+  selections, the folder layout, Latin-1 text, and the same Parquet schema as the real
+  metadata); the upload path was not exercised.
+- **`build_vector_db.py` (10.2):** argparse (`--collection` default
+  `vector_db.collections["nova"]`, `--qdrant-url`, `--range START END` or
+  `--ids-file`, `--batch-size`, `--recreate` with its own `YES`, `--yes`). The account
+  id comes from `sts get-caller-identity`, only after confirmation. Before any
+  Bedrock call it prints the image and text request counts and an estimate of the
+  text tokens; it prints a dollar estimate when `--price-per-image` and
+  `--price-per-1k-tokens` are given (current Nova prices couldn't be confirmed from
+  AWS's pages, so none are hard-coded). The docstrings are real, and the module
+  docstring says where the SigLIP builder can be recovered (`2583639^`).
+  - **Deviation from the step:** the payloads are read from the S3 Parquet directly,
+    not with `catalogue.store.load_metadata`, which only returns the app's three
+    fields under generic names; the existing collection's payload has all twelve
+    fields under their own names, which this keeps.
+  - Tested up to the confirmation (answered "no"): no Bedrock or STS call was made.
+- **`qdrant_admin.py` (10.3):** `info`, `sample` (random points from the first
+  10,000), `snapshot [--download DIR]`, `restore FILE` (asks before replacing an
+  existing collection) and `copy-subset --from --to --ids-file`. The collection
+  defaults to `settings.collection`; `--url` to `settings.vector_db.url`. REST with a
+  600 s timeout (gRPC timed out on large snapshots). Tested: `info` and `sample` on
+  both real collections (read-only); copy-subset, snapshot with download, restore,
+  and the declined replace on a throwaway Qdrant.
+- **10.4:** `src/frag/utils/aws_create_vector_db_local.py` deleted, and with it the
+  two `scripts/legacy_qdrant_*.py` scripts that `qdrant_admin.py` replaces.
+  `scripts/profile_resources.py` stays for Phase 11 (running `ruff --fix` and
+  `ruff format` over `scripts/` changed only its formatting).
+- **Tests:** 89 passed, 1 skipped. The scripts have no unit tests; they were tested by
+  hand as above.
+- **Ruff:** 179 -> 56; the new scripts are clean, and the rest of `scripts/` is
+  `profile_resources.py` (Phase 11).
+- **AWS call log (§0.2-B):** the `build_vector_db.py` checks read the metadata Parquet
+  from S3 three times. No Bedrock, STS or S3 writes.
 
 ---
 
