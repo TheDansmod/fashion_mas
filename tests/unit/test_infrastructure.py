@@ -11,10 +11,10 @@ from langgraph.checkpoint.base import empty_checkpoint
 from PIL import Image
 
 from frag.checkpointer import open_checkpointer
-from frag.evaluation.llm_as_judge import get_evaluation_inputs, get_final_score
+from frag.evaluation.run import get_evaluation_inputs, get_final_score
 from frag.evaluation.schemas import RecommendationEvaluation
 from frag.llm import build_llm
-from frag.settings import CheckpointerSettings, EvalSettings, EvalWeights, LLMSettings
+from frag.settings import CheckpointerSettings, EvalWeights, LLMSettings
 from frag.tokens import CSV_HEADER, append_usage_csv, track_tokens
 from frag.utils.common_utils import (
     get_image_prompt_message,
@@ -201,9 +201,7 @@ def test_evaluation_inputs_attach_matching_images(tmp_path):
     images = tmp_path / "images"
     images.mkdir()
     (images / "01_02.jpg").write_bytes(b"x")
-    inputs = get_evaluation_inputs(
-        EvalSettings(queries_path=str(queries), images_dir=str(images))
-    )
+    inputs = get_evaluation_inputs(str(queries), str(images))
     assert [(i["group_num"], i["query_num_in_group"]) for i in inputs] == [
         (1, 1),
         (1, 2),

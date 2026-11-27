@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 from loguru import logger as log
 
 from frag.agent.graph import FashionAgent
-from frag.evaluation.llm_as_judge import run_full_evaluation_pipeline
+from frag.evaluation.run import evaluate
 from frag.mcp_server.server import serve
 from frag.runtime import Resources, Role, open_resources
 from frag.settings import get_settings
@@ -84,13 +84,27 @@ def _parser() -> argparse.ArgumentParser:
         "eval", help="run the agent over the evaluation queries and judge the outputs"
     )
     evaluate.add_argument(
-        "--skip-run", action="store_true", help="only judge the stored outputs"
+        "--skip-run",
+        action="store_true",
+        help="only judge a stored run (--run-dir, default: the latest)",
     )
     evaluate.add_argument(
         "--skip-judge", action="store_true", help="only run the agent"
     )
     evaluate.add_argument(
         "--limit", type=int, metavar="N", help="run only the first N queries"
+    )
+    evaluate.add_argument(
+        "--sleep",
+        type=float,
+        default=0.0,
+        metavar="S",
+        help="seconds to wait between queries (the LLM rate limiter usually suffices)",
+    )
+    evaluate.add_argument(
+        "--run-dir",
+        metavar="DIR",
+        help="run directory to write (default: a new one) or to judge with --skip-run",
     )
     commands.add_parser("mcp", help="serve the catalogue tools over MCP (HTTP)")
     return parser
@@ -114,11 +128,13 @@ async def _run(args: argparse.Namespace) -> None:
                 case "chat":
                     await chat(resources)
                 case "eval":
-                    await run_full_evaluation_pipeline(
+                    await evaluate(
                         resources,
                         run=not args.skip_run,
                         judge=not args.skip_judge,
                         limit=args.limit,
+                        sleep_s=args.sleep,
+                        run_dir=args.run_dir,
                     )
                 case "mcp":
                     await serve(resources.catalogue, settings.tools)

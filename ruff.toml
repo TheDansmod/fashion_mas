@@ -34,6 +34,10 @@ ignore = [
     "E501",    # prompt prose: wrapping would insert newlines into the text sent to the LLM
 ]
 
+[lint.isort]
+# scripts/_common.py is imported by the scripts next to it (they run by path)
+known-local-folder = ["_common"]
+
 [lint.pydocstyle]
 convention = "google"
 

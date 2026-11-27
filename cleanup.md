@@ -1408,12 +1408,12 @@ DI-injected S3 fetch inside a method to dodge an import cycle.
 
 ## Phase 9: Evaluation (`evaluation/run.py`)
 
-- [ ] **9.1** Apply fixes 3.2–3.5 if they haven't been done.
-- [ ] **9.2 Count failures.** 29 of the 60 stored runs have no recommendations, and the
+- [x] **9.1** Apply fixes 3.2–3.5 if they haven't been done.
+- [x] **9.2 Count failures.** 29 of the 60 stored runs have no recommendations, and the
   judge skips them, so the README's "9.37 ± 0.78" covers only 31 runs. Record a
   `status` and `error` for each run and each judgement. The summary prints
   `completed/total`, mean ± std over the completed runs, and a per-group breakdown.
-- [ ] **9.3 Self-contained runs.** Write to `data/evaluation_runs/<UTC timestamp>/`,
+- [x] **9.3 Self-contained runs.** Write to `data/evaluation_runs/<UTC timestamp>/`,
   containing:
   - `config.json`: the **agent LLM provider and model ID**, the **judge LLM provider
     and model ID**, the temperature, the embedding backend and model, the collection
@@ -1429,14 +1429,70 @@ DI-injected S3 fetch inside a method to dodge an import cycle.
   whole JSON on every result, the absolute `/mnt/windows/...` paths into
   `temp_images/`, and the no-op `absolute_image_paths` loop. Leave the historical
   `eval_soln.json`/`eval_judgement.json` alone.
-- [ ] **9.4** Judge with `ainvoke`. Record judge errors instead of `continue`-ing
+- [x] **9.4** Judge with `ainvoke`. Record judge errors instead of `continue`-ing
   silently.
-- [ ] **9.5** Remove `asyncio.sleep(5)`; the rate limiter throttles. Add a `--sleep`
+- [x] **9.5** Remove `asyncio.sleep(5)`; the rate limiter throttles. Add a `--sleep`
   flag if it's needed.
-- [ ] **9.6** `get_evaluation_inputs(queries_path, images_dir)` builds paths with
+- [x] **9.6** `get_evaluation_inputs(queries_path, images_dir)` builds paths with
   `Path`. Merge the two near-identical dict literals.
-- [ ] **9.7** A full eval against Bedrock costs money, so it needs the user's approval
+- [x] **9.7** A full eval against Bedrock costs money, so it needs the user's approval
   (§0.2C). The plan estimates $3–5. Test the pipeline with `--limit 2` on Ollama.
+
+**Phase 9 done (2026-11-27).** Notes:
+- **9.1:** fixes 3.2–3.5 were already done (Phases 3, 4 and 7.5).
+- **Module:** `evaluation/llm_as_judge.py` is replaced by `evaluation/run.py`;
+  `frag eval` calls `evaluate(resources, run=, judge=, limit=, sleep_s=, run_dir=)`.
+  `EvalSettings.eval_response_file_path` and `judgement_file_path` are replaced by
+  `runs_dir` (default `data/evaluation_runs`, git-ignored). The historical
+  `eval_soln.json` and `eval_judgement.json` are untouched.
+- **Run directory (9.3):** `data/evaluation_runs/<UTC time>/` holds `config.json`
+  (agent and judge model, temperature, reasoning, embedding backend and model,
+  collection and its exact point count, tools mode, limit, weights, and the git
+  commit with `-dirty` when the tree has uncommitted changes), `results.jsonl` and
+  `judgement.jsonl` (appended line by line; every line carries `agent_model`, and
+  judgements also `judge_model`), `summary.json`, and `images/` with copies of the
+  input and recommended images. All paths are relative to the run directory.
+  - The judge is the same LLM as the agent (there is no separate judge setting).
+    Judging a stored run later (`--skip-run`) records the judging model in
+    `config.json`.
+  - A new run refuses to write into a directory that already has results.
+- **Failures (9.2, 9.4):** every query gets a results line with `status` `ok`,
+  `no_recommendations` or `error` (with the exception), plus its time and token usage.
+  Every query gets a judgement line with `status` `ok`, `skipped` (with the run
+  status) or `error`. The judge uses `ainvoke`. The summary reports
+  `completed/total`, the run statuses, `judged` and judge errors, mean ± std over the
+  judged queries, and the same per group; it's logged with the models and written to
+  `summary.json`.
+- **9.5:** the `asyncio.sleep(5)` is gone; `frag eval --sleep S` waits between
+  queries if a provider ever needs it.
+- **9.6:** `get_evaluation_inputs(queries_path, images_dir)` uses `Path` and builds
+  one dict per query.
+- **9.7, real run:** `frag eval --limit 2` on Ollama `qwen3.5:4b` (local SigLIP,
+  `fashion_gen`, S3 images): both queries completed (100 s and 50 s, 2 items each:
+  trousers and oxfords; cargo pants and sneakers for "one pant and one pair of
+  shoes"), both judged (7.8 and 9.7; 8.75 ± 0.95). The agent used about 18–38k input
+  and 3–5k output tokens per query, which on Haiku 4.5 would be about $0.03–0.06 per
+  query. **The full 60-query eval on Bedrock was not run**: it needs the user's
+  approval (§0.2C, about $3–5 plus judging).
+- **Tests:** 87 passed, 1 skipped. `tests/integration/test_evaluation.py` runs the
+  pipeline offline with the fakes: a self-contained run that gets judged (relative
+  image paths, scores with and without an uploaded image), agent failures counted as
+  `error` and judged as `skipped`, judge errors recorded, judging the latest run with
+  `--skip-run`, and refusing to overwrite a run. The fake LLM answers
+  `RecommendationEvaluation`.
+- **Ruff:** the touched files are clean; total 179.
+- **AWS call log:** no direct calls. The real run read the metadata Parquet and the
+  catalogue images its two queries returned from S3 (§0.2-B); no Bedrock.
+- **Added 2026-11-27 at the user's request: a separate judge LLM.**
+  `EvalSettings.judge_llm: LLMSettings | None` (None = the agent's LLM), e.g.
+  `EVALUATION__JUDGE_LLM__PROVIDER=bedrock` judges with Claude Haiku while the agent
+  runs on Ollama; its model id and rate limit default per provider, as for `llm`.
+  `open_resources(role="eval")` builds `Resources.judge_llm`; `config.json` and every
+  judgement line record the judge model. Judging only on Bedrock costs about $0.005 per
+  query (one call: 1.5–3k input tokens, mostly images, and ~250 output tokens), so
+  about $0.30 for the 60 queries; the $3–5 estimate is for running the agent on
+  Bedrock too (about 15 LLM calls and 20–40k tokens per query). Tests: the setting
+  and its provider defaults, and an eval run whose judge differs from the agent.
 
 ---
 
@@ -1447,7 +1503,7 @@ and an interactive confirmation before anything destructive or billable. Scripts
 call Bedrock or write to S3 print a cost estimate and require `--yes` or typing `YES`
 (§0.2C).
 
-- [ ] **10.1 `scripts/ingest_fashiongen.py`**: restore the HDF5 → PNG + Parquet → S3
+- [x] **10.1 `scripts/ingest_fashiongen.py`**: restore the HDF5 → PNG + Parquet → S3
   pipeline from git history
   (`git show 54890dd^:src/frag/exploration/dataset_wrangling/split_hdf5.py`). It was
   deleted in commit 54890dd, but it's the only way to rebuild the catalogue
@@ -1457,7 +1513,7 @@ call Bedrock or write to S3 print a cost estimate and require `--yes` or typing 
   - Uploads skip existing keys (`head_object`), so it can be re-run without
     re-uploading.
   - Needs the `ingest` group. **Don't run it**; the data is already on S3.
-- [ ] **10.2 `scripts/build_vector_db.py`**, ported from
+- [x] **10.2 `scripts/build_vector_db.py`**, ported from
   `utils/aws_create_vector_db_local.py` as a **reproducible record of how the Nova
   collection was built** (decision 1.12). It isn't run, so keep it small:
   - Replace the module globals with argparse: `--collection`, `--start/--end` or
@@ -1474,7 +1530,7 @@ call Bedrock or write to S3 print a cost estimate and require `--yes` or typing 
   - Note in the module docstring that the SigLIP collection was built by the deleted
     `vector_db_writer.py` (commit `2583639^`), and say where to recover it from.
 
-- [ ] **10.3 `scripts/qdrant_admin.py`** with these subcommands:
+- [x] **10.3 `scripts/qdrant_admin.py`** with these subcommands:
   - `info`, from `explore_nova_qdrant.py`
   - `sample`, from `check_collection_count`
   - `snapshot`, from `create_nova_qdrant_snapshot.py`
@@ -1486,8 +1542,58 @@ call Bedrock or write to S3 print a cost estimate and require `--yes` or typing 
 
   The collection comes from settings or `--collection`, with no hard-coded
   `"nova_fashion_gen"`.
-- [ ] **10.4** Delete `src/frag/utils/aws_create_vector_db_local.py` once its
+- [x] **10.4** Delete `src/frag/utils/aws_create_vector_db_local.py` once its
   replacements exist.
+
+**Phase 10 done (2026-11-27).** Notes:
+- **Shared setup:** `scripts/_common.py` has `start(service)` (§3.2: `load_dotenv`,
+  `get_settings`, `setup_logging`) and `confirm(question, assume_yes=)`, which accepts
+  only a typed `YES`. The scripts run by path, so they import it as `_common`
+  (`ruff.toml` lists it as a local import).
+- **`ingest_fashiongen.py` (10.1):** restored from `split_hdf5.py` (the HDF5 field
+  names, the nine string attributes, Latin-1 decoding and zstd Parquet come from the
+  deleted config at `54890dd^`). Arguments: HDF5 path, output folder, `--s3-bucket`,
+  `--ids-file` or `--limit`, `--workers`, `--compression`, `--no-upload`,
+  `--overwrite-metadata`, `--yes`. Keys come from `settings.catalogue`. Before
+  uploading it prints the request and storage cost and asks for `YES`; uploads skip
+  existing keys (`head_object`), and an existing metadata Parquet is kept unless
+  `--overwrite-metadata`. Dense selections are read from the HDF5 file in
+  contiguous blocks, sparse ones (`--ids-file`) row by row, so a sparse list can't
+  pull in the whole 14 GB file. **Not run against the real data or S3.** Tested locally
+  on a synthetic 2,500-item HDF5 file with `--no-upload` (sparse and dense
+  selections, the folder layout, Latin-1 text, and the same Parquet schema as the real
+  metadata); the upload path was not exercised.
+- **`build_vector_db.py` (10.2):** argparse (`--collection` default
+  `vector_db.collections["nova"]`, `--qdrant-url`, `--range START END` or
+  `--ids-file`, `--batch-size`, `--recreate` with its own `YES`, `--yes`). The account
+  id comes from `sts get-caller-identity`, only after confirmation. Before any
+  Bedrock call it prints the image and text request counts and an estimate of the
+  text tokens; it prints a dollar estimate when `--price-per-image` and
+  `--price-per-1k-tokens` are given (current Nova prices couldn't be confirmed from
+  AWS's pages, so none are hard-coded). The docstrings are real, and the module
+  docstring says where the SigLIP builder can be recovered (`2583639^`).
+  - **Deviation from the step:** the payloads are read from the S3 Parquet directly,
+    not with `catalogue.store.load_metadata`, which only returns the app's three
+    fields under generic names; the existing collection's payload has all twelve
+    fields under their own names, which this keeps.
+  - Tested up to the confirmation (answered "no"): no Bedrock or STS call was made.
+- **`qdrant_admin.py` (10.3):** `info`, `sample` (random points from the first
+  10,000), `snapshot [--download DIR]`, `restore FILE` (asks before replacing an
+  existing collection) and `copy-subset --from --to --ids-file`. The collection
+  defaults to `settings.collection`; `--url` to `settings.vector_db.url`. REST with a
+  600 s timeout (gRPC timed out on large snapshots). Tested: `info` and `sample` on
+  both real collections (read-only); copy-subset, snapshot with download, restore,
+  and the declined replace on a throwaway Qdrant.
+- **10.4:** `src/frag/utils/aws_create_vector_db_local.py` deleted, and with it the
+  two `scripts/legacy_qdrant_*.py` scripts that `qdrant_admin.py` replaces.
+  `scripts/profile_resources.py` stays for Phase 11 (running `ruff --fix` and
+  `ruff format` over `scripts/` changed only its formatting).
+- **Tests:** 89 passed, 1 skipped. The scripts have no unit tests; they were tested by
+  hand as above.
+- **Ruff:** 179 -> 56; the new scripts are clean, and the rest of `scripts/` is
+  `profile_resources.py` (Phase 11).
+- **AWS call log (§0.2-B):** the `build_vector_db.py` checks read the metadata Parquet
+  from S3 three times. No Bedrock, STS or S3 writes.
 
 ---
 

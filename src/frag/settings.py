@@ -178,9 +178,12 @@ class EvalSettings(_Section):
 
     queries_path: str = "data/evaluation_data/eval_queries.json"
     images_dir: str = "data/evaluation_data/eval_images"
-    # agent outputs and judgements are written in separate passes to bound LLM use
-    eval_response_file_path: str = "data/evaluation_data/eval_soln.json"
-    judgement_file_path: str = "data/evaluation_data/eval_judgement.json"
+    # each evaluation writes a self-contained <runs_dir>/<UTC time>/ directory
+    runs_dir: str = "data/evaluation_runs"
+    # the judge LLM; None = the same LLM as the agent (`llm`). For example
+    # EVALUATION__JUDGE_LLM__PROVIDER=bedrock judges with Claude Haiku while the agent
+    # runs locally; its model id and rate limit default per provider like `llm`'s
+    judge_llm: LLMSettings | None = None
     weights: EvalWeights = Field(default_factory=EvalWeights)
 
 

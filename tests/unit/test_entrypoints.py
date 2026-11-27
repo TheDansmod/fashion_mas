@@ -7,7 +7,6 @@ from chainlit import secret
 from chainlit.data.storage_clients.s3 import S3StorageClient
 
 from frag import cli
-from frag.evaluation import llm_as_judge
 from frag.ui import chainlit_patches
 from tests.fakes import FIXTURE_IMAGE
 
@@ -40,33 +39,11 @@ async def test_chat_input_quits(monkeypatch):
     assert await cli._read_message() is None  # noqa: SLF001
 
 
-@pytest.mark.parametrize(
-    ("flags", "expected"),
-    [
-        ({}, ["run 3", "judge"]),
-        ({"run": False}, ["judge"]),
-        ({"judge": False}, ["run 3"]),
-    ],
-)
-async def test_eval_flags_choose_the_passes(monkeypatch, flags, expected):
-    calls = []
-
-    async def run(_resources, limit):
-        calls.append(f"run {limit}")
-
-    monkeypatch.setattr(llm_as_judge, "run_evaluation_set", run)
-    monkeypatch.setattr(
-        llm_as_judge, "judge_evaluation_outputs", lambda _r: calls.append("judge")
+def test_cli_passes_the_eval_options_through():
+    args = cli._parser().parse_args(  # noqa: SLF001
+        ["eval", "--sleep", "1.5", "--run-dir", "data/evaluation_runs/x"]
     )
-    monkeypatch.setattr(llm_as_judge, "print_average_score", lambda _p: None)
-
-    class Resources:
-        class settings:  # noqa: N801  attribute-style stand-in
-            class evaluation:  # noqa: N801
-                judgement_file_path = "unused"
-
-    await llm_as_judge.run_full_evaluation_pipeline(Resources, limit=3, **flags)
-    assert calls == expected
+    assert (args.sleep, args.run_dir) == (1.5, "data/evaluation_runs/x")
 
 
 async def test_chainlit_patches_are_idempotent_and_close_does_not_await(monkeypatch):
