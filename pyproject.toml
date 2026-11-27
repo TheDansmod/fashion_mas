@@ -86,12 +86,14 @@ addopts = [
     # the import mode controls how pytest imports modules. by default, the imports are done by adding the parent directory prepended to the sys.path. importlib means that sys.path is not touched and importlib module is used instead for imports. This (importlib) is the modern recommendation.
     "--import-mode=importlib",
     # tests that touch real AWS are opt-in: `pytest -m aws` (free-tier scale only) or
-    # `pytest -m bedrock` (costs money - ask first, see cleanup.md §0.2)
-    "-m", "not aws and not bedrock",
+    # `pytest -m bedrock` (costs money - ask first, see cleanup.md §0.2). The slow
+    # model-quality tests are opt-in too: `pytest -m ollama`
+    "-m", "not aws and not bedrock and not ollama",
 ]
 markers = [
     "aws: uses real AWS resources at free-tier / test scale (S3 reads, DynamoDB)",
     "bedrock: calls Bedrock models, which costs money",
+    "ollama: model-quality tests on a local Ollama model, Qdrant and S3 reads (slow)",
 ]
 # async tests and fixtures need no explicit marker
 asyncio_mode = "auto"

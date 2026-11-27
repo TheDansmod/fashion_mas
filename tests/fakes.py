@@ -1,16 +1,17 @@
 """Offline stand-ins for the LLM, the agent factory, the tools and the catalogue."""
 
 import base64
+import collections
 import io
-import itertools
 import json
 from pathlib import Path
 
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.tools import StructuredTool
 from loguru import logger as log
 from qdrant_client import AsyncQdrantClient, models
 
+from frag.agent.schemas import MatchedImageId
 from frag.catalogue.models import CatalogueItem
 from frag.catalogue.service import Catalogue
 from frag.catalogue.store import CATEGORY, DESCRIPTION, PRICE, S3ImageStore
@@ -36,41 +37,74 @@ _EXPLANATION_MARKER = EXPLANATION_PROMPT.strip()[-60:]
 
 
 class MockStructuredOutput:
-    """Returns a canned instance of the requested schema."""
+    """Returns a canned instance of the requested schema (async only)."""
 
-    def __init__(self, schema):
+    def __init__(self, schema, llm):
         self.schema = schema
+        self._llm = llm
 
-    def invoke(self, *_args, **_kwargs):
+    async def ainvoke(self, prompt, *_args, **_kwargs):
+        self._llm.calls.append((self.schema.__name__, prompt))
         match self.schema.__name__:
             case "NumRecommendations":
-                return self.schema(num_recommendations=3)
+                return self.schema(
+                    num_recommendations=self._llm.num_recommendations,
+                    item_types=self._llm.item_types,
+                )
             case "SingleImageDescription":
                 return self.schema(
                     image_description="A blue cotton shirt with short sleeves."
                 )
             case "RequiredClothes":
+                answer = (
+                    self._llm.modifier_answers.pop(0)
+                    if self._llm.modifier_answers
+                    else [("", d) for d in DEFAULT_CHOICES]
+                )
                 return self.schema(
-                    required_clothes_descriptions=[
-                        "Dark wash denim jeans",
-                        "Blue shorts",
-                        "Black office shoes",
-                    ]
+                    items=[{"item_type": t, "description": d} for t, d in answer]
+                )
+            case "UpdatedUserRequest":
+                return self.schema(
+                    relevant_image_indexes=self._llm.relevant_image_indexes,
+                    updated_user_query="Show me similar items in red.",
                 )
             case "CriticalEvaluation":
-                # always unsatisfied, so the critique loop runs to its limit
+                if self._llm.critic_satisfied:
+                    return self.schema(satisfactory="Yes")
                 return self.schema(satisfactory="No", correction="Some correction")
             case name:
                 raise NotImplementedError(f"no structured mock for {name}")
 
-    async def ainvoke(self, *args, **kwargs):
-        return self.invoke(*args, **kwargs)
-
 
 class ChatMockLLM:
-    """Recognises the calling node from its prompt and returns a canned answer."""
+    """Recognises the calling node from its prompt and returns a canned answer.
 
-    def invoke(self, prompt, *_args, **_kwargs):
+    Only async calls are implemented, so a node that calls the LLM synchronously
+    fails. `calls` records `(schema name or "chat", prompt)` for every call. By
+    default the critic is never satisfied, so the critique loop runs to its limit.
+    """
+
+    def __init__(
+        self,
+        *,
+        critic_satisfied=False,
+        num_recommendations=3,
+        item_types=(),
+        relevant_image_indexes=(),
+        modifier_answers=(),
+    ):
+        self.calls = []
+        self.item_types = list(item_types)
+        # successive modifier answers as [(item_type, description), ...]; after
+        # they run out, DEFAULT_CHOICES with no item types
+        self.modifier_answers = list(modifier_answers)
+        self.relevant_image_indexes = list(relevant_image_indexes)
+        self.critic_satisfied = critic_satisfied
+        self.num_recommendations = num_recommendations
+
+    async def ainvoke(self, prompt, *_args, **_kwargs):
+        self.calls.append(("chat", prompt))
         if isinstance(prompt, str) and _INTENT_MARKER in prompt:
             return AIMessage(content="Focus on the lower-body garments.")
         if isinstance(prompt, list):
@@ -79,60 +113,82 @@ class ChatMockLLM:
                 return AIMessage(content="These items complement the uploaded shirt.")
         raise NotImplementedError(f"ChatMockLLM has no answer for: {prompt!r:.200}")
 
-    async def ainvoke(self, *args, **kwargs):
-        return self.invoke(*args, **kwargs)
-
     def with_structured_output(self, schema, **_kwargs):
-        return MockStructuredOutput(schema)
+        return MockStructuredOutput(schema, self)
+
+
+# what the mock RequiredClothes answer asks for, and the item the mock agent picks
+DEFAULT_CHOICES = {
+    "Dark wash denim jeans": [101],
+    "Blue shorts": [102],
+    "Black office shoes": [103],
+}
 
 
 class MockAgent:
-    """Stands in for `langchain.agents.create_agent(...)`."""
+    """Stands in for the recommender's tool-using `create_agent(...)`.
 
-    def __init__(self, schema, tools, chosen_ids, relevant_image_indexes):
-        self.schema = schema
-        self.tools = tools or []
-        self._chosen_ids = chosen_ids
-        self._relevant_image_indexes = relevant_image_indexes
+    It calls the real `semantic_search` tool over every fake item (unless `search` is
+    off), then answers from `choices`: item description -> ids returned on successive
+    calls for that description (the last one repeats). Without a matching key it
+    picks the first item the search returned. With `prose`, it answers in text
+    instead of the structured response, like small local models often do.
+    """
 
-    async def _exercise_tools(self):
-        for tool in self.tools:
-            if tool.name == "semantic_search":
-                result = await tool.ainvoke(
-                    {
-                        "description": "Black pants",
-                        "categories": ["JEANS"],
-                        "num_matches": 2,
-                    }
-                )
-                log.debug("mock agent semantic_search -> {} blocks", len(result))
-            elif tool.name == "get_product_categories":
-                log.debug("mock agent categories -> {}", await tool.ainvoke({}))
+    def __init__(self, tools, choices, calls, *, search, prose):
+        self.tools = {t.name: t for t in tools or []}
+        self._choices = choices
+        self._calls = calls
+        self._search = search
+        self._prose = prose
 
-    async def ainvoke(self, *_args, **_kwargs):
-        match self.schema.__name__:
-            case "MatchedImageId":
-                await self._exercise_tools()
-                return {
-                    "structured_response": self.schema(image_id=next(self._chosen_ids))
-                }
-            case "UpdatedUserRequest":
-                return {
-                    "structured_response": self.schema(
-                        relevant_image_indexes=self._relevant_image_indexes,
-                        updated_user_query="Show me similar items in red.",
-                    )
-                }
-            case name:
-                raise NotImplementedError(f"no agent mock for {name}")
+    async def _search_all(self):
+        blocks = await self.tools["semantic_search"].ainvoke(
+            {
+                "description": "anything",
+                "categories": sorted({cat for cat, _ in FAKE_ITEMS.values()}),
+                "num_matches": 10,
+            }
+        )
+        log.debug("mock agent semantic_search -> {} blocks", len(blocks))
+        return ToolMessage(
+            content=blocks, name="semantic_search", tool_call_id="call-search"
+        )
+
+    def _choose(self, prompt, tool_message):
+        description = prompt.rsplit("Description:", 1)[-1].strip()
+        if description in self._choices:
+            ids = self._choices[description]
+            n = self._calls[description]
+            self._calls[description] += 1
+            return ids[min(n, len(ids) - 1)]
+        first_text = tool_message.content[0]["text"] if tool_message else "{}"
+        return json.loads(first_text).get("id", UNKNOWN_ITEM_ID)
+
+    async def ainvoke(self, agent_input, *_args, **_kwargs):
+        messages = agent_input["messages"]
+        if isinstance(messages, str):
+            messages = [HumanMessage(content=messages)]
+        tool_message = await self._search_all() if self._search else None
+        image_id = self._choose(messages[0].content, tool_message)
+        messages = [*messages, *([tool_message] if tool_message else [])]
+        if self._prose:
+            answer = AIMessage(content=f"Out of 10 results, item {image_id} fits best.")
+            return {"messages": [*messages, answer]}
+        return {
+            "structured_response": MatchedImageId(image_id=image_id),
+            "messages": messages,
+        }
 
 
-def make_create_agent(chosen_ids=None, relevant_image_indexes=(0, 2)):
+def make_create_agent(choices=None, *, search=True, prose=False):
     """Build a `create_agent` replacement with controllable answers."""
-    ids = itertools.cycle(chosen_ids or list(FAKE_ITEMS))
+    choices = DEFAULT_CHOICES if choices is None else choices
+    calls = collections.Counter()
 
     def create_agent(model, response_format, tools=None, **_kwargs):  # noqa: ARG001
-        return MockAgent(response_format, tools, ids, list(relevant_image_indexes))
+        assert response_format is MatchedImageId  # only the recommender uses agents
+        return MockAgent(tools, choices, calls, search=search, prose=prose)
 
     return create_agent
 

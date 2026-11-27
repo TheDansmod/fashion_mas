@@ -4,23 +4,20 @@ import shutil
 import string
 from contextlib import AsyncExitStack
 from pathlib import Path
-from typing import Optional
 
 import chainlit as cl
 from chainlit import secret as _cl_secret
 from chainlit.data.dynamodb import DynamoDBDataLayer
 from chainlit.data.storage_clients.s3 import S3StorageClient
 from dotenv import load_dotenv
-from langchain_core.callbacks import UsageMetadataCallbackHandler
-from langgraph.types import Command
 from loguru import logger as log
 
-from frag.rag_pipeline.rag_agent import FashionAgent
+from frag.agent.graph import FashionAgent
 from frag.runtime import Resources, open_resources
 from frag.settings import get_settings
-from frag.tokens import append_usage_csv
+from frag.tokens import track_tokens
+from frag.ui.node_updates import NODE_META
 from frag.utils.logger_setup import setup_logging
-from frag.utils.ui_node_updates import NODE_META
 
 # make .env visible to libraries that read os.environ themselves (LangSmith, Chainlit
 # OAuth, boto3, ...); idempotent and never overrides variables that are already set
@@ -73,16 +70,19 @@ def get_data_layer():
     )
 
 
-def _new_agent(metadata_callback: UsageMetadataCallbackHandler) -> FashionAgent:
+def _start_session(thread_id: str) -> None:
     """One agent per chat session, sharing the process-wide resources."""
     resources = _app.resources
-    return FashionAgent(
+    agent = FashionAgent(
         llm=resources.llm,
         tools=resources.tools,
         checkpointer=resources.checkpointer,
         settings=resources.settings.agent,
-        callbacks=[metadata_callback],
     )
+    cl.user_session.set("agent", agent)
+    # the thread id (not the websocket session id) is stable across reconnects and
+    # resumes, and keys the agent's checkpointed state
+    cl.user_session.set("thread_id", thread_id)
 
 
 @cl.oauth_callback
@@ -91,11 +91,11 @@ def oauth_callback(
     token: str,
     raw_user_data: dict[str, str],
     default_user: cl.User,
-) -> Optional[cl.User]:
+) -> cl.User | None:
     if provider_id == "aws-cognito":
         sub = raw_user_data.get("sub")  # this is mandatory
-        email = raw_user_data.get("email", None)
-        username = raw_user_data.get("username", None)
+        email = raw_user_data.get("email")
+        username = raw_user_data.get("username")
         # if no sub, fail auth
         if not sub:
             log.error("Cognito missing 'sub' claim.")
@@ -143,66 +143,41 @@ async def shutdown():
 
 @cl.on_chat_start
 async def start_chat():
-    log.info("in start")
-    # we want to have a separate callback handler and fashion agent object per connection
-    metadata_callback = UsageMetadataCallbackHandler()
-    agent = _new_agent(metadata_callback)
-    cl.user_session.set("metadata_callback", metadata_callback)
-    cl.user_session.set("agent", agent)
-
-    # we use thread_id since that is stable across reconnects - the session.id is just the websocket id which will change on refresh / re-connect - when we switch to adding users - we should use user_id:conversation_id
-    config = {"configurable": {"thread_id": cl.context.session.thread_id}}
-    cl.user_session.set("config", config)
-
+    _start_session(cl.context.session.thread_id)
     await cl.Message(
-        content="Starting chat loop... You can attach images directly to your messages!"
+        content="Ask for recommendations. You can attach images to your messages!"
     ).send()
 
-    try:
-        await agent.ainvoke({"is_chat_start": True}, config=config)
-    except Exception as e:
-        log.exception("failed to start graph.")
-        await cl.Message(content="Failed to start the Agent, please try again.").send()
 
 @cl.on_chat_resume
 async def chat_resume(thread):
-    log.info("In chat resume")
+    log.info("resuming thread {}", thread["id"])
+    _start_session(thread["id"])
 
-    metadata_callback = UsageMetadataCallbackHandler()
-    agent = _new_agent(metadata_callback)
-    cl.user_session.set("metadata_callback", metadata_callback)
-    cl.user_session.set("agent", agent)
-
-    # we use thread_id since that is stable across reconnects - the session.id is just the websocket id which will change on refresh / re-connect - when we switch to adding users - we should use user_id:conversation_id
-    config = {"configurable": {"thread_id": thread["id"]}}
-    cl.user_session.set("config", config)
 
 @cl.on_message
 async def on_message(message: cl.Message):
-    config = cl.user_session.get("config")
     agent = cl.user_session.get("agent")
-
-    input_images = [
-        el for el in (message.elements or []) if "image" in getattr(el, "mime", "")
+    thread_id = cl.user_session.get("thread_id")
+    image_paths = [
+        el.path
+        for el in (message.elements or [])
+        if "image" in (getattr(el, "mime", None) or "")
     ]
-    resume_payload = {
-        "input_images_path": [img.path for img in input_images],
-        "input_text": message.content,
-    }
     accumulated_state = {}
+    csv_path = get_settings().token_usage_csv
     try:
-        async for chunk in agent.astream(Command(resume=resume_payload), config=config):
-            for node_name, update in chunk.items():
-                if node_name == "__interrupt__":
-                    continue
-                accumulated_state.update(update)
-                if node_name in NODE_META:
-                    label, summary_fn = NODE_META[node_name]
+        with track_tokens(csv_path, "agent", thread_id) as usage:
+            async for chunk in agent.stream_turn(
+                message.content, image_paths, thread_id, callbacks=[usage]
+            ):
+                for node_name, update in chunk.items():
+                    accumulated_state.update(update or {})
+                    label, summary_fn = NODE_META.get(
+                        node_name, (f"⚙️ {node_name}", lambda _u: "")
+                    )
                     async with cl.Step(name=label) as step:
-                        step.output = summary_fn(update)
-                else:
-                    async with cl.Step(name=f"⚙️ {node_name}") as step:
-                        step.output = f"unknown node {node_name}"
+                        step.output = summary_fn(update or {})
     except Exception as e:
         log.exception("Agent failed during streaming.")
         await cl.Message(content=f"An error occurred {e}").send()
@@ -226,15 +201,6 @@ async def on_message(message: cl.Message):
 
 @cl.on_chat_end
 async def end_chat():
-    log.info("in end chat")
-
-    metadata_callback = cl.user_session.get("metadata_callback")
-    if metadata_callback is not None:
-        csv_path = get_settings().token_usage_csv
-        if csv_path:
-            append_usage_csv(csv_path, metadata_callback.usage_metadata)
-    else:
-        log.warning("metadata callback not set; skipping token update.")
-    log.info("updated token use")
-
-    # don't delete the tempdir folder since it might be in use by multiple sessions
+    # token usage is recorded per message; the temp image folder is shared by all
+    # sessions, so it is not deleted here
+    log.info("chat ended")

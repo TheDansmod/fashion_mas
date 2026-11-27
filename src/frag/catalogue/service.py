@@ -22,6 +22,10 @@ from frag.catalogue.store import (
 from frag.catalogue.vector_db import QdrantConnector
 from frag.settings import Settings
 
+# upper bound on one search's results: every result is an image in the LLM's context
+# (tokens, memory on a local model) and an S3 GET
+MAX_SEARCH_MATCHES = 6
+
 
 class InvalidCategoryError(ValueError):
     """A requested category is not in the catalogue."""
@@ -68,6 +72,8 @@ class Catalogue:
     ) -> list[CatalogueItem]:
         """Return up to `k` items matching `description`, within `categories`.
 
+        `k` is clamped to 1..MAX_SEARCH_MATCHES.
+
         Raises:
             InvalidCategoryError: if any category is not in the catalogue.
         """
@@ -75,6 +81,7 @@ class Catalogue:
         if invalid:
             msg = f"Not valid categories: {', '.join(invalid)}."
             raise InvalidCategoryError(msg)
+        k = max(1, min(k, MAX_SEARCH_MATCHES))
         vector = await self._embedder.embed_text(description)
         hits = await self._vector_db.search(vector, categories, k)
         # the index may hold ids outside the loaded metadata (e.g. a subset)

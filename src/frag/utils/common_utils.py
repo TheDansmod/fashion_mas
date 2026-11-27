@@ -39,7 +39,7 @@ def get_image_prompt_message(image_path=None, text_prompt=None, numpy_image=None
                     "type": "image_url",
                     "image_url": {
                         "url": f"data:image/{img_format};base64,{image_data}",
-                    }
+                    },
                 },
                 {
                     "type": "text",
@@ -62,7 +62,7 @@ def get_multi_image_prompt_message(image_paths, text_prompt):
                 "type": "image_url",
                 "image_url": {
                     "url": f"data:image/{img_format};base64,{image_data}",
-                }
+                },
             }
         )
     content.append(
@@ -99,7 +99,7 @@ def get_multi_image_multi_prompt_message(prompts):
                     "type": "image_url",
                     "image_url": {
                         "url": f"data:image/{img_format};base64,{image_data}",
-                    }
+                    },
                 }
             )
         else:
@@ -107,8 +107,8 @@ def get_multi_image_multi_prompt_message(prompts):
     return [HumanMessage(content=content)]
 
 
-def draw_langraph_topology(app, path):
-    r"""Given a langgraph app, draw the topology of the graph and save it to path."""
+def draw_graph(app, path):
+    """Draw a compiled LangGraph graph as a PNG (calls the mermaid.ink web API)."""
     png_bytes = app.get_graph().draw_mermaid_png(
         draw_method=MermaidDrawMethod.API,
     )
@@ -134,4 +134,3 @@ def save_image_b64(folder_path: str, image_b64: str) -> str:
     file_path = directory / f"{uuid.uuid4()}.png"
     file_path.write_bytes(base64.b64decode(image_b64))
     return str(file_path)
-

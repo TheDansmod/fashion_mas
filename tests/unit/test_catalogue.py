@@ -8,7 +8,7 @@ import pandas as pd
 import pytest
 
 from frag.catalogue.embedders import NovaEmbedder, build_embedder
-from frag.catalogue.service import InvalidCategoryError
+from frag.catalogue.service import MAX_SEARCH_MATCHES, InvalidCategoryError
 from frag.catalogue.store import S3ImageStore, load_metadata
 from frag.settings import EmbeddingSettings
 from tests.fakes import (
@@ -84,6 +84,20 @@ async def test_catalogue_search_returns_items_and_skips_ids_without_metadata(cat
     assert base64.b64decode(item.image_b64) == FIXTURE_IMAGE.read_bytes()
     assert item.score == pytest.approx(1.0)
     assert ORPHAN_ID not in {i.id for i in await catalogue.search("x", [], k=10)}
+
+
+async def test_catalogue_search_clamps_the_number_of_matches(catalogue, monkeypatch):
+    requested = []
+    search = catalogue._vector_db.search  # noqa: SLF001
+
+    async def spy(vector, categories, k):
+        requested.append(k)
+        return await search(vector, categories, k)
+
+    monkeypatch.setattr(catalogue._vector_db, "search", spy)  # noqa: SLF001
+    await catalogue.search("x", [], k=0)
+    await catalogue.search("x", [], k=50)
+    assert requested == [1, MAX_SEARCH_MATCHES]
 
 
 async def test_catalogue_search_rejects_invalid_categories(catalogue):

@@ -21,7 +21,7 @@ https://github.com/user-attachments/assets/cc40f339-4bd2-4075-aea9-9388405977f5
 
 # Install and Run Instructions
 1. Clone git repo
-2. Run `uv sync --all-groups` from root directory (or pick groups: `dev`, `siglip` for the local Marqo-FashionSigLIP embedder - CPU-only torch, `ingest` for the HDF5 ingestion script)
+2. Run `uv sync --all-groups` from root directory (or pick groups: `dev`, `siglip` for the local Marqo-FashionSigLIP embedder - CPU-only torch, `local-llm` for the default local LLM (Ollama, `ollama pull qwen3.5:4b`), `ingest` for the HDF5 ingestion script)
 3. Chainlit does not play well with symlinked / hardlinked installs. Reinstall just chainlit as real files (re-run this whenever chainlit gets reinstalled):
     `uv sync --all-groups --reinstall-package chainlit --link-mode copy`
     - If you use `UV_LINK_MODE=symlink`: `uv cache clean` / `uv cache prune` deletes the files the venv links to and silently breaks it. Repair with `uv sync --reinstall --all-groups` followed by the chainlit command above.
@@ -70,8 +70,6 @@ handler = Mangum(app)  # this is your Lambda handler
 
 
 TODO: you have added psycopg[binary] as a dependency - but the binary is not recommended for production - please libpq on the system in a production environment.
-
-TODO: convert all model.invoke / structured model.invoke calls into async calls. ensure all agent calls are async as well
 
 
 # Contribution Guidelines

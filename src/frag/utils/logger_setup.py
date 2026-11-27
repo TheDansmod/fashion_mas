@@ -39,8 +39,8 @@ def add_console_logging(
     # the rich handler owns console formatting
     console = Console(stderr=False)
     rich_handler = RichHandler(
-        console=console,                # stdout, to match your existing setup
-        rich_tracebacks=True,           # beautiful tracebacks in dev mode
+        console=console,  # stdout, to match your existing setup
+        rich_tracebacks=True,  # beautiful tracebacks in dev mode
         tracebacks_show_locals=is_dev,  # show local vars in tracebacks (like diagnose=True)
         show_time=True,
         show_level=True,
@@ -75,7 +75,7 @@ def add_console_logging(
                 loguru_exc.traceback,
                 show_locals=rich_handler.tracebacks_show_locals,
                 width=console.width,
-                suppress=site.getsitepackages()  # suppress all install third-party packages
+                suppress=site.getsitepackages(),  # suppress all install third-party packages
             )
             console.print(tb)
 
@@ -83,8 +83,8 @@ def add_console_logging(
         rich_sink,
         level=log_level,
         diagnose=False,  # rich handles tracebacks
-        backtrace=False, # rich handles this
-        enqueue=False,   # not needed for console logging
+        backtrace=False,  # rich handles this
+        enqueue=False,  # not needed for console logging
         format="{message}",  # should be plain since rich adds its own columns
         colorize=False,  # rich adds its own styling
     )

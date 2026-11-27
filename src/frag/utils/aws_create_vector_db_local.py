@@ -234,6 +234,7 @@ def populate_vector_db():
             points=points,
         )
 
+
 def check_collection_count():
     """Connect to Qdrant and report how many points are in the collection.
 
@@ -287,6 +288,7 @@ def check_collection_count():
     log.info(f"  Progress:         {count_result.count / num_datapoints * 100:.2f}%")
     log.info(f"  Suggested next:   start_index = {count_result.count}")
 
+
 def validate():
     log.info(f"START INDEX: {start_index}")
     log.info(f"END INDEX: {end_index}")
@@ -306,10 +308,11 @@ def validate():
     else:
         log.info("Continuing.")
 
+
 def main():
     """Random docstring."""
     global embedder
-    
+
     validate()
     setup_qdrant_client()
     setup_metadata_lookup()
@@ -319,6 +322,7 @@ def main():
 
 if __name__ == "__main__":
     import sys
+
     if "--check" in sys.argv:
         check_collection_count()
     else:
