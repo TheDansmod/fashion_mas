@@ -126,7 +126,7 @@ count go down.
 | 1.1 | **Remove `dependency-injector`.** Keep the Pydantic configs, but make them pure and idempotent (no I/O beyond reading env, no instances built at import). Side effects only happen in entrypoints, under the rules in §3. |
 | 1.2 | **Keep uv's link mode as configured** (`UV_LINK_MODE=symlink` in the user's shell). Don't add `link-mode = "copy"`. The README keeps the Chainlit `--link-mode copy` workaround. |
 | 1.3 | **AWS usage** follows §0.2. |
-| 1.4 | **Two embedding backends, both kept.** `siglip` is the local default: Marqo-FashionSigLIP runs locally for query text, against the `fashion_gen` collection in `data/qdrant_storage` (768-d, about 260k points). `nova` is the AWS mode: Amazon Nova Multimodal Embeddings on Bedrock, against the full ~10k Nova collection (decided 2026-11-26: use all of it rather than a 5k subset; no new embeddings are needed and the extra S3/RAM cost is a fraction of a cent per month). **This is feasible.** Qdrant point IDs and `payload.index_2` match the S3 image keys (`images/{idx//1000:03d}/{idx}.png`) and the Parquet index, so the SigLIP collection works unchanged with S3 images and metadata. In both modes, the LLM is remote. |
+| 1.4 | **Two embedding backends, both kept.** `siglip` is the local default: Marqo-FashionSigLIP runs locally for query text, against the `fashion_gen` collection in `data/qdrant_storage` (768-d, about 260k points). `nova` is the AWS mode: Amazon Nova Multimodal Embeddings on Bedrock, against the full ~10k Nova collection (decided 2026-11-26: use all of it rather than a 5k subset; no new embeddings are needed and the extra S3/RAM cost is a fraction of a cent per month). **This is feasible.** `payload.index_2` matches the S3 image keys (`images/{idx//1000:03d}/{idx}.png`) and the Parquet index, so the SigLIP collection works unchanged with S3 images and metadata. (Phase 12 found the SigLIP point IDs are UUIDs, not the index; the app only uses `payload.index_2`, so this doesn't matter.) In both modes, the LLM is remote. |
 | 1.5 | **Catalogue images and metadata Parquet always come from S3.** Cognito auth and the Chainlit chat history (DynamoDB + S3) are always on, locally included. There's no local-filesystem catalogue backend. **Consequence:** the full 260k-image bucket must be **kept** (the local SigLIP mode needs it), which reverses the plan's "delete the full-size buckets". |
 | 1.6 | **LLM providers: `bedrock` (Claude Haiku 4.5) and `ollama` (local, free, for development).** Gemini was dropped (2026-11-26) because its API wanted billing set up; Mistral is dropped too. `langchain-ollama` is the optional `local-llm` group. |
 | 1.7 | **Checkpointer:** toggling between `memory`, `sqlite`, `postgres` and `dynamodb` should be as seamless as possible, through one setting. |
@@ -1659,22 +1659,59 @@ call Bedrock or write to S3 print a cost estimate and require `--yes` or typing 
 
 These checks are allowed under §0.2B, plus local Ollama calls.
 
-- [ ] **12.1** Start Qdrant on `data/qdrant_storage`, then run
+- [x] **12.1** Start Qdrant on `data/qdrant_storage`, then run
   `scripts/qdrant_admin.py info --collection fashion_gen`. Record the point count, the
   vector names and sizes (expect `images`/`texts` at 768), and confirm that the payload
   has `index_2` and `input_category`.
-- [ ] **12.2** `scripts/qdrant_admin.py sample`: for 3 random points, check that
+- [x] **12.2** `scripts/qdrant_admin.py sample`: for 3 random points, check that
   `point.id == payload.index_2` and that `head-object` on the derived S3 image key
   exists. That's three HEAD requests.
-- [ ] **12.3** Run `frag chat` with `EMBEDDING__BACKEND=siglip`,
+- [x] **12.3** Run `frag chat` with `EMBEDDING__BACKEND=siglip`,
   `TOOLS__MODE=local`, `LLM__PROVIDER=ollama` and
   `CHECKPOINTER__BACKEND=sqlite`, and send one text-only and one image query. That's
   free-tier or local LLM calls and a few dozen S3 GETs.
-- [ ] **12.4** Repeat 12.3 with `TOOLS__MODE=mcp`, running `frag mcp` in another
+- [x] **12.4** Repeat 12.3 with `TOOLS__MODE=mcp`, running `frag mcp` in another
   terminal.
-- [ ] **12.5** Report the results. If 12.1–12.2 show the SigLIP collection is
+- [x] **12.5** Report the results. If 12.1–12.2 show the SigLIP collection is
   incompatible (wrong IDs or a missing payload), stop and ask the user. The user said
   it can be deleted in that case, but **don't delete it yourself**.
+
+**Phase 12 done (2026-11-27): the local SigLIP + remote-LLM mode works.** Notes:
+- **12.1:** `fashion_gen` on `data/qdrant_storage` (via compose): **260,490 points**,
+  green, 8 segments, 541,408 indexed vectors; `images` 768-d (Dot) and `texts` 768-d
+  (Cosine). The payload has `index_2`, `input_category` and the other metadata fields
+  (`input_brand`, `input_composition`, `input_department`, `input_description`,
+  `input_gender`, `input_msrpUSD`, `input_name`, `input_season`,
+  `input_subcategory`).
+- **12.2:** **the point ids are UUIDs, not catalogue indexes**, so the step's
+  `point.id == payload.index_2` doesn't hold. That doesn't matter:
+  `QdrantConnector.search` maps hits to items through `payload.index_2` only (the Nova
+  collection does use the index as point id). For 3 random points (`index_2` 8260,
+  30730, 23338): `head-object` on the derived key found the image (21–31 kB), and the
+  payload's category and description equal the metadata Parquet's. Compatible.
+  - `qdrant_admin.py sample` assumed integer ids and failed on this collection; fixed
+    (any id type), and `copy-subset --ids-file` now accepts integer or UUID ids.
+  - Side note for the deployment: the catalogue PNGs on S3 have
+    `Content-Type: binary/octet-stream`, not `image/png`. The app reads the bytes, so
+    it's harmless; it would matter only if a browser fetched them from S3 directly.
+    `ingest_fashiongen.py` sets `image/png` on new uploads.
+- **12.3:** `frag chat` with `EMBEDDING__BACKEND=siglip`, `TOOLS__MODE=local`,
+  `LLM__PROVIDER=ollama` (`qwen3.5:4b`) and `CHECKPOINTER__BACKEND=sqlite` (a scratch
+  file): a text query ("2 black leather belts": two black leather belts) and, on the
+  same thread, an image follow-up ("pants that go with this shirt" with the gingham
+  shirt photo: navy chinos, indigo jeans, grey wool trousers), the case bug 3.1
+  crashed on. About 2.5 min for both; one thread with 71 checkpoints; every
+  recommender answer valid on the first try.
+- **12.4:** the same with `TOOLS__MODE=mcp` and `frag mcp` in another process: the chat
+  process didn't load the catalogue, the server handled 8 searches, both turns
+  returned items (2 and 3), and one invalid id was fixed by the correction message.
+  About 70 s for both turns.
+- **12.5:** nothing incompatible; the SigLIP collection stays as is.
+- Both processes ran under `systemd-run` memory caps, with Ollama on the Phase 7
+  settings.
+- **AWS call log (§0.2-B):** 3 S3 `HeadObject` (12.2), the metadata Parquet a few times
+  (once per process), and the catalogue images the chats returned (a few dozen GETs).
+  No Bedrock.
 
 ---
 

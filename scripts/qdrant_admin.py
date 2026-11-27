@@ -54,7 +54,10 @@ def parse_args(default_collection: str, default_url: str) -> argparse.Namespace:
     copy.add_argument("--from", dest="source", required=True)
     copy.add_argument("--to", dest="target", required=True)
     copy.add_argument(
-        "--ids-file", type=Path, required=True, help="one point id per line"
+        "--ids-file",
+        type=Path,
+        required=True,
+        help="one point id per line (an integer or a UUID)",
     )
     copy.add_argument("--batch-size", type=int, default=256)
     return parser.parse_args()
@@ -75,10 +78,8 @@ def info(client: QdrantClient, collection: str) -> None:
 
 def sample(client: QdrantClient, collection: str, count: int) -> None:
     """Print random points: their payload and the start of each vector."""
-    ids = [
-        int(p.id)
-        for p in client.scroll(collection, limit=10_000, with_payload=False)[0]
-    ]
+    # point ids are integers in nova_fashion_gen but UUIDs in fashion_gen
+    ids = [p.id for p in client.scroll(collection, limit=10_000, with_payload=False)[0]]
     for point in client.retrieve(
         collection, random.sample(ids, min(count, len(ids))), with_vectors=True
     ):
@@ -139,7 +140,10 @@ def copy_subset(
     batch_size: int,
 ) -> None:
     """Copy the listed points (vectors and payload) into `target`, creating it."""
-    ids = sorted({int(x) for x in ids_file.read_text().split()})
+    # integer ids (nova_fashion_gen uses catalogue indexes) or UUID strings
+    ids = sorted(
+        {int(x) if x.isdigit() else x for x in ids_file.read_text().split()}, key=str
+    )
     if client.collection_exists(target):
         if not confirm(
             f"Collection '{target}' exists; points with the same ids are overwritten."
