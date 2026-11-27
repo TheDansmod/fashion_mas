@@ -26,17 +26,14 @@ https://github.com/user-attachments/assets/cc40f339-4bd2-4075-aea9-9388405977f5
     `uv sync --all-groups --reinstall-package chainlit --link-mode copy`
     - If you use `UV_LINK_MODE=symlink`: `uv cache clean` / `uv cache prune` deletes the files the venv links to and silently breaks it. Repair with `uv sync --reinstall --all-groups` followed by the chainlit command above.
     - The AWS CLI is not a project dependency. Install v2 system-wide (e.g. `sudo pacman -S aws-cli-v2` on Arch, or AWS's official installer).
-4. Create the folder for the vector db: `mkdir -p data/qdrant_storate/`
-5. Install podman / docker and podman-compose / docker-compose, and run `podman-compose up -d` to download and setup the docker containers.
-6. Run `podman-compose down` to terminate the containers when done.
-7. Download the dataset using the kaggle CLI: `kaggle datasets download -d bothin/fashiongen-validation` or download from [here](https://www.kaggle.com/datasets/bothin/fashiongen-validation) and save to `DATAPATH`.
-8. Setup the Qdrant Vector DB: `uv run cli_main.py data.vector_db.recreate=true data.fashion_gen.hdf5_path=DATAPATH`. (Say YES when it asks if you want to create / re-create the Vector DB. This should take around 30 minutes with a GPU.
-9. The project uses the Mistral API by default, so need to have a `.env` file at root level with `MISTRAL_API_KEY=<key>`
-10. Start the mcp server: `uv run mcp_server.py`
-    The MCP server runs on port 9000
-11. Start the chainlit UI: `uv run chainlit run app.py` or run the application in the terminal - without chainlit: `uv run cli_main.py`. If using the UI, it should start up in your default browser (`http://localhost:8000`).
-12. If instead, you want to run the evaluation pipeline - which evaluates the agent across multiple different query types using 60 queries and then, through the llm-as-a-judge framework, judges those queries across multiple critiera, and finally provides the mean score out of 10 and the standard deviation: `uv run cli_main.py eval.eval_mode=true`
-13. To run the test(s), do `uv run pytest`. For a coverage report: `uv run pytest --cov=frag --cov-report=term-missing:skip-covered --cov-report=html:reports/htmlcov`
+4. Copy `.env.example` to `.env` and fill in what you need. The defaults use the local LLM (Ollama, `qwen3.5:4b`) and the local SigLIP embedder. Start Ollama with the memory settings in `cleanup.md` (Phase 7 notes, `LLAMA_ARG_CACHE_RAM=0`).
+5. Install podman / docker and podman-compose / docker-compose, and run `podman-compose up -d` to start Qdrant. It serves `data/qdrant_storage/` (override with `QDRANT_STORAGE_DIR`), which holds both collections: `fashion_gen` (SigLIP, the default) and `nova_fashion_gen` (Nova).
+6. Run `podman-compose down` to stop the containers when done.
+7. The catalogue images and metadata are read from S3, so AWS credentials must be configured (`aws configure`).
+8. Optional: serve the catalogue tools from a separate process with `uv run frag mcp` (port 9000) and set `TOOLS__MODE=mcp`. By default the agent uses the tools in-process.
+9. Start the Chainlit UI with `uv run chainlit run app.py` (http://localhost:8000; sign-in is through AWS Cognito), or chat in the terminal with `uv run frag chat`.
+10. Evaluation: `uv run frag eval` runs the agent over the 60 evaluation queries and then judges the outputs with an LLM (mean score out of 10 and standard deviation). `--limit N` runs only the first N queries; `--skip-run` only judges the stored outputs; `--skip-judge` only runs the agent.
+11. To run the test(s), do `uv run pytest` (offline). The slow model-quality tests run the real agent on the local Ollama model, Qdrant and S3: `uv run pytest -m ollama` (see `tests/model/`). For a coverage report: `uv run pytest --cov=frag --cov-report=term-missing:skip-covered --cov-report=html:reports/htmlcov`
 
 
 # AWS Deployment Considerations

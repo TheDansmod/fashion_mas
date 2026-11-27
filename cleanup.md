@@ -1296,7 +1296,7 @@ DI-injected S3 fetch inside a method to dodge an import cycle.
 
 ## Phase 8: Entrypoints
 
-- [ ] **8.1 `src/frag/cli.py`** (argparse), replacing `cli_main.py` and
+- [x] **8.1 `src/frag/cli.py`** (argparse), replacing `cli_main.py` and
   `mcp_server.py`. The README's Hydra-style `eval.eval_mode=true` overrides **don't
   work today**: nothing parses `argv`.
   - `frag chat` is the terminal REPL, moved out of `rag_agent.py`. Validate that image
@@ -1306,7 +1306,7 @@ DI-injected S3 fetch inside a method to dodge an import cycle.
   - `frag mcp`. Remove the check that raises when `USE_MCP_SERVER` is false; the server
     shouldn't care about the client's setting.
   - Delete `cli_main.py` and `mcp_server.py`, and update the README.
-- [ ] **8.2 `app.py`** (Cognito and the DynamoDB+S3 history are always on, per
+- [x] **8.2 `app.py`** (Cognito and the DynamoDB+S3 history are always on, per
   decision 1.5):
   - Move the two monkeypatches into `frag/ui/chainlit_patches.py` as an idempotent
     `apply()`, and note that they target Chainlit 2.10.0. Remove the duplicate
@@ -1320,14 +1320,14 @@ DI-injected S3 fetch inside a method to dodge an import cycle.
   - Merge the duplicated `start_chat` and `chat_resume` bodies into
     `_init_session(thread_id)`. After Phase 7.6, neither needs a priming invoke.
   - Remove the unused imports (`chainlit.data as cl_data`, `Command`).
-- [ ] **8.3 `compose.yaml`**:
+- [x] **8.3 `compose.yaml`**:
   - The `qdrant` storage mount becomes `${QDRANT_STORAGE_DIR:-./data/qdrant_storage}`,
     so the SigLIP storage is the default, and the snapshot mount gets the same
     treatment.
   - Fix the comment about a "Containerfile" that doesn't exist. Pin the image by
     digest, or say it's pinned by tag.
   - Add the `postgres` profile service (Phase 4.5).
-- [ ] **8.4 Consolidate the two local Qdrant storage directories**, done locally:
+- [x] **8.4 Consolidate the two local Qdrant storage directories**, done locally:
   - `data/qdrant_storage/` contains `fashion_gen` (SigLIP) **and** a
     `nova_fashion_gen`.
   - `data/nova_qdrant_storage/` contains another `nova_fashion_gen` (about 10k points,
@@ -1339,6 +1339,70 @@ DI-injected S3 fetch inside a method to dodge an import cycle.
     That needs a local snapshot and restore only, and **asking the user before
     replacing a collection**. One Qdrant instance then serves both backends.
   - Report the counts either way. Don't delete either directory.
+
+**Phase 8 done (2026-11-27).** Notes:
+- **CLI (8.1):** `src/frag/cli.py` provides `frag chat | eval | mcp` (`[project.scripts]`,
+  so `uv run frag ...`). `cli_main.py` and `mcp_server.py` are deleted, and the README
+  run steps are rewritten for it (Phase 14 rewrites the rest).
+  - `frag chat` reads the text and then image paths one per line (empty line to
+    finish); a path that doesn't exist is reported and skipped before the agent runs.
+    One thread per run, so later messages are follow-ups.
+  - `frag eval [--skip-run] [--skip-judge] [--limit N]`: `run_full_evaluation_pipeline`
+    gained `run`, `judge` and `limit` arguments. Role `eval` (memory checkpointer).
+  - `frag mcp`: the `USE_MCP_SERVER` check was already gone.
+  - Each command follows §3.2; a failure is logged and exits with status 1 (before,
+    `cli_main.py` logged and exited 0). Ctrl+C exits quietly.
+  - Smoke-tested: `frag mcp` served `/health` (`{"status":"ok","items":260490}`) and
+    shut down cleanly on Ctrl+C.
+- **`app.py` (8.2):**
+  - The patches are in `frag/ui/chainlit_patches.py` as an idempotent `apply()`,
+    called at import. The duplicate `S3StorageClient` import and the unused imports
+    were already gone; `get_data_layer` already used the settings; the resources were
+    already in a module-level `AsyncExitStack`.
+  - `start_chat` and `chat_resume` share `_init_session(thread_id)`; neither primes
+    the graph. Handlers are typed and documented.
+  - **Changed:** an agent failure shows the user a generic message instead of the
+    exception text (which could leak internals); the exception is logged.
+  - **Chainlit upgraded 2.10.0 -> 2.12.0** (`chainlit>=2.12.0`). 2.10.1 fixes session
+    ownership on websocket restore (the app resumes threads); 2.12.0 fixes two
+    critical `/mcp` CVEs (CVE-2026-45018/45019), which only apply with
+    `features.mcp.enabled = true` (it's `false` here) and has breaking changes only
+    for MCP. **Both bugs the patches work around are still present in 2.12.0**
+    (`secret.chars` still has punctuation; `S3StorageClient.close` still awaits
+    boto3's synchronous `close`), so the patches stay, re-checked against 2.12.0.
+    Chainlit 2.12 now warns about the legacy `[features.mcp.*]` sections in the
+    local, git-ignored `.chainlit/config.toml`; harmless while MCP is off. Remove them
+    when a production config is committed (plan Phase 2). The `traceloop` pydantic
+    deprecation warning Chainlit now triggers is filtered in pytest.
+  - Smoke-tested: `chainlit run app.py --headless` opened the resources (catalogue,
+    SigLIP, the DynamoDB checkpointer from `.env`), served `/` and `/auth/config`
+    (200), and closed cleanly with the patched S3 close. The sign-in and chat flow
+    was not exercised (it needs Cognito in a browser).
+- **`compose.yaml` (8.3):** Qdrant mounts `${QDRANT_STORAGE_DIR:-./data/qdrant_storage}`
+  and `${QDRANT_SNAPSHOTS_DIR:-./data/qdrant_snapshots}` (empty directory created).
+  The container is `frag-qdrant`; the image is pinned by tag (`v1.17`). The
+  `postgres` profile was already there (Phase 4.5).
+- **Qdrant consolidation (8.4):** counted on copies of both directories:
+  - `data/qdrant_storage`: only `fashion_gen` (SigLIP), **260,490** points, 768-d
+    `images` (Dot) and `texts` (Cosine). There was no stale `nova_fashion_gen` in it,
+    contrary to the step's premise.
+  - `data/nova_qdrant_storage`: `nova_fashion_gen`, **10,000** points, 1024-d
+    `images` and `texts` (Cosine).
+  - Nothing needed replacing, so `nova_fashion_gen` was snapshotted from a copy and
+    restored into `data/qdrant_storage` (additive; 1.8 GB -> 2.7 GB). Both
+    collections were green with the counts above afterwards, and `podman compose up`
+    serves both. Neither original directory was deleted; `data/nova_qdrant_storage`
+    and `data/nova_qdrant_snapshots` are now redundant (removal candidates for the
+    user). The snapshot file is in `~/.cache/frag-snapshots/` (931 MB) and a pre-change
+    copy of `data/qdrant_storage` is in `~/.cache/frag-qdrant-copy`; both can be
+    deleted.
+- **Tests:** 85 passed, 1 skipped (postgres). New `tests/unit/test_entrypoints.py`:
+  CLI argument parsing, image path validation and quitting in `frag chat`, the eval
+  flags, and the Chainlit patches (URL-safe state characters, a non-awaiting S3 close,
+  idempotence).
+- **Ruff:** 203 -> 179; the touched files are clean.
+- **AWS call log:** no direct calls. The smoke tests read the metadata Parquet (one
+  GET per process, two processes) and opened the DynamoDB checkpointer (§0.2-B).
 
 ---
 

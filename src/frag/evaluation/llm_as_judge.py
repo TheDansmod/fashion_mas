@@ -95,11 +95,11 @@ def write_result(result: dict, file_path: str) -> None:
     path.write_text(json.dumps(data, indent=2))
 
 
-async def run_evaluation_set(resources: Resources) -> None:
-    """Run the agent over every evaluation query and store its outputs."""
+async def run_evaluation_set(resources: Resources, limit: int | None = None) -> None:
+    """Run the agent over the evaluation queries (the first `limit` if given)."""
     log.debug("Running evaluation set")
     settings = resources.settings.evaluation
-    for eval_input in get_evaluation_inputs(settings):
+    for eval_input in get_evaluation_inputs(settings)[:limit]:
         log.debug("eval input: {}", eval_input)
         paths, descr = await run_fashion_agent_single_input(resources, eval_input)
         result = {
@@ -210,8 +210,20 @@ def print_average_score(judgement_file_path: str) -> None:
     log.info("Mean = {}; Std = {}", np.mean(scores), np.std(scores))
 
 
-async def run_full_evaluation_pipeline(resources: Resources) -> None:
-    """Run the agent over the query set, judge the outputs and print the score."""
-    await run_evaluation_set(resources)
-    judge_evaluation_outputs(resources)
-    print_average_score(resources.settings.evaluation.judgement_file_path)
+async def run_full_evaluation_pipeline(
+    resources: Resources,
+    *,
+    run: bool = True,
+    judge: bool = True,
+    limit: int | None = None,
+) -> None:
+    """Run the agent over the query set, judge the outputs and print the score.
+
+    `run=False` judges the outputs already stored; `judge=False` only stores them.
+    `limit` runs only the first N queries.
+    """
+    if run:
+        await run_evaluation_set(resources, limit)
+    if judge:
+        judge_evaluation_outputs(resources)
+        print_average_score(resources.settings.evaluation.judgement_file_path)
