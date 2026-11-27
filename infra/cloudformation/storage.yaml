@@ -54,7 +54,7 @@ Resources:
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
       # Needed if the browser loads elements straight from S3 through signed URLs.
-      # The deployment plan narrows AllowedOrigins to the CloudFront domain.
+      # Narrow AllowedOrigins to the app's public domain once it has one.
       CorsConfiguration:
         CorsRules:
           - AllowedHeaders: ["*"]
@@ -85,7 +85,7 @@ Resources:
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: false
       SSESpecification:
-        SSEEnabled: false  # AWS-owned key (free); the deployment plan may switch to KMS
+        SSEEnabled: false  # AWS-owned key (free)
 
   # Schema required by Chainlit's DynamoDB data layer. Chainlit doesn't use the TTL
   # attribute, so TTL has no effect on its items.
