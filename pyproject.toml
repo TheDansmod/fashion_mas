@@ -7,7 +7,7 @@ requires-python = ">=3.13"
 dependencies = [
     "aiosqlite>=0.22.1",
     "boto3>=1.42.78",
-    "chainlit>=2.10.0",
+    "chainlit>=2.12.0",
     "fastmcp>=3.1.0",
     "langchain>=1.2.12",
     "langchain-aws>=1.4.5",
@@ -31,8 +31,7 @@ dependencies = [
 ]
 
 [project.scripts]
-# `frag chat | eval | mcp` - frag.cli is created in cleanup.md Phase 8; until then this
-# entry point is installed but raises ModuleNotFoundError when invoked
+# `frag chat | eval | mcp` (src/frag/cli.py)
 frag = "frag.cli:main"
 
 [dependency-groups]
@@ -107,6 +106,8 @@ filterwarnings = [
     # langchain mcp server is throwing this internal warning and I am going to suppress it since I can't do anything about it until they fix it
     # this should work, but for some reason, does not # TODO: fix this
     'ignore:Use `streamable_http_client` instead:DeprecationWarning',
+    # traceloop (imported by Chainlit since 2.12) still uses a class-based pydantic config
+    'ignore:Support for class-based `config` is deprecated:DeprecationWarning:traceloop',
 ]
 
 [tool.coverage.run]

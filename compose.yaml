@@ -1,7 +1,10 @@
 services:
+  # one Qdrant serves both collections: fashion_gen (SigLIP, the local default) and
+  # nova_fashion_gen (Nova); override the directories with QDRANT_STORAGE_DIR and
+  # QDRANT_SNAPSHOTS_DIR
   qdrant:
-    image: docker.io/qdrant/qdrant:v1.17   # pin by digest, as in the Containerfile
-    container_name: qdrant-server-nova
+    image: docker.io/qdrant/qdrant:v1.17   # pinned by tag (minor version)
+    container_name: frag-qdrant
     restart: unless-stopped
     environment:
       QDRANT__TELEMETRY_DISABLED: "true"
@@ -12,10 +15,10 @@ services:
       - "127.0.0.1:6334:6334"  # gRPC API
     volumes:
       - type: bind
-        source: ./data/nova_qdrant_storage
+        source: ${QDRANT_STORAGE_DIR:-./data/qdrant_storage}
         target: /qdrant/storage
       - type: bind
-        source: ./data/nova_qdrant_snapshots
+        source: ${QDRANT_SNAPSHOTS_DIR:-./data/qdrant_snapshots}
         target: /qdrant/snapshots
     healthcheck:
       test: ["CMD-SHELL", "timeout 5s bash -c ':> /dev/tcp/127.0.0.1/6333' || exit 1"]
