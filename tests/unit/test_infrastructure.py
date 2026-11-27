@@ -14,13 +14,9 @@ from frag.checkpointer import open_checkpointer
 from frag.evaluation.run import get_evaluation_inputs, get_final_score
 from frag.evaluation.schemas import RecommendationEvaluation
 from frag.llm import build_llm
+from frag.messages import build_message
 from frag.settings import CheckpointerSettings, EvalWeights, LLMSettings
 from frag.tokens import CSV_HEADER, append_usage_csv, track_tokens
-from frag.utils.common_utils import (
-    get_image_prompt_message,
-    get_multi_image_multi_prompt_message,
-    get_multi_image_prompt_message,
-)
 from tests.fakes import FIXTURE_IMAGE
 
 # --- checkpointers -------------------------------------------------------------------
@@ -137,29 +133,24 @@ def _image_urls(messages):
     ]
 
 
-def test_multi_image_message_uses_correct_mime_types(tmp_path):
-    # regression for cleanup.md 3.1 (undefined `img_path`)
+def test_message_images_get_mime_types_from_their_names(tmp_path):
+    # regression for cleanup.md 3.1 (a follow-up with a new image raised NameError)
     png = tmp_path / "x.png"
     Image.new("RGB", (4, 4)).save(png)
-    urls = _image_urls(
-        get_multi_image_prompt_message([str(FIXTURE_IMAGE), str(png)], "hi")
-    )
+    unknown = tmp_path / "x.unknown"
+    unknown.write_bytes(png.read_bytes())
+    urls = _image_urls(build_message([FIXTURE_IMAGE, png, unknown, "hi"]))
     assert urls[0].startswith("data:image/jpeg;base64,")
     assert urls[1].startswith("data:image/png;base64,")
+    assert urls[2].startswith("data:image/png;base64,")  # the default
     assert base64.b64decode(urls[0].split(",", 1)[1]) == FIXTURE_IMAGE.read_bytes()
 
 
-def test_single_and_mixed_messages_keep_order():
-    single = get_image_prompt_message(
-        image_path=str(FIXTURE_IMAGE), text_prompt="describe"
-    )
-    assert [c["type"] for c in single[0].content] == ["image_url", "text"]
-    mixed = get_multi_image_multi_prompt_message(
-        [("text", "a"), ("image", str(FIXTURE_IMAGE)), ("text", "b")]
-    )
-    assert [c["type"] for c in mixed[0].content] == ["text", "image_url", "text"]
-    with pytest.raises(ValueError, match="text"):
-        get_multi_image_multi_prompt_message([("audio", "x")])
+def test_message_parts_keep_their_order_and_strings_stay_text():
+    message = build_message(["a", FIXTURE_IMAGE, str(FIXTURE_IMAGE)])
+    assert [c["type"] for c in message[0].content] == ["text", "image_url", "text"]
+    # a string is never read as a file, even if it is a path
+    assert message[0].content[2]["text"] == str(FIXTURE_IMAGE)
 
 
 # --- evaluation helpers --------------------------------------------------------------

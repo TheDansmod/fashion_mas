@@ -188,13 +188,17 @@ class EvalSettings(_Section):
 
 
 class LogSettings(_Section):
-    """Loguru logging; file names get a per-process service suffix."""
+    """Loguru logging (frag.logging_setup).
+
+    In development: a Rich console and a per-process file. Elsewhere: JSON on stdout
+    only, and `console`/`file` are ignored.
+    """
 
     # None -> DEBUG in development/staging, INFO in production
     level: str | None = None
+    # development only: the Rich console, and the file {file_dir}/frag-{service}.log
     console: bool = True
-    human_readable_file: bool = True
-    machine_readable_file: bool = True
+    file: bool = True
     file_dir: str = "logs"
     # loguru rotation/retention/compression syntax
     rotation: str = "1 day"

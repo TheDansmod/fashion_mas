@@ -1,102 +1,83 @@
-# this was created with gemini
-# the way this works is you start the app (uv run chainlit run app.py) in one terminal and then start this file in another terminal and it will output the used resources over time (every 2 secs)
+"""Print the CPU and RAM use of the running Chainlit app and the Qdrant container.
+
+Start the app (`uv run chainlit run app.py`) and Qdrant (`podman compose up -d`), then
+run `uv run python scripts/profile_resources.py` in another terminal. It prints a line
+every `--interval` seconds until Ctrl+C. Needs `psutil` (the `dev` group) and the
+podman CLI.
+"""
+
+import argparse
+import contextlib
 import json
+import shutil
 import subprocess
 import time
 
 import psutil
 
 
-def get_podman_stats(container_name="qdrant-server-nova"):
-    try:
-        # Request stats in JSON format for easy parsing
-        result = subprocess.run(
-            ["podman", "stats", "--no-stream", "--format", "json", container_name],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-
-        output = result.stdout.strip()
-        if output:
-            # Podman returns a JSON array containing stats for the requested container(s)
-            stats_list = json.loads(output)
-            if stats_list:
-                container_stats = stats_list[0]
-                # Podman JSON keys are lowercase (e.g., cpu_percent, mem_usage)
-                cpu_str = str(container_stats.get("cpu_percent", "N/A"))
-                mem_str = str(container_stats.get("mem_usage", "N/A"))
-
-                # Append '%' if not present for consistency
-                if cpu_str != "N/A" and not cpu_str.endswith("%"):
-                    cpu_str += "%"
-
-                return cpu_str, mem_str
-
-        return "N/A", "N/A"
-    except subprocess.CalledProcessError:
-        return "Not Running", "Not Running"
-    except FileNotFoundError:
-        return "Podman CLI missing", "Podman CLI missing"
-    except json.JSONDecodeError:
-        return "Error parsing JSON", "Error parsing JSON"
+def find_chainlit_process() -> psutil.Process | None:
+    """The `chainlit run app.py` process, if one is running."""
+    for process in psutil.process_iter(["cmdline"]):
+        cmdline = process.info["cmdline"] or []
+        if "chainlit" in " ".join(cmdline) and "app.py" in cmdline:
+            return process
+    return None
 
 
-def monitor_resources():
-    target_process = None
+def container_stats(podman: str, container: str) -> str:
+    """CPU and memory of a container, from `podman stats`, as one line."""
+    result = subprocess.run(  # noqa: S603  fixed arguments; the container name is ours
+        [podman, "stats", "--no-stream", "--format", "json", container],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0 or not result.stdout.strip():
+        return "not running"
+    stats = json.loads(result.stdout)[0]
+    return f"CPU {stats.get('cpu_percent', '?')} | RAM {stats.get('mem_usage', '?')}"
 
-    # 1. Find the Chainlit application process
-    for p in psutil.process_iter(["pid", "name", "cmdline"]):
-        try:
-            cmdline = p.info["cmdline"]
-            if cmdline and "chainlit" in cmdline and "app.py" in cmdline:
-                target_process = p
-                break
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
-            continue
 
-    if target_process:
-        print(
-            f"Monitoring Chainlit Process Tree (PID: {target_process.pid}) and Qdrant Container..."
-        )
-        target_process.cpu_percent(interval=None)  # Prime CPU metric
+def process_tree_usage(process: psutil.Process) -> tuple[float, float]:
+    """CPU percent and RSS in MB of a process and all its children."""
+    cpu, rss = 0.0, 0
+    for proc in [process, *process.children(recursive=True)]:
+        with contextlib.suppress(psutil.NoSuchProcess):
+            cpu += proc.cpu_percent(interval=None)
+            rss += proc.memory_info().rss
+    return cpu, rss / 2**20
+
+
+def main() -> None:
+    """Sample and print until interrupted."""
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser.add_argument("--container", default="frag-qdrant")
+    parser.add_argument("--interval", type=float, default=2.0, help="seconds")
+    args = parser.parse_args()
+    podman = shutil.which("podman") or shutil.which("docker")
+    if podman is None:
+        parser.error("podman (or docker) is not on PATH")
+
+    app = find_chainlit_process()
+    if app is None:
+        print("The Chainlit app isn't running; showing Qdrant only.")
     else:
-        print("Chainlit app not found. Monitoring Qdrant container only...")
-
-    try:
+        print(f"Chainlit app: PID {app.pid}")
+        process_tree_usage(app)  # the first CPU reading is always 0
+    with contextlib.suppress(KeyboardInterrupt):
         while True:
-            chainlit_mem_mb = 0
-            chainlit_cpu = 0
-
-            # 2. Gather Chainlit Python metrics
-            if target_process:
-                try:
-                    processes = [target_process] + target_process.children(
-                        recursive=True
-                    )
-                    for proc in processes:
-                        chainlit_mem_mb += proc.memory_info().rss / (1024 * 1024)
-                        chainlit_cpu += proc.cpu_percent(interval=None)
-                except psutil.NoSuchProcess:
-                    print("Chainlit application closed.")
-                    target_process = None
-
-            # 3. Gather Qdrant Docker metrics
-            qdrant_cpu, qdrant_mem = get_podman_stats("qdrant-server-nova")
-
-            # 4. Display combined metrics
-            print("-" * 50)
-            if target_process:
-                print(
-                    f"Chainlit (Python): CPU: {chainlit_cpu:.1f}% | RAM: {chainlit_mem_mb:.2f} MB"
-                )
-            print(f"Qdrant (Docker):   CPU: {qdrant_cpu} | RAM: {qdrant_mem}")
-
-            time.sleep(2)
-
-    except KeyboardInterrupt:
-        print("\nStopped monitoring.")
+            line = f"Qdrant: {container_stats(podman, args.container)}"
+            if app is not None:
+                if app.is_running():
+                    cpu, rss_mb = process_tree_usage(app)
+                    line = f"Chainlit: CPU {cpu:.1f}% | RAM {rss_mb:.0f} MB  " + line
+                else:
+                    print("The Chainlit app stopped.")
+                    app = None
+            print(line)
+            time.sleep(args.interval)
 
 
 if __name__ == "__main__":
-    monitor_resources()
+    main()
