@@ -37,6 +37,15 @@ https://github.com/user-attachments/assets/cc40f339-4bd2-4075-aea9-9388405977f5
 12. To run the test(s), do `uv run pytest` (offline). The slow model-quality tests run the real agent on the local Ollama model, Qdrant and S3: `uv run pytest -m ollama` (see `tests/model/`). For a coverage report: `uv run pytest --cov=frag --cov-report=term-missing:skip-covered --cov-report=html:reports/htmlcov`
 
 
+# AWS resources
+Every AWS resource the app uses (catalogue and chat-elements buckets, the two DynamoDB tables, the Cognito login) is owned by a CloudFormation stack in `infra/cloudformation/` (`frag-<env>-storage`, `frag-<env>-auth`). It's changed only through `infra/scripts/`, which shows a change set and waits for a typed confirmation. See `docs/cloudformation.md` for the workflow and `docs/aws_inventory.md` for what exists and why.
+- `infra/scripts/deploy.sh [layer] [Param=Value ...] [--dry-run]`: set up or update the stacks.
+- `infra/scripts/write_env_from_stack.sh [--write]`: put table, bucket and Cognito values (including the client secret) into `.env`.
+- `infra/scripts/create_user.sh <email>`: sign-up is admin-only, so users are created this way.
+- `infra/scripts/teardown.sh <layer>`: delete a layer; it refuses stacks that hold retained data.
+
+**Data uploads** go only through `scripts/ingest_fashiongen.py` (catalogue images and metadata Parquet) and, once the deployment plan adds it, the Qdrant snapshot upload. Nothing else writes catalogue data to S3.
+
 # AWS Deployment Considerations
 1. KNOWN: Embedding model - lives on the EC2 t3.large - can use Amazon Nova Embedding - but quality might be lower
 2. KNOWN: MCP server - AWS Lambda + API Gateway - each tool is a lambda function - use API Gateway to be called by agent - The core flow would be: API Gateway HTTP API → Lambda (FastMCP + Mangum) → External services. Might not actually need API Gateway since you are invoking the lambda internally from EC2

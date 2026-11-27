@@ -138,6 +138,7 @@ count go down.
 | 1.13 | **Cognito sign-up is admin-only** (`AllowAdminCreateUserOnly: true`). |
 | 1.14 | **Keep the Rich console logging.** It's per process and loguru sinks are thread-safe, so it's fine with several processes, each writing to its own console. |
 | 1.15 | **Branching and merging are the user's.** PRs go into `main`. The agent may add GitHub Actions CI (Phase 16) as long as it involves no AWS integration and costs nothing. It doesn't change the existing branch-naming, commit-message or PR-title workflows. |
+| 1.16 | **Two deployment modes on the same stacks** (requested 2026-11-27): *always on* (~$17/month) and *on demand* (~$1.70/month at ~20 awake hours). In on-demand mode a visitor wakes the stopped instance from an "asleep" page, and it stops itself after `IdleMinutes` without chat activity. Only the instance sleeps; CloudFront, Cognito, S3 and DynamoDB stay up. The design and costs are in the plan, section 2.1. Phase 13 builds the mode-independent part (storage, auth); the plan's Phases 2–3 build the rest. |
 
 ---
 
@@ -153,9 +154,11 @@ docs/
   aws_inventory.md              # Phase 13.1: every AWS resource and the code that owns it
   cloudformation.md             # notes salvaged from exploration/chainlit_auth_persistence/README.md
 infra/
-  cloudformation/               # moved from cloudformation/, extended in Phase 13
-  scripts/deploy.sh             # aws cloudformation package + deploy (asks for confirmation)
-  scripts/teardown.sh           # empties owned buckets, deletes stacks (asks for confirmation)
+  cloudformation/               # storage.yaml, auth.yaml: one stack per layer (Phase 13)
+  scripts/deploy.sh             # sets up / updates all layers: change set + typed YES
+  scripts/teardown.sh           # deletes a layer stack; refuses stacks with Retain resources
+  scripts/write_env_from_stack.sh # stack outputs (+ Cognito secret) -> .env
+  scripts/create_user.sh        # admin-only Cognito sign-up
 scripts/
   ingest_fashiongen.py          # HDF5 -> PNGs + Parquet -> S3 (restored from git history)
   build_vector_db.py            # embeds items (siglip | nova) and upserts to Qdrant
@@ -1721,7 +1724,7 @@ The goal is that every AWS resource the project uses is owned by a committed tem
 or script. This phase **writes code and reads AWS state only**. Deploying or importing
 anything needs the user's go-ahead (§0.2C).
 
-- [ ] **13.1 Inventory (read-only, §0.2A).** List what exists and write
+- [x] **13.1 Inventory (read-only, §0.2A).** List what exists and write
   `docs/aws_inventory.md` with one row per resource: type, name or ID, how it was
   created (CloudFormation stack, or "manual"), the code that should own it, and its
   status (keep / codify / removal candidate). Check at least:
@@ -1735,7 +1738,39 @@ anything needs the user's go-ahead (§0.2C).
     (removal candidates), plus any other `frag`/project roles
   - CloudFormation stacks
   - Bedrock model access for Claude Haiku 4.5 and Nova embeddings (list-only)
-- [ ] **13.2 Templates** in `infra/cloudformation/`. Keep this minimal; the plan's
+
+  *Done 2026-11-27. Inventory and clean-up outcome:*
+  - *Found: a hand-deployed nested stack `fashion-mas-stack-02` (owning the two
+    tables and the elements bucket, with no Retain), and hand-made resources: the
+    catalogue, templates and embeddings buckets, the whole Cognito setup (self
+    sign-up allowed), a $1 budget, 115 `/frag/` SSM parameters, 3 IAM roles and a
+    Lambda log group. Nothing was in other regions.*
+  - *The user chose to keep only what the app strictly needs, and to have the repo
+    look like a first-time setup. Done with one-off scripts kept outside the repo:*
+    - *The legacy stack got Retain, then was deleted; its resources stayed.*
+    - *The 4 storage resources and the 4 Cognito resources were imported into
+      `frag-dev-storage`/`frag-dev-auth` (IMPORT change sets, all rows `Import`).*
+    - *`deploy.sh` then turned on admin-only sign-up and dropped the `phone` scope.
+      The scope needed a template change, because an import records the template
+      value as if it were live. Drift detection afterwards: both stacks IN_SYNC.*
+    - *Deleted at the user's request: the 3 IAM roles and their policies, all SSM
+      parameters (String values backed up to `data/aws_backup/`; SecureStrings never
+      decrypted), the embeddings and templates buckets, the budget, and the log group.*
+  - *Result: `docs/aws_inventory.md`, which lists 2 buckets, 2 tables and Cognito,
+    about $0.18/month.*
+  - *Smoke check: the app settings resolve and the resources respond; the `.env` Cognito
+    secret matches. `write_env_from_stack.sh --write` also removed a stale `phone`
+    scope from `.env`, which would now fail at login.*
+  - *AWS calls (§0.2E): the read-only inventory and sweep calls (list/describe/get on S3,
+    CloudFormation, DynamoDB, Cognito, IAM, SSM, Lambda, Logs, KMS, SNS, SQS, Budgets,
+    EC2, Bedrock control plane, Resource Explorer, CloudWatch storage metrics). Then,
+    approved by the user: `cloudformation package` (2 template uploads), a legacy
+    update change set + execute, legacy `delete-stack`, 2 IMPORT change sets + execute,
+    3 update change sets + execute (+2 dry runs), 2 `detect-stack-drift`, the IAM, SSM,
+    Logs, Budgets and S3 deletes listed above, and `describe-user-pool-client` once
+    for `.env`. No Bedrock runtime calls.*
+
+- [x] **13.2 Templates** in `infra/cloudformation/`. Keep this minimal; the plan's
   Phase 3 adds network, compute, edge and ops on top.
   - `storage.yaml`: the catalogue bucket (`DeletionPolicy: Retain`), the Chainlit
     elements bucket, the checkpointer table and the Chainlit table (merge the two
@@ -1756,7 +1791,20 @@ anything needs the user's go-ahead (§0.2C).
     `root_template.yaml`.
   - Run `cfn-lint` on everything (local). `aws cloudformation validate-template` is
     allowed under §0.2A.
-- [ ] **13.3 Bring existing resources under CloudFormation.** For resources that exist
+
+  *Done: `storage.yaml` and `auth.yaml`, with Retain on every stateful resource.*
+
+  *Deviations:*
+  - *There's **no `root.yaml`**. Each layer is a standalone stack,
+    `frag-<env>-<layer>`, because the existing resources had to be imported, and
+    import into nested stacks supports only one level and needs a detach/re-import
+    per child.*
+  - *There's **no `budget.yaml`**. The user chose to keep only what the app strictly
+    needs; budgets are free, so it can be added back with the plan's `ops.yaml`.*
+  - *There's **no artifacts bucket**. Templates are small enough to deploy inline.*
+
+  *`cfn-lint` (added to the dev group) is clean.*
+- [x] **13.3 Bring existing resources under CloudFormation.** For resources that exist
   but are manual (very likely the dataset bucket and the Cognito pool), write
   `infra/scripts/import_existing.sh`. It creates an `IMPORT` change set with the
   identifiers from the inventory and `DeletionPolicy: Retain` on every imported
@@ -1764,20 +1812,44 @@ anything needs the user's go-ahead (§0.2C).
   the user (§0.2C). Resources already in a stack stay where they are, or move with the
   same import technique; describe the options in `docs/aws_inventory.md` and let the
   user choose.
-- [ ] **13.4 `infra/scripts/deploy.sh`** runs
+
+  *Done, as a one-off (see 13.1); per the user, the import and retirement scripts
+  weren't kept. The repo only contains the from-scratch setup.*
+- [x] **13.4 `infra/scripts/deploy.sh`** runs
   `aws cloudformation package` (to the templates bucket) and then
   `aws cloudformation deploy --no-execute-changeset`, prints the change set, and only
   executes it after a typed `YES`. Add **`infra/scripts/teardown.sh`**, which
   refuses to touch `Retain` resources and asks for confirmation. Both scripts are
   idempotent.
-- [ ] **13.5 `infra/scripts/write_env_from_stack.sh`** reads the stack outputs (table
+
+  *Done: `deploy.sh [layer] [Key=Value ...] [--dry-run]` deploys all layers in order
+  (or one layer). Without `package`: nothing references local artifacts yet; the
+  plan's wake Lambda can be inline. `teardown.sh <layer>` reads DeletionPolicy from
+  the live template and refuses stacks with Retain resources. `FRAG_ASSUME_YES=1`
+  answers confirmations for automation. Shared helpers are in `infra/scripts/_lib.sh`.
+  `create_user.sh` is here too (13.2).*
+- [x] **13.5 `infra/scripts/write_env_from_stack.sh`** reads the stack outputs (table
   names, bucket names, Cognito client ID and domain) and prints the matching `.env`
   lines. The Cognito client secret is retrieved with `describe-user-pool-client`; this
   script is the only place allowed to read it, and it writes only to `.env`, never to
   stdout. This replaces hand-copying values.
-- [ ] **13.6** Data uploads are only ever done by `scripts/ingest_fashiongen.py`
+
+  *Done: it prints the non-secret lines. `--write` merges all eight keys into `.env`:
+  it keeps the other lines, drops duplicates, saves `.env.bak` and sets mode 600.
+  Tested with stubbed outputs: the secret never reaches stdout, and a re-run is a
+  no-op.*
+- [x] **13.6** Data uploads are only ever done by `scripts/ingest_fashiongen.py`
   (catalogue) and the Qdrant snapshot upload that the plan adds. Document that in the
   README.
+
+  *Done: README "AWS resources" section; `docs/cloudformation.md` rewritten as the
+  infra how-to.*
+
+- [x] **13.7 Deployment modes (decision 1.16).** *Added to the plan: section 2.1 and
+  the Phase 2/3 rows (`DeploymentMode` on compute, a CloudFront Function with
+  KeyValueStore instead of an Elastic IP, `wake.yaml`, idle timer, backstops), and the
+  cost table recomputed from the measured inventory. Nothing in Phase 13 depends on
+  the mode.*
 
 ---
 
