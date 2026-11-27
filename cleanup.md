@@ -1599,13 +1599,13 @@ call Bedrock or write to S3 print a cost estimate and require `--yes` or typing 
 
 ## Phase 11: Small utilities and logging
 
-- [ ] **11.1 `messages.py`**: replace the three message builders (one with bug 3.1)
+- [x] **11.1 `messages.py`**: replace the three message builders (one with bug 3.1)
   with `build_message(parts: list[str | Path]) -> list[HumanMessage]`, using
   `mimetypes.guess_type`. Delete the unused `numpy_image` branch.
-- [ ] **11.2** Delete `get_qdrant_points_by_id` and `save_numpy_image_to_folder`
+- [x] **11.2** Delete `get_qdrant_points_by_id` and `save_numpy_image_to_folder`
   (both unused). Rename `save_image_url_to_folder` to
   `save_image_b64(folder, b64) -> str`.
-- [ ] **11.3 `logging_setup.py`**: cut it down from 216 lines, following §3.2.
+- [x] **11.3 `logging_setup.py`**: cut it down from 216 lines, following §3.2.
   - **Development:** the Rich console sink, plus an optional file sink at
     `{file_dir}/frag-{service}.log`. That replaces the four `*_log_file` settings.
   - **Production:** `serialize=True` JSON on stdout only.
@@ -1616,8 +1616,42 @@ call Bedrock or write to S3 print a cost estimate and require `--yes` or typing 
     commented-out `_serialize`, the unused `traceback`/`json` imports, and the
     contradictory `basicConfig(level=0)` followed by `getLogger().setLevel(WARNING)`.
   - Idempotent: store the added handler IDs and remove only those on re-entry.
-- [ ] **11.4 `ui/node_updates.py`**: just the move. Replace the
+- [x] **11.4 `ui/node_updates.py`**: just the move. Replace the
   `lambda u: f(u)` wrappers with `f`.
+
+**Phase 11 done (2026-11-27).** Notes:
+- **`src/frag/utils/` is gone.** Its contents now live in one module per concern:
+  - `frag/messages.py`: `build_message(parts: list[str | Path])` and `image_block`.
+    A `Path` is an image and a `str` is text, so a text that happens to be a path is
+    never read from disk. The MIME type comes from `mimetypes.guess_type`, defaulting
+    to PNG. It replaces the three builders, the `numpy_image` branch and
+    `encode_image`; the agent nodes and the eval judge use it.
+  - `save_image_b64(folder, b64)` and `draw_graph` moved into `agent/graph.py`, their
+    only user.
+  - `save_numpy_image_to_folder` was deleted; `get_qdrant_points_by_id` was already
+    gone.
+  - `frag/logging_setup.py` replaces `utils/logger_setup.py`.
+- **Logging (11.3):** in development, the Rich console sink (decision 1.14) plus one
+  rotating file `{file_dir}/frag-{service}.log`. **Anywhere else (`APP_ENV` other
+  than `development`), JSON lines on stdout only.** `LogSettings.human_readable_file`
+  and `machine_readable_file` are replaced by `console` and `file` (development only).
+  `InterceptHandler` and `library_levels` (already in `LogSettings`) stay; the root
+  logger is set once to WARNING with the intercept handler. The module is idempotent
+  (it removes only its own handler ids). `rich` was already a direct dependency. The
+  old `logs/human_readable/` and `logs/machine_readable/` folders are no longer
+  written (local and git-ignored, so they can be deleted).
+- **11.4:** `ui/node_updates.py` was already moved (Phase 7) and has no
+  `lambda u: f(u)` wrappers.
+- **`scripts/profile_resources.py`** (kept as optional in Phase 1.1) was rewritten:
+  argparse (`--container`, default `frag-qdrant`, and `--interval`), the podman or
+  docker CLI found with `shutil.which`, typed and documented. Tested against the
+  compose Qdrant.
+- `src/frag/__init__.py` got a docstring.
+- **Tests:** 91 passed, 1 skipped. The message tests cover MIME types (jpeg, png, the
+  default), order, and strings staying text. New logging tests: production logs JSON
+  to stdout and writes no file; development writes `frag-<service>.log`.
+- **Ruff: `uv run ruff check` passes on the whole repository (0 issues).**
+- **AWS call log:** none.
 
 ---
 

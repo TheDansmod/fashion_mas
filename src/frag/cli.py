@@ -15,11 +15,11 @@ from loguru import logger as log
 
 from frag.agent.graph import FashionAgent
 from frag.evaluation.run import evaluate
+from frag.logging_setup import setup_logging
 from frag.mcp_server.server import serve
 from frag.runtime import Resources, Role, open_resources
 from frag.settings import get_settings
 from frag.tokens import track_tokens
-from frag.utils.logger_setup import setup_logging
 
 QUIT = "quit"
 

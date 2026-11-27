@@ -8,9 +8,12 @@ treated as a follow-up to the earlier ones.
 """
 
 import asyncio
+import base64
 import json
 import re
+import uuid
 from collections.abc import AsyncIterator
+from pathlib import Path
 from typing import Any, Literal
 
 from langchain.agents import create_agent
@@ -18,6 +21,7 @@ from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
+from langchain_core.runnables.graph import MermaidDrawMethod
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
@@ -32,6 +36,7 @@ from frag.agent.schemas import (
     UpdatedUserRequest,
 )
 from frag.agent.state import AgentState
+from frag.messages import build_message
 from frag.prompts import (
     CRITIQUE_PROMPT,
     EXPLANATION_PROMPT,
@@ -45,13 +50,6 @@ from frag.prompts import (
 )
 from frag.settings import AgentSettings
 from frag.tools.base import SEMANTIC_SEARCH, ToolsClient
-from frag.utils.common_utils import (
-    draw_graph,
-    get_image_prompt_message,
-    get_multi_image_multi_prompt_message,
-    get_multi_image_prompt_message,
-    save_image_b64,
-)
 
 Update = dict[str, Any]
 
@@ -147,27 +145,39 @@ def _invalid_id_message(item_id: int | None, offered: set[int]) -> HumanMessage:
     return HumanMessage(content=text)
 
 
-def _request_parts(state: AgentState) -> list[tuple[str, str]]:
+def _request_parts(state: AgentState) -> list[str | Path]:
     """Reference images (if any) and the request, as message parts.
 
     Used by the critique and explanation nodes. The images are labelled as references
     because after a follow-up they include earlier recommendations the user picked,
     not only uploads.
     """
-    parts = [("image", path) for path in state.input_images_path]
+    parts: list[str | Path] = [Path(path) for path in state.input_images_path]
     if parts:
         parts.append(
-            (
-                "text",
-                "Above are the reference images: images the user uploaded, or products "
-                "they picked from earlier recommendations.\n\n",
-            )
+            "Above are the reference images: images the user uploaded, or products "
+            "they picked from earlier recommendations.\n\n"
         )
     else:
         # otherwise small models take the first recommended image for an upload
-        parts.append(("text", "The user did not upload or pick any images.\n\n"))
-    parts.append(("text", f"User request: {state.input_text}\n\n"))
+        parts.append("The user did not upload or pick any images.\n\n")
+    parts.append(f"User request: {state.input_text}\n\n")
     return parts
+
+
+def save_image_b64(folder: str, image_b64: str) -> str:
+    """Write a base64-encoded PNG to a uniquely named file in `folder`."""
+    directory = Path(folder)
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / f"{uuid.uuid4()}.png"
+    path.write_bytes(base64.b64decode(image_b64))
+    return str(path)
+
+
+def draw_graph(graph: CompiledStateGraph, path: str) -> None:
+    """Draw the compiled graph as a PNG (calls the mermaid.ink web API)."""
+    png = graph.get_graph().draw_mermaid_png(draw_method=MermaidDrawMethod.API)
+    Path(path).write_bytes(png)
 
 
 class FashionAgent:
@@ -254,7 +264,7 @@ class FashionAgent:
         # often skip the structured-response tool of a tool-calling agent
         model = self._model.with_structured_output(UpdatedUserRequest)
         request: UpdatedUserRequest = await model.ainvoke(
-            get_multi_image_prompt_message(new_images, prompt), config=config
+            build_message([*(Path(p) for p in new_images), prompt]), config=config
         )
 
         images = list(new_images)
@@ -322,10 +332,9 @@ class FashionAgent:
         for idx, image_path in enumerate(state.input_images_path):
             if descriptions[idx].strip():
                 continue
-            message = get_image_prompt_message(
-                image_path=image_path, text_prompt=prompt
+            response = await model.ainvoke(
+                build_message([Path(image_path), prompt]), config=config
             )
-            response = await model.ainvoke(message, config=config)
             descriptions[idx] = response.image_description
         log.debug("Image descriptions: {}", descriptions)
         return {"input_images_descriptions": descriptions}
@@ -471,16 +480,14 @@ class FashionAgent:
         if state.num_times_critiqued >= self._settings.max_num_critiques:
             return {"critique_text": ""}
         parts = _request_parts(state)
-        parts.append(("text", _item_types_line(state.requested_item_types) + "\n\n"))
+        parts.append(_item_types_line(state.requested_item_types) + "\n\n")
         parts.extend(
-            ("text", f"Recommended Item {i + 1}: {d}\n\n")
+            f"Recommended Item {i + 1}: {d}\n\n"
             for i, d in enumerate(state.recommended_clothes_descriptions)
         )
-        parts.append(("text", CRITIQUE_PROMPT))
+        parts.append(CRITIQUE_PROMPT)
         model = self._model.with_structured_output(CriticalEvaluation)
-        response = await model.ainvoke(
-            get_multi_image_multi_prompt_message(parts), config=config
-        )
+        response = await model.ainvoke(build_message(parts), config=config)
         log.debug("Critique: {}", response)
         if response.satisfactory == "Yes":
             # only rejections count towards the limit
@@ -503,17 +510,10 @@ class FashionAgent:
                 strict=True,
             )
         ):
-            parts.append(("image", path))
-            parts.append(
-                (
-                    "text",
-                    f"Above is Recommended Item {i + 1}: {description}\n\n",
-                )
-            )
-        parts.append(("text", EXPLANATION_PROMPT))
-        response = await self._model.ainvoke(
-            get_multi_image_multi_prompt_message(parts), config=config
-        )
+            parts.append(Path(path))
+            parts.append(f"Above is Recommended Item {i + 1}: {description}\n\n")
+        parts.append(EXPLANATION_PROMPT)
+        response = await self._model.ainvoke(build_message(parts), config=config)
         return {"recommended_clothes_explanation": response.content}
 
     # --- routing ----------------------------------------------------------------

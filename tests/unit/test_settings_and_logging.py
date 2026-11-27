@@ -1,5 +1,6 @@
 """Settings are pure and idempotent; logging setup is idempotent."""
 
+import json
 import os
 import subprocess
 import sys
@@ -8,8 +9,8 @@ import pytest
 from loguru import logger
 from pydantic import ValidationError
 
+from frag import logging_setup
 from frag.settings import LogSettings
-from frag.utils import logger_setup
 
 
 def test_settings_defaults_with_empty_environment(clean_env):
@@ -73,7 +74,8 @@ def test_modules_import_without_environment_or_side_effects(tmp_path):
     """Every module imports in an empty environment with no .env (cleanup.md §0.5)."""
     code = (
         "import frag.settings, frag.runtime, frag.llm, frag.checkpointer, frag.tokens, "
-        "frag.prompts, frag.agent.graph, frag.ui.node_updates, "
+        "frag.prompts, frag.messages, frag.logging_setup, frag.agent.graph, "
+        "frag.ui.node_updates, "
         "frag.evaluation.run, frag.cli, "
         "frag.mcp_server.server, frag.catalogue.service, frag.catalogue.embedders, "
         "frag.tools.local, frag.tools.mcp_client"
@@ -94,12 +96,41 @@ def test_modules_import_without_environment_or_side_effects(tmp_path):
 def test_setup_logging_is_idempotent(tmp_path):
     settings = LogSettings(console=False, file_dir=str(tmp_path))
     try:
-        logger_setup.setup_logging(settings, level="DEBUG", is_dev=True, service="test")
+        logging_setup.setup_logging(
+            settings, level="DEBUG", is_dev=True, service="test"
+        )
         count_after_first = len(logger._core.handlers)  # noqa: SLF001  no public API for this
-        logger_setup.setup_logging(settings, level="DEBUG", is_dev=True, service="test")
+        logging_setup.setup_logging(
+            settings, level="DEBUG", is_dev=True, service="test"
+        )
         assert len(logger._core.handlers) == count_after_first  # noqa: SLF001
-        assert len(logger_setup._handler_ids) == 2  # noqa: SLF001  two file sinks
+        assert len(logging_setup._handler_ids) == 1  # noqa: SLF001  the file sink
     finally:
-        for handler_id in logger_setup._handler_ids:  # noqa: SLF001
+        for handler_id in logging_setup._handler_ids:  # noqa: SLF001
             logger.remove(handler_id)
-        logger_setup._handler_ids.clear()  # noqa: SLF001
+        logging_setup._handler_ids.clear()  # noqa: SLF001
+
+
+@pytest.fixture
+def restore_logging():
+    yield
+    for handler_id in logging_setup._handler_ids:  # noqa: SLF001
+        logger.remove(handler_id)
+    logging_setup._handler_ids.clear()  # noqa: SLF001
+
+
+def test_production_logs_json_to_stdout_only(tmp_path, capsys, restore_logging):  # noqa: ARG001
+    settings = LogSettings(file_dir=str(tmp_path))
+    logging_setup.setup_logging(settings, level="INFO", is_dev=False, service="agent")
+    logger.info("hello {}", "json")
+    record = json.loads(capsys.readouterr().out.strip().splitlines()[-1])["record"]
+    assert record["message"] == "hello json"
+    assert list(tmp_path.iterdir()) == []  # no log file outside development
+
+
+def test_development_logs_to_a_file_per_service(tmp_path, restore_logging):  # noqa: ARG001
+    settings = LogSettings(console=False, file_dir=str(tmp_path))
+    logging_setup.setup_logging(settings, level="DEBUG", is_dev=True, service="mcp")
+    logger.debug("to the file")
+    logger.complete()
+    assert "to the file" in (tmp_path / "frag-mcp.log").read_text()

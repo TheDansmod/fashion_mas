@@ -26,16 +26,17 @@ from typing import Any
 from uuid import uuid4
 
 import numpy as np
+from langchain_core.messages import HumanMessage
 from loguru import logger as log
 from qdrant_client import AsyncQdrantClient
 
 from frag.agent.graph import FashionAgent
 from frag.evaluation.prompts import EVALUATION_PROMPT
 from frag.evaluation.schemas import RecommendationEvaluation
+from frag.messages import build_message
 from frag.runtime import Resources
 from frag.settings import EvalWeights, LLMSettings, Settings
 from frag.tokens import track_tokens
-from frag.utils.common_utils import get_multi_image_multi_prompt_message
 
 CONFIG = "config.json"
 RESULTS = "results.jsonl"
@@ -303,21 +304,19 @@ def get_final_score(
     return weighted / wt_sum
 
 
-def judge_message(record: dict[str, Any], run_dir: Path) -> list:
+def judge_message(record: dict[str, Any], run_dir: Path) -> list[HumanMessage]:
     """The judge's input: the user's images and request, then each recommendation."""
-    parts = [("image", str(run_dir / path)) for path in record["input_images"]]
+    parts: list[str | Path] = [run_dir / path for path in record["input_images"]]
     if parts:
-        parts.append(("text", "Above are the images the user uploaded.\n\n"))
+        parts.append("Above are the images the user uploaded.\n\n")
     else:
-        parts.append(("text", "The user did not upload any images.\n\n"))
-    parts.append(("text", f"User request: {record['input_text']}\n\n"))
+        parts.append("The user did not upload any images.\n\n")
+    parts.append(f"User request: {record['input_text']}\n\n")
     for i, rec in enumerate(record["recommendations"], start=1):
-        parts.append(("image", str(run_dir / rec["image"])))
-        parts.append(
-            ("text", f"Above is Recommended Item {i}: {rec['description']}\n\n")
-        )
-    parts.append(("text", EVALUATION_PROMPT))
-    return get_multi_image_multi_prompt_message(parts)
+        parts.append(run_dir / rec["image"])
+        parts.append(f"Above is Recommended Item {i}: {rec['description']}\n\n")
+    parts.append(EVALUATION_PROMPT)
+    return build_message(parts)
 
 
 async def judge_record(

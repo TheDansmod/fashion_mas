@@ -17,12 +17,12 @@ from dotenv import load_dotenv
 from loguru import logger as log
 
 from frag.agent.graph import FashionAgent
+from frag.logging_setup import setup_logging
 from frag.runtime import Resources, open_resources
 from frag.settings import get_settings
 from frag.tokens import track_tokens
 from frag.ui import chainlit_patches
 from frag.ui.node_updates import NODE_META
-from frag.utils.logger_setup import setup_logging
 
 # make .env visible to libraries that read os.environ themselves (LangSmith, Chainlit
 # OAuth, boto3, ...); idempotent and never overrides variables that are already set

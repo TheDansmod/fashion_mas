@@ -6,8 +6,8 @@ on `sys.path`, so they import this module as `_common`.
 
 from dotenv import load_dotenv
 
+from frag.logging_setup import setup_logging
 from frag.settings import Settings, get_settings
-from frag.utils.logger_setup import setup_logging
 
 
 def start(service: str) -> Settings:
