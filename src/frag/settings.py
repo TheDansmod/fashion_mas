@@ -15,9 +15,9 @@ Nested sections are set from the environment with a double underscore, e.g.
 """
 
 from functools import lru_cache
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -27,18 +27,52 @@ class _Section(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
 
-class LLMSettings(_Section):
-    """The chat / vision LLM used by every agent node and by the evaluation judge."""
+# Per-provider defaults for the fields left unset. `ollama` (local and free) is the
+# default provider; set LLM__PROVIDER=bedrock for Claude Haiku on AWS.
+_LLM_PROVIDER_DEFAULTS: dict[str, dict[str, Any]] = {
+    "ollama": {
+        # tested end to end on an 8 GB GPU (cleanup.md, Phase 7 notes); pull it with
+        # `ollama pull qwen3.5:4b`
+        "model_id": "qwen3.5:4b",
+        # a local server needs no client-side throttling
+        "rate_limit_rps": None,
+    },
+    "bedrock": {
+        "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+        # kept below the account quota; token-per-minute limits are not modelled
+        "rate_limit_rps": 0.8,
+    },
+}
 
-    provider: Literal["bedrock", "ollama"] = "bedrock"
-    model_id: str = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+
+class LLMSettings(_Section):
+    """The chat / vision LLM used by every agent node and by the evaluation judge.
+
+    `model_id` and `rate_limit_rps` default per provider (`_LLM_PROVIDER_DEFAULTS`),
+    so switching `provider` alone gives a working configuration.
+    """
+
+    provider: Literal["bedrock", "ollama"] = "ollama"
+    model_id: str
     temperature: float = 0.6
     # client-side request rate limit (LangChain InMemoryRateLimiter: a token bucket);
-    # None disables it. Kept below the provider quota since token-per-minute limits
-    # are not modelled. A local Ollama server can use None.
-    rate_limit_rps: float | None = 0.8
+    # None disables it
+    rate_limit_rps: float | None
+    # ollama only: turn a thinking model's reasoning on or off (None = the model's
+    # default). Off by default: small local models give empty or invalid structured
+    # output with it on, and take much longer
+    reasoning: bool | None = False
     rate_limit_max_bucket: float = 1.0
     rate_limit_check_every_s: float = 1.0
+
+    @model_validator(mode="before")
+    @classmethod
+    def _provider_defaults(cls, data: Any) -> Any:  # noqa: ANN401  pydantic passes raw input
+        if not isinstance(data, dict):
+            return data
+        provider = data.get("provider", cls.model_fields["provider"].default)
+        defaults = _LLM_PROVIDER_DEFAULTS.get(provider, {})
+        return {**defaults, **data}
 
 
 class EmbeddingSettings(_Section):

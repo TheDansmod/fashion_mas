@@ -16,9 +16,21 @@ def test_settings_defaults_with_empty_environment(clean_env):
     settings = clean_env()
     assert settings.checkpointer.backend == "sqlite"
     assert settings.tools.mode == "local"
-    assert settings.llm.provider == "bedrock"
+    assert settings.llm.provider == "ollama"
+    assert settings.llm.model_id == "qwen3.5:4b"
+    assert settings.llm.reasoning is False
     assert settings.collection == "fashion_gen"
     assert settings.log_level == "DEBUG"
+
+
+def test_llm_defaults_follow_the_provider(clean_env, monkeypatch):
+    monkeypatch.setenv("LLM__PROVIDER", "bedrock")
+    llm = clean_env().llm
+    assert llm.model_id.startswith("us.anthropic.claude-haiku")
+    assert llm.rate_limit_rps == 0.8
+    # an explicit value still wins over the provider default
+    monkeypatch.setenv("LLM__MODEL_ID", "other-model")
+    assert clean_env().llm.model_id == "other-model"
 
 
 def test_settings_are_idempotent(clean_env):
@@ -51,7 +63,8 @@ def test_modules_import_without_environment_or_side_effects(tmp_path):
     """Every module imports in an empty environment with no .env (cleanup.md §0.5)."""
     code = (
         "import frag.settings, frag.runtime, frag.llm, frag.checkpointer, frag.tokens, "
-        "frag.prompts, frag.rag_pipeline.rag_agent, frag.evaluation.llm_as_judge, "
+        "frag.prompts, frag.agent.graph, frag.ui.node_updates, "
+        "frag.evaluation.llm_as_judge, "
         "frag.mcp_server.server, frag.catalogue.service, frag.catalogue.embedders, "
         "frag.tools.local, frag.tools.mcp_client"
     )

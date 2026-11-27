@@ -11,12 +11,11 @@ from pathlib import Path
 from uuid import uuid4
 
 import numpy as np
-from langgraph.types import Command
 from loguru import logger as log
 
+from frag.agent.graph import FashionAgent
 from frag.evaluation.prompts import EVALUATION_PROMPT
-from frag.rag_pipeline.llm_schemas import RecommendationEvaluation
-from frag.rag_pipeline.rag_agent import FashionAgent
+from frag.evaluation.schemas import RecommendationEvaluation
 from frag.runtime import Resources
 from frag.settings import EvalSettings, EvalWeights
 from frag.tokens import track_tokens
@@ -52,22 +51,21 @@ async def run_fashion_agent_single_input(
     log.debug("Running single evaluation")
     recommended_clothes_image_paths = []
     recommended_clothes_descriptions = []
-    with track_tokens(resources.settings.token_usage_csv) as usage:
+    thread_id = str(uuid4())
+    with track_tokens(resources.settings.token_usage_csv, "eval", thread_id) as usage:
         try:
             agent = FashionAgent(
                 llm=resources.llm,
                 tools=resources.tools,
                 checkpointer=resources.checkpointer,
                 settings=resources.settings.agent,
+            )
+            result = await agent.run_turn(
+                eval_input["input_text"],
+                eval_input["input_images_path"],
+                thread_id,
                 callbacks=[usage],
             )
-            config = {"configurable": {"thread_id": str(uuid4())}}
-            await agent.ainvoke({"is_chat_start": True}, config)
-            resume_payload = {
-                "input_text": eval_input["input_text"],
-                "input_images_path": eval_input["input_images_path"],
-            }
-            result = await agent.ainvoke(Command(resume=resume_payload), config=config)
             log.debug("got result {}", result)
             if (
                 "recommended_clothes_image_paths" in result
@@ -147,7 +145,7 @@ def judge_evaluation_outputs(resources: Resources) -> None:
     settings = resources.settings.evaluation
     structured_model = resources.llm.with_structured_output(RecommendationEvaluation)
     data = json.loads(Path(settings.eval_response_file_path).read_text())
-    with track_tokens(resources.settings.token_usage_csv) as usage:
+    with track_tokens(resources.settings.token_usage_csv, "eval-judge") as usage:
         callback_config = {"callbacks": [usage]}
         for eval_run in data:
             if (

@@ -6,7 +6,7 @@ from _pytest.logging import LogCaptureFixture
 from langgraph.checkpoint.memory import InMemorySaver
 from loguru import logger
 
-from frag.rag_pipeline.rag_agent import FashionAgent
+from frag.agent.graph import FashionAgent
 from frag.settings import AgentSettings, Settings
 from tests.fakes import (
     ChatMockLLM,
@@ -20,16 +20,16 @@ from tests.fakes import (
 @pytest.fixture
 def mocked_create_agent(monkeypatch):
     """Replace create_agent inside the agent module with the offline mock."""
-    monkeypatch.setattr("frag.rag_pipeline.rag_agent.create_agent", make_create_agent())
+    monkeypatch.setattr("frag.agent.graph.create_agent", make_create_agent())
 
 
 @pytest.fixture
 def make_agent(tmp_path):
     """Factory for a FashionAgent wired entirely to fakes."""
 
-    def _make(tools=None, **agent_settings):
+    def _make(tools=None, llm=None, **agent_settings):
         return FashionAgent(
-            llm=ChatMockLLM(),
+            llm=llm or ChatMockLLM(),
             tools=tools or FakeToolsClient(),
             checkpointer=InMemorySaver(),
             settings=AgentSettings(

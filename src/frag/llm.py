@@ -33,11 +33,12 @@ def build_llm(settings: LLMSettings, aws_region: str) -> BaseChatModel:
             )
         case "ollama":
             # needs the `local-llm` dependency group and a running Ollama server with
-            # a vision + tool-calling model pulled (e.g. `ollama pull <model>`)
+            # a vision + tool-calling model pulled (default: `ollama pull qwen3.5:4b`)
             from langchain_ollama import ChatOllama
 
             return ChatOllama(
                 model=settings.model_id,
                 temperature=settings.temperature,
                 rate_limiter=rate_limiter,
+                reasoning=settings.reasoning,
             )

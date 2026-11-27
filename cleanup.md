@@ -1023,26 +1023,31 @@ DI-injected S3 fetch inside a method to dodge an import cycle.
 
 ## Phase 7: Agent graph (`agent/graph.py`, `state.py`, `schemas.py`)
 
-- [ ] **7.1 Make every node `async` and use `ainvoke`**, which resolves the README
+- [x] **7.1 Make every node `async` and use `ainvoke`**, which resolves the README
   TODO. Update the mocks to match.
-- [ ] **7.2 `AgentState`**: replace `Optional[T] = Field(default_factory=T)` with
+- [x] **7.2 `AgentState`**: replace `Optional[T] = Field(default_factory=T)` with
   plain `T = default`. Fix the docstring: `recommended_clothes_explanation` is `str`,
   and `cfg.rag_pipeline.*` no longer exists.
-- [ ] **7.3 Schemas**:
+- [x] **7.3 Schemas**:
   - Delete `ValidCategories`, which is unused and a third copy of the 48 categories.
   - Move `RecommendationEvaluation` to `evaluation/schemas.py`.
   - Fix the concatenated descriptions that are missing spaces ("user'srequests",
     "nospecification").
-- [ ] **7.4 Recommender node**:
+- [x] **7.4 Recommender node**:
   - Fetch the tools once per call.
   - **Validate `image_id`**: collect the IDs that appeared in `semantic_search` tool
     results in `response["messages"]`. If the chosen ID isn't among them, retry once
     with a corrective message, then skip it. This is the plan's Phase 0.3.
   - Rewrite the docstring and remove the stale TODO.
+  - **De-duplicate repeated item IDs** (added 2026-11-26 at the user's request). If
+    two descriptions end up with the same catalogue item, show it once. Keep the
+    first occurrence and the original order (`dict.fromkeys`), so the user isn't
+    shown the same product twice and the critique and explanation nodes don't judge
+    a duplicate.
   - Optional: run the per-description agent calls with `asyncio.gather`. The shared
     rate limiter throttles them anyway. Keep it sequential if a local Ollama model's
     limits make it pointless.
-- [ ] **7.5 `tokens.py`**: replace the `track_token_use` decorator. It injects a
+- [x] **7.5 `tokens.py`**: replace the `track_token_use` decorator. It injects a
   `callback_config` kwarg, duplicates its sync and async branches, and **swallows all
   exceptions and returns `None`**, which hid bug 3.3. Use:
   ```python
@@ -1056,7 +1061,7 @@ DI-injected S3 fetch inside a method to dodge an import cycle.
           logger.info("token usage {}", handler.usage_metadata)
   ```
   Exceptions propagate.
-- [ ] **7.6 One graph run per user message** (decision 1.10):
+- [x] **7.6 One graph run per user message** (decision 1.10):
   - **Current flow:** `START → human_node` (which calls `interrupt()`) `→ … →
     explanation_node → human_node`. Every session must be primed with
     `ainvoke({"is_chat_start": True})` and then resumed with `Command(resume=...)`.
@@ -1073,12 +1078,219 @@ DI-injected S3 fetch inside a method to dodge an import cycle.
   - Remove `is_chat_start`, `interrupt`, `Command` and the priming calls.
   - Chainlit resume works unchanged, because state is keyed by `thread_id`.
   - Update `ui/node_updates.py` (`human_node` becomes `intake_node`) and the tests.
-- [ ] **7.7 Modifier node**: prefix a non-empty critique with "Feedback on the
+- [x] **7.7 Modifier node**: prefix a non-empty critique with "Feedback on the
   previous attempt:" when inserting it into the prompt.
-- [ ] **7.8** Rename `draw_langraph_topology` to `draw_graph`. Run it only if
+- [x] **7.8** Rename `draw_langraph_topology` to `draw_graph`. Run it only if
   `agent.draw_graph_path` is set. Note in the comment that it calls the mermaid.ink
   web API.
-- [ ] **7.9** Rewrite the node docstrings plainly.
+- [x] **7.9** Rewrite the node docstrings plainly.
+- [x] **7.10 Default LLM: Ollama `qwen3.5:4b`** (added 2026-11-27 at the user's request;
+  it is the model known to work locally, and it's free, per §0.2). `LLM__PROVIDER`
+  defaults to `ollama`. `model_id` and `rate_limit_rps` default per provider
+  (`_LLM_PROVIDER_DEFAULTS` in `settings.py`): `qwen3.5:4b` and no rate limit for
+  Ollama, Claude Haiku 4.5 and 0.8 rps for Bedrock, so `LLM__PROVIDER=bedrock` alone
+  is a working configuration. `reasoning` defaults to `false`. `.env.example` and
+  the README install line are updated.
+- [x] **7.11 Review every prompt** (added 2026-11-27). See the notes below.
+- [x] **7.12 Model-quality tests with catalogue ground truth** (added 2026-11-27;
+  Phase 9's eval is an LLM judge with no ground truth, so this is new).
+  `tests/model/`, opt-in with `uv run pytest -m ollama`. See the notes below.
+
+**Phase 7 done (2026-11-26; 7.10–7.12 on 2026-11-27).** Notes:
+- **Layout:**
+  - `rag_pipeline/` was replaced by `frag/agent/` (`graph.py`, `state.py`, `schemas.py`).
+  - `RecommendationEvaluation` moved to `evaluation/schemas.py`.
+  - `utils/ui_node_updates.py` moved to `ui/node_updates.py` and was tidied (it's
+    lint-clean now).
+  - `ValidCategories` was deleted.
+- **API:** `FashionAgent(llm, tools, checkpointer, settings)` no longer takes
+  `callbacks`. Instead `run_turn(text, image_paths, thread_id, callbacks=None)` and
+  `stream_turn(...)` (which yields node updates) put the callbacks in the run config.
+  Every node takes `config: RunnableConfig` and passes it to its LLM or agent call, so
+  a handler sees all of the turn's LLM calls.
+  - **The graph now ends at `END`,** with no `interrupt` or `Command`. A thread whose
+    checkpoint has an `input_text` is treated as a follow-up.
+  - **Old saved threads still work:** I tested the 3 newest threads from a copy of
+    `data/pipeline_checkpoints.db`. They continue as follow-ups, and the stale
+    `is_chat_start` key is ignored.
+- **Callers updated:**
+  - `app.py`: no priming call. Each message runs `stream_turn` inside
+    `track_tokens(csv, "agent", thread_id)`, so tokens are now recorded per message
+    instead of at chat end. The thread ID comes from the session or the resumed
+    thread.
+  - The eval: `run_turn` on a fresh thread, with `track_tokens(csv, "eval", thread)`.
+    The judge records under the service `eval-judge`.
+  - CLI: the chat loop moved into `cli_main.py` (Phase 8.1 moves it into `cli.py`). It
+    keeps one thread per run, so messages after the first are follow-ups, and calls
+    `input()` through `asyncio.to_thread`.
+- **Tokens (7.5):** `track_tokens(csv_path, service, thread_id=None)`. The CSV gained
+  two trailing columns, `service` and `thread_id`, so older 5-column rows still line
+  up. New files get a header. The existing `data/token_usage.csv` keeps its old
+  5-column header.
+- **Recommender (7.4):**
+  - `offered_item_ids(messages)` reads the IDs from `semantic_search` `ToolMessage`s.
+    An answer outside that set (including one given without any search) gets one
+    corrective message listing the valid IDs, and is skipped if the second answer is
+    invalid too.
+  - The per-description agent calls run with `asyncio.gather`.
+  - Repeated item IDs are de-duplicated, keeping the first occurrence and the order.
+    This was added to the 7.4 spec afterwards.
+- **Critique node:** at the limit it returns only `{"critique_text": ""}`, and the
+  count is untouched. Rejections still increment the count, and the intake node resets
+  it each turn.
+- **Tests:** 62 passed, 1 skipped (postgres), 1 deselected (aws). That includes the
+  later additions: the prose-answer fallback, `chosen_item_id`, and passing
+  `reasoning` through. They pass the same way
+  inside `unshare -rn`.
+  - The fake LLM is now async-only (a sync call in a node fails) and records every
+    prompt.
+  - The mock agent calls the real `semantic_search` tool and returns `ToolMessage`s.
+    Its answers are scripted per item description.
+  - New tests:
+    - intake reset
+    - the quantifier default
+    - the critique prefix (7.7) and the modifier retry count
+    - the critique limit and rejection counting
+    - `offered_item_ids`
+    - the invalid-ID correction, skipping after two invalid IDs, and an answer with no
+      search
+    - skipping failed lookups and de-duplicating repeats
+    - the critique count resetting on a follow-up turn
+    - `stream_turn` running to `END` with callbacks reaching the run
+    - token CSV columns and header
+- **Real runs with Ollama `qwen3.5:4b` (2026-11-26/27), the default local model since
+  7.10:** 4B parameters, Q4_K_M, vision, tools, thinking. The setup was local SigLIP,
+  Qdrant on a *copy* of `data/qdrant_storage`, real S3 images and the memory
+  checkpointer.
+  - **Thinking must be off for small models.** With thinking on, the modifier's
+    structured output was right 1 time in 4, at about 52 s each; with it off, 4 out of 4
+    at 1.3–1.6 s. **New setting: `LLM__REASONING`** (`bool | None`, passed to
+    `ChatOllama(reasoning=...)`; None = the model's default; `false` by default since
+    7.10).
+  - **Small models often skip the structured-response tool** of a tool-calling agent
+    and answer in prose. `ToolStrategy` and the default behave the same way;
+    `ProviderStrategy` forces JSON, which disables the tools, so the model answers
+    without searching. Changes:
+    - `chosen_item_id()` takes the first *offered* ID mentioned in the agent's final
+      prose message when there is no structured response. Validation still applies.
+    - The intake follow-up uses a plain `with_structured_output(UpdatedUserRequest)`
+      call instead of `create_agent` (it needs no tools).
+    - Pulling the ID out of the whole conversation with a separate structured call was
+      tried with a smaller model and rejected: with the images in context it answered
+      `0` every time.
+  - **Isolated checks** (thinking off): vision correct, and the recommender agent chose
+    the right item 8 times out of 8 (about 4 s each; roughly half structured, half
+    through the prose fallback).
+  - **Two-turn run before the prompt review:** 30 s and 45 s. Every recommender call
+    returned a valid ID, with no corrections and no skips. Turn 1 gave khaki chinos and
+    white sneakers (pants and shoes, as asked). The follow-up was rewritten correctly
+    ("like the khaki chinos, in black") and returned three pairs of black trousers.
+  - **Problems found, fixed in 7.11:** the critique judged against the reference item
+    instead of the request (it rejected black trousers for not being khaki); after
+    three rejections the modifier had dropped the shoes the user asked for; and the
+    explanation described "white sneakers" that weren't recommended.
+  - **Ollama memory: `LLAMA_ARG_CACHE_RAM=0` is required.** Ollama 0.40 runs this model
+    through `llama-server`, whose prompt cache lives in system RAM and defaults to
+    8 GiB (`--cache-ram 8192`). Ollama doesn't override it. Each agent call with
+    images is a new prompt, so the cache grows even though the model is 100% on the
+    GPU (3.7 GB of VRAM at a 16k context). On 2026-11-26 this, with up to 4 parallel
+    requests, SigLIP, Qdrant and a Qdrant copy on tmpfs, filled 14 GB of RAM and the
+    laptop froze. With `LLAMA_ARG_CACHE_RAM=0`, the runner's real allocations peaked at
+    1.0 GB instead of 6 GB, and free RAM stayed above 7.6 GB. The runner inherits
+    Ollama's environment, so set it on `ollama serve`. The tested command was:
+    `LLAMA_ARG_CACHE_RAM=0 OLLAMA_NUM_PARALLEL=1 OLLAMA_MAX_LOADED_MODELS=1
+    OLLAMA_CONTEXT_LENGTH=16384 systemd-run --user --scope -p MemoryMax=6G -p
+    MemorySwapMax=0 ollama serve`. The memory cap is a safety net: the kernel kills only
+    Ollama instead of the machine stalling. Phase 14 should document this.
+- **Prompt review (7.11).** Every prompt in `prompts.py` was rewritten for small
+  models: short numbered rules, one task each, and the user's request stated as what
+  wins over critique feedback and reference images. Changes in behaviour:
+  - **Quantifier:** also extracts the item types the user names (`["pants",
+    "shoes"]`) into the new state field `requested_item_types`; the number of
+    recommendations is at least one per type.
+  - **Modifier:** answers `{item_type, description}` pairs (`RequiredClothes.items`);
+    the node retries until every requested type is covered (a type also counts as
+    covered if the description names it) and keeps the best answer. Descriptions are
+    written like catalogue listings, one colour each, using the user's colour word.
+    "Something like this" means the main reference item's type.
+  - **Critique:** judges against the request, not the reference images; the failures
+    are listed (too few items, a named type missing, an explicit constraint broken,
+    a clash for "goes with" requests) and matters of taste are not failures. It is
+    told the requested item types.
+  - **Critique and explanation messages:** images are labelled "reference images"
+    (after a follow-up they include earlier recommendations, not only uploads), and
+    when there are none the message says so; before, a model took the first
+    recommended image for an upload.
+  - **Explanation:** speaks to the user ("you"), at most 150 words, mentions only the
+    recommended items, no preamble.
+  - **Intake follow-up:** keeps the original request's constraints unless the new
+    message changes them, and says which recommended item "the first item" is.
+  - **Intent/vision:** always describe item type and colours; for "something like
+    this", the most prominent item in detail.
+  - **Recommender:** steps spelled out (one category call, `num_matches` 3–6, at most
+    one extra search, answer with a returned id). `Catalogue.search` clamps
+    `num_matches` to 1..6 (`MAX_SEARCH_MATCHES`): each result is an image in the
+    model's context and an S3 GET.
+  - **Repeated products:** the catalogue stores several photos of one product under
+    different ids with the same description, so the recommender now also skips an item
+    whose description it has already shown.
+  - Tool docstrings and schema field descriptions (which the model also reads) were
+    tightened; the judge prompt now says to score visual grounding 0 without uploads,
+    as its schema already did.
+- **Model-quality tests (7.12):** `tests/model/` runs the real agent (configured
+  Ollama model, local SigLIP, Qdrant, S3 catalogue) on 7 conversations (9 turns) whose
+  products exist in the catalogue in quantity: 2 black leather belts; a navy blazer,
+  white shirt and brown loafers; pants and shoes for an uploaded gingham shirt
+  (catalogue item 9067); something similar to uploaded red sneakers (93191); white
+  sneakers then "the same style in black"; pants for a shirt then "hats instead"; 3 red
+  cocktail dresses.
+  - **Grading:** a rubric (`tests/model/rubric.py`) checks each turn against catalogue
+    ground truth: the category and description of every recommended product come from
+    the metadata, not the model. Checks are weighted; critical ones (count, categories,
+    item-type coverage) must pass, and the weighted score must reach 0.8. Colour and
+    material words accept catalogue synonyms (calfskin is leather, tobacco is brown).
+    The explanation is checked for item types that were neither recommended nor asked
+    for, and for speaking to the user. `FRAG_MODEL_TEST_REPEATS=N` runs each case N
+    times; a case passes if at least half its runs pass. The rubric has offline unit
+    tests (`tests/unit/test_rubric.py`).
+  - **Reports:** `data/model_test_runs/<UTC time>/report.json` holds every turn's
+    request, products, explanation, check results and the agent's warnings, skips and
+    critiques; a summary is printed at the end of the run.
+  - **Safety:** skipped unless `LLM__PROVIDER=ollama` (a Bedrock run would be billed),
+    and unless Ollama, the Qdrant collection and AWS credentials are available. The
+    metadata Parquet and catalogue images are cached under
+    `~/.cache/frag-model-tests/`, and a run stops after
+    `FRAG_MODEL_TEST_MAX_S3_GETS` (default 300) uncached image downloads. A full run
+    takes about 10–12 minutes.
+  - **Results so far (2026-11-27, `qwen3.5:4b`, 1 run per case):**
+    - Run 1, with the first prompt rewrite: 3 of 7 passed (the follow-up colour and
+      item-type switches, and "similar to this"). The failures led to the fixes in
+      7.11: a second belt dropped as the same product, a hallucinated "bow tie in your
+      first image" when nothing was uploaded, "crimson"/"ruby" instead of "red", and
+      pants-only answers to "pants and shoes" (which the critique accepted). Some
+      failures were the rubric's (calfskin not counted as leather, loafers filed
+      under FLATS), and were fixed there.
+    - Run 3, after the item-type coverage: belts and pants-and-shoes passed; the
+      wedding outfit failed on the rubric (the white shirt is filed under TOPS, fixed)
+      and on beige rather than brown loafers; "similar to this" failed because the
+      test image (a two-tone dress worn with sneakers) was ambiguous, so it was
+      replaced with a product shot and the prompts now focus on the main item. The run
+      stopped at its S3 budget before the last three cases.
+    - A full run after these last changes is still to be done.
+    - Memory stayed healthy throughout: free RAM at least 6.7 GB, no swap, the
+      Ollama runner at most 1.3 GB.
+    - Qdrant needs no memory cap: with a 2 GiB container limit its page cache was
+      starved and filtered searches timed out (the client's 5 s limit).
+- **Ruff:** the new and changed modules are clean. The total went from 293 to 204, the
+  rest being in modules later phases rewrite (`app.py`, `utils/common_utils.py`, ...).
+  The README's async TODO was removed.
+- **AWS call log:** none for the Phase 7 code. All §0.2-B reads:
+  - The early Ollama runs read the metadata Parquet (one 5.9 MB GET per process) and
+    catalogue images from S3.
+  - 2026-11-27: one Parquet GET into the test cache (to choose ground-truth items),
+    two single-image GETs to inspect test images, and about 400 uncached image GETs
+    across the model-quality runs (well under $0.001). No DynamoDB (memory
+    checkpointer) and no Bedrock.
 
 ---
 

@@ -19,25 +19,20 @@ LLM_TOOL_NAMES = (SEMANTIC_SEARCH, GET_PRODUCT_CATEGORIES)
 
 # the LLM reads these descriptions to decide how to call the tools
 SEMANTIC_SEARCH_DOC = """\
-Get num_matches images and their metadata that match the description and categories.
+Search the catalogue for products that match a text description.
 
-Given some text description of an item of clothing or an accessory, this
-function returns `num_matches` images along with their metadata (which
-includes id, price, category, description, and score) from within the images
-that belong to the listed categories.
+Returns up to `num_matches` products from the listed categories, best match first.
+Each product is a JSON metadata block (`id`, `category`, `description`, `price`,
+`score`) followed by its image. A higher `score` means a closer match to the text.
 
 Args:
-    description (str): The description to which the returned images are matched.
-    categories (list[str]): The matched images will belong to one of these
-        listed valid categories.
-    num_matches (int): The number of matched images that should be returned.
-
-Returns:
-    Matched Images and their metadata. The metadata is a dictionary with the
-    keys of `price`, `category`, `description`, `id`, and `score`. The score
-    tells how good of a match (to the input text) the returned item is.
+    description (str): What the product looks like, e.g. "black leather belt with a
+        silver buckle".
+    categories (list[str]): Only products in these categories are returned; use
+        names exactly as get_product_categories lists them.
+    num_matches (int): How many products to return (at most 6).
 """
-GET_PRODUCT_CATEGORIES_DOC = "Returns a list of valid product categories."
+GET_PRODUCT_CATEGORIES_DOC = "List the valid product categories for semantic_search."
 GET_DATAPOINT_BY_INDEX_DOC = (
     "Get a datapoint, including image and metadata, using index in db."
 )

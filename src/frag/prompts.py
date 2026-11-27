@@ -2,100 +2,209 @@
 
 These are constants, not configuration: they do not vary by environment. Placeholders
 in braces are filled with `str.format`.
+
+They are written for small local models as well as Claude: short numbered rules,
+one task per prompt, and the user's request stated as the thing that wins over any
+other input (critique feedback, reference images).
 """
 
-# Intake (human) node: merges a follow-up request with the previous turn.
+# Intake node, follow-up messages: merge the new message with the previous turn.
 HUMAN_INPUT_UPDATE_PROMPT = """\
-You are an expert fashion assistant. You have previously interacted with the user. Below I will be providing you with the following:
-  - original user input image descriptions (given only if the user had uploaded any images)
-  - original user text input (the original request of the user)
-  - response image descriptions (descriptions of images that you had replied with previously)
-  - new user input images (actual images, not their descriptions. Might not be present if the user does not upload any images on the new request)
-  - new user text input (the user might modify the original request, give a new request, ask for a modification of the response, etc)
-Please synthesise the old interaction and the new user request and do the following:
-  - Each of the old image descriptions has an index for the image. If the old image(s) - either input or response - are relevant to the new user request, then please include the index of the relevant old image(s) in the returned value. For example, if the user in their new text input says, "I like the responses, but please show them in red" then that would mean that only the response images are relevant. So, your returned value should include the indices for the response images only.
-  - Combine the original user text input (if it is relevant) and the new user text input to create a fresh user query that comprehensively, but concisely states what the user wants. The goal here is that we should not have to refer to the original user request to successfully satisfy the users wants. For example, if the user says something like "Instead of pants, show me hats that go well with my uploaded shirt" then the new user query will be something along the lines of "Please suggest hats that go well with the uploaded shirt".
-The newly uploaded images are assumed to be relevant in any case. Thus, your return value should have a list of indices of the relevant images, and a comprehensive, but concise string description of what the user wants now.
+You are a fashion assistant in an ongoing conversation. Rewrite the user's new message \
+as one standalone request, and pick which earlier images still matter.
 
-Original User Input Image Descriptions:
+Earlier images are listed below with an index:
+- "Original images" are the images the user uploaded before.
+- "Recommended items" are the products you showed the user last time, in the order \
+they were shown: the first one listed is "the first item", and so on.
+Any image attached to this message is new and always relevant; it has no index.
+
+Rules:
+1. relevant_image_indexes: the indexes of the earlier images the new request refers \
+to or depends on. Examples: "I like the second one, show me more like it" -> only the \
+second recommended item; "show these in red" -> all recommended items; "instead of \
+pants, show me hats for my shirt" -> the original shirt image only. Use an empty list \
+if none are relevant.
+2. updated_user_query: a complete request that can be understood without the \
+earlier conversation. Keep every constraint from the original request (item types, \
+occasion, colours, budget, style) unless the new message changes or drops it, and add \
+what the new message asks for. Name the item types explicitly. Example: original \
+"pants and shoes for a casual weekend with this shirt", new "make the shoes \
+sneakers" -> "Suggest pants and sneakers for a casual weekend that go with the \
+uploaded shirt."
+
+Original images:
 {original_image_descriptions}
 
-Original User Text Input:
+Original request:
 {original_text_input}
 
-Response Image Descriptions:
+Recommended items:
 {response_image_descriptions}
 
-New User Text Input:
+New message:
 {new_text_input}
 """
 
-# Quantifier node: how many items the user asked for (0 if unspecified).
+# Quantifier node: how many items the user asked for (0 if unspecified), and which
+# item types they named.
 NUM_RECOMMENDATIONS_PROMPT = """\
-You are an expert fashion assistant. Please carefully go through the user request and determine if they have specified how many clothing item / accessory recommendations they want. If they have specified how many recommendations they want, please return a single integer denoting the number of required recommendations. If they have not specified how many recommendations they want, please return 0.
+Read this fashion request and answer two questions.
 
-User Request:
+1. num_recommendations: how many products does it ask for? Give the number only if \
+the user states it explicitly, as a number or a number word ("show me 2 dresses" -> \
+2, "three options" -> 3, "one belt and one tie" -> 2). Otherwise 0, including for \
+"a dress for a wedding", "pants and shoes" or "a complete outfit".
+2. item_types: which kinds of products does the user explicitly name? Use their \
+words, one entry per kind: "pants and shoes for this shirt" -> ["pants", "shoes"]; \
+"2 black belts" -> ["belts"]; "find something similar to this" or "a complete \
+outfit" -> []. Don't list items the user already has (the shirt in the first example).
+
+Request:
 {user_request}
 """
 
 # Intent node: instructions telling the vision model what to look at.
 REQUEST_FOCUS_PROMPT = """\
-You are an expert fashion assistant. I am providing you with a user request associated with some images. The input images are going to be fed into a vision language model (VLM) with some instructions. The goal of the vision language model (not your goal) is to generate a description of the image (not to fulfil the user request) based on the instructions you generate. Your goal is to analyse the user request (provided below) and determine what the focus of the VLM should be. For example, if the user asks for "clothing items that look like this", then the focus of the vision model should be to extract detailed descriptions of the clothes in the images. Another example: if the user asks for "clothes that have the same colour palette as the image", then the focus of the vision model should be to extract the colour palette from the image. Please provide detailed instructions, suitable for a vision language model, on what it should focus on when looking at the image. Ensure the instructions are concise (No more than 5 sentences) and only relate to what aspect of the image should be described / extracted. In the instructions you provide, do not explain why these are the instructions you are providing. Your output should only contain the actual instructions which can directly be fed to the vision language model.
+A vision model will describe the user's images so that matching products can be \
+searched for later. Write the instructions for that vision model: what it should \
+look at and describe, given the user's request below. It describes the images; it \
+does not answer the request.
 
-User Request:
+Always ask for the type of each clothing item or accessory and its main colours. If \
+the request is about one item ("something like this"), the vision model should \
+describe the most prominent item in detail and mention anything else worn in the \
+photo only briefly. Then add the details this request depends on. Examples: "find something like this" -> \
+cut, fabric, pattern and distinctive details; "same colour palette" -> every colour \
+and how they are combined; "what goes with this" -> colour, pattern, formality and \
+style.
+
+Reply with the instructions only, in at most 5 sentences, with no explanation of why.
+
+User request:
 {user_request}
 """
 
-# Vision node: describe the uploaded image following the intent instructions.
+# Vision node: describe one uploaded image following the intent instructions.
 VISION_PROMPT = """\
-You are a proficient fashion assistant. Please analyse the uploaded images closely and extract the features mentioned in the instructions below. Do not use markdown for the response, just keep it to a plain string (can use newlines). Ensure the response is short and concise - no more than 5 sentences.
+You are a fashion expert. Describe the image following the instructions below. \
+Describe only what is visible; do not recommend anything. Use plain text without \
+markdown, at most 5 sentences.
 
-Image Focus Instructions:
+Instructions:
 {image_focus_instructions}
 """
 
-# Modifier node, when the user supplied images.
-MODIFIER_IMAGES_PRESENT_PROMPT = """\
-You are a proficient fashion assistant. Using the provided descriptions of the clothing items (Reference Clothes Descriptions) and the user's request (User Request), create a detailed description of the clothing items the user wants. The number of recommendations you should generate is {num_recommendations}. The user could request multiple clothing items (like "suggest me one pant and one shirt") or there could be multiple clothing items that satisfy the user's request (like "what pants will go well with this dress" might have multiple types of pants that might go well with the dress). Ensure that the provided descriptions are only about the description of clothing items and not about why the recommendation is being made. Return a list of strings of length {num_recommendations}. Each string is a detailed description, one for each potential item, that together will satisfy the user's requests. Please ensure that each description is distinct from the others, there should be no repetition of descriptions.
+# Shared by both modifier prompts.
+_MODIFIER_RULES = """\
+{item_types}
 
-Reference Clothes Descriptions:
+Rules:
+1. Write exactly {num_recommendations} items, each describing exactly one product.
+2. Cover every item type the user named at least once, and set each item's \
+item_type to the named type it belongs to. Example: types "pants, shoes" with 3 \
+items -> at least one item of type "pants" and at least one of type "shoes". Never \
+recommend an item type the user already has in the reference items unless they ask \
+for it.
+3. Follow every explicit constraint in the request (colour, material, fit, occasion, \
+style, price). If the user asks for something like a reference item, every item is \
+the same type as the main reference item (other things worn in the photo are not \
+part of the request). If they ask for it changed (for example "the same but in \
+black"), keep its other details and change only that.
+4. Write each description like a product listing in an online catalogue: the item \
+type first, then colour, material, fit and notable details, in one or two short \
+sentences. Example: "Slim-fit chino trousers in olive cotton twill. Mid-rise, four \
+pockets, tapered leg." Commit to one colour per item (not "white or grey").
+5. Colours: if the user names a colour, use exactly their word in the description \
+("red", never "crimson", "ruby" or "scarlet"); catalogue listings use plain colour \
+names.
+6. Make the descriptions different from each other. Describe the products only, not \
+why you chose them.
+7. If feedback on a previous attempt is given, use it to fix the problem it names, \
+but never against the user's request: the request always wins.
+"""
+
+# Modifier node, when the user supplied images (or picked earlier recommendations).
+MODIFIER_IMAGES_PRESENT_PROMPT = (
+    """\
+You are a fashion stylist. Describe the products to search the catalogue for, so \
+that together they satisfy the user's request. The reference items are what the user \
+showed or picked; use them as the request says (to match, to complement, or as a \
+starting point to change).
+
+"""
+    + _MODIFIER_RULES
+    + """
+Reference items:
 {reference_descriptions}
 
-User Request:
+User request:
 {user_request}
 
 {critique_node_correction}
 """
+)
 
 # Modifier node, text-only requests.
-MODIFIER_IMAGES_ABSENT_PROMPT = """\
-You are an expert fashion assistant. Using the provided user request, please generate detailed descriptions of the sort of clothing items / accessories the user wants. The number of recommendations you should generate is {num_recommendations}. The user could request multiple clothing items (like "suggest me one pant and one shirt") or there could be multiple clothing items that satisfy the user's request (like "what pants will go well with this dress" might have multiple types of pants that might go well with the dress). Ensure that the provided descriptions are only about the description of clothing items and not about why the recommendation is being made. Return a list of strings of length {num_recommendations}. Each string is a detailed description, one for each potential item, that together will satisfy the user's requests. Please ensure that each description is distinct from the others, there should be no repetition of descriptions.
+MODIFIER_IMAGES_ABSENT_PROMPT = (
+    """\
+You are a fashion stylist. Describe the products to search the catalogue for, so \
+that together they satisfy the user's request.
 
-User Request:
+"""
+    + _MODIFIER_RULES
+    + """
+User request:
 {user_request}
 
 {critique_node_correction}
 """
+)
 
 # Recommender node: tool-using agent that finds the best catalogue match.
 MATCH_CLOTHES_PROMPT = """\
-You are an expert fashion assistant. Below, I will be providing you a textual description of an item of clothing. Please do the following:
-  - Get the available categories in the product catalogue
-  - Based on the available categories, assign one or more categories to the clothing item description
-  - Fetch some clothes that match that description (semantic search) from the product catalogue
-  - Evaluate which of the returned images best satisfy the clothing item description
-  - Return the id of the image which best satisfies the clothing item description
+Find the catalogue product that best matches the description below.
 
-Clothing Item Description:
+1. Call get_product_categories once.
+2. Pick the one to three categories the product belongs to (shoes, for example, may \
+be "SNEAKERS" or "LACE UPS").
+3. Call semantic_search with the description, those categories and num_matches \
+between 3 and 6.
+4. Compare the returned images and metadata with the description. The product must \
+be the item type described; colour and material come next. If none of them fit, you \
+may search once more with a rephrased description or other categories.
+5. Answer with the id of the best product. It must be an id that semantic_search \
+returned.
+
+Description:
 {item_description}
 """
 
 # Critique node: Self-RAG style yes/no check plus a short correction.
 CRITIQUE_PROMPT = """\
-You are an expert fashion assistant. You are provided with the user's uploaded images (if any) and the user request, along with descriptions of products intended to completely satisfy the user's request. Please carefully analyse the request and the recommendations and give a Yes or No answer as to whether the recommendations satisfy the request. If they don't, then give a concise 3 sentence or smaller fix of what was wrong with the recommendations and what not to do.
+You are checking a fashion assistant's recommendations before they are shown to the \
+user. Judge them against the user's request above, not against the reference images: \
+the request often asks for something different from the references (another colour, \
+an item that goes with them, a different style).
+
+Answer "No" only for a clear failure:
+- there are fewer items than the number the user asked for;
+- an item type the user named (listed above) has no item, or an item is a type they \
+did not ask for;
+- an item contradicts an explicit constraint of the request (colour, material, \
+occasion, style);
+- for "goes with" requests, an item clearly clashes with the reference items.
+Otherwise answer "Yes". Matters of taste are not failures.
+
+If the answer is "No", write the correction as at most 3 sentences saying what to \
+search for instead, and restate every item type the request needs.
 """
 
 # Explanation node: why the recommendations satisfy the request.
 EXPLANATION_PROMPT = """\
-You are a proficient fashion assistant. You are provided with the user's uploaded images (if any) and the user request, along with images of the recommended products and their descriptions. Please explain how the recommended products successfully satisfy the user's request.
+You are a fashion stylist talking to the user. In at most 150 words, explain how the \
+recommended items above meet their request. Speak to the user as "you" and refer to \
+the items as Item 1, Item 2 and so on. Mention only the recommended items shown \
+above; do not suggest or describe anything else. If an item meets the request only \
+partly, say so briefly. Start directly with the explanation, without a preamble.
 """

@@ -12,10 +12,10 @@ from PIL import Image
 
 from frag.checkpointer import open_checkpointer
 from frag.evaluation.llm_as_judge import get_evaluation_inputs, get_final_score
+from frag.evaluation.schemas import RecommendationEvaluation
 from frag.llm import build_llm
-from frag.rag_pipeline.llm_schemas import RecommendationEvaluation
 from frag.settings import CheckpointerSettings, EvalSettings, EvalWeights, LLMSettings
-from frag.tokens import append_usage_csv, track_tokens
+from frag.tokens import CSV_HEADER, append_usage_csv, track_tokens
 from frag.utils.common_utils import (
     get_image_prompt_message,
     get_multi_image_multi_prompt_message,
@@ -81,7 +81,10 @@ async def test_dynamodb_checkpointer():
     [("bedrock", "ChatBedrockConverse"), ("ollama", "ChatOllama")],
 )
 def test_build_llm_selects_provider(provider, class_name):
-    llm = build_llm(LLMSettings(provider=provider, model_id="some-model"), "us-east-1")
+    llm = build_llm(
+        LLMSettings(provider=provider, model_id="some-model", rate_limit_rps=1.0),
+        "us-east-1",
+    )
     assert type(llm).__name__ == class_name
     assert llm.rate_limiter is not None
 
@@ -102,19 +105,27 @@ def _usage(n):
 
 def test_append_usage_csv(tmp_path):
     path = tmp_path / "sub" / "usage.csv"
-    append_usage_csv(str(path), _usage(5))
+    append_usage_csv(str(path), _usage(5), "agent", "thread-1")
     append_usage_csv(str(path), {})  # nothing to write
-    rows = list(csv.reader(path.open()))
-    assert len(rows) == 1
-    assert rows[0][1:] == ["model-a", "5", "1", "6"]
+    append_usage_csv(str(path), _usage(7))
+    header, *rows = list(csv.reader(path.open()))
+    assert header == list(CSV_HEADER)
+    assert [row[1:] for row in rows] == [
+        ["model-a", "5", "1", "6", "agent", "thread-1"],
+        ["model-a", "7", "1", "8", "", ""],
+    ]
 
 
 def test_track_tokens_records_even_when_the_body_raises(tmp_path):
     path = tmp_path / "usage.csv"
-    with pytest.raises(RuntimeError), track_tokens(str(path)) as handler:  # noqa: PT012
+    with (  # noqa: PT012
+        pytest.raises(RuntimeError),
+        track_tokens(str(path), "eval", "t-1") as handler,
+    ):
         handler.usage_metadata.update(_usage(3))
         raise RuntimeError
-    assert path.is_file()
+    (_, row) = list(csv.reader(path.open()))
+    assert row[1:] == ["model-a", "3", "1", "4", "eval", "t-1"]
 
 
 # --- message building ----------------------------------------------------------------
@@ -200,3 +211,11 @@ def test_evaluation_inputs_attach_matching_images(tmp_path):
     ]
     assert [len(i["input_images_path"]) for i in inputs] == [0, 1, 0]
     assert inputs[1]["input_images_path"] == [str(images / "01_02.jpg")]
+
+
+@pytest.mark.parametrize("reasoning", [None, False, True])
+def test_build_llm_passes_ollama_reasoning(reasoning):
+    llm = build_llm(
+        LLMSettings(provider="ollama", model_id="m", reasoning=reasoning), "x"
+    )
+    assert llm.reasoning is reasoning
