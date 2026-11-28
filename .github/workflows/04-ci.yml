@@ -1,0 +1,60 @@
+# .github/workflows/04-ci.yml
+# lint + offline tests on every PR into main and every push to main.
+# No AWS credentials, OIDC role or secrets: tests that touch AWS, Bedrock or Ollama are
+# deselected by default (pyproject.toml addopts) and the Postgres test skips without a server.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-test:
+    name: lint-and-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+        with:
+          version: "0.13.9"
+          enable-cache: true
+
+      # default groups = dev only, so `siglip` (torch) and `ingest` (h5py) stay out.
+      # `local-llm` is just the langchain-ollama client, which the build_llm tests import.
+      - name: Install dependencies
+        run: uv sync --locked --group local-llm
+
+      - name: Ruff
+        run: uv run --locked ruff check
+
+      - name: Pytest
+        run: uv run --locked pytest
+
+  cfn-lint:
+    name: cfn-lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+        with:
+          version: "0.13.9"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --locked --only-group dev
+
+      - name: cfn-lint
+        run: uv run --locked --no-sync cfn-lint "infra/cloudformation/**/*.yaml"

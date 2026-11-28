@@ -4,8 +4,8 @@
 #   infra/scripts/teardown.sh <layer>
 #
 # Refuses any stack that contains a resource with DeletionPolicy Retain (storage and
-# auth: the catalogue, chat history and user pool are never torn down by script; see
-# docs/aws_inventory.md for how to remove them by hand if you ever want to). For other
+# auth: the catalogue, chat history and user pool are never torn down by script; to
+# remove them, delete the stack, then the retained resources by hand). For other
 # stacks it lists what will be deleted and asks you to type the stack name.
 # Idempotent: a stack that's already gone is reported and skipped.
 

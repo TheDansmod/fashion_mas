@@ -134,7 +134,7 @@ def _image_urls(messages):
 
 
 def test_message_images_get_mime_types(tmp_path):
-    # regression for cleanup.md 3.1 (a follow-up with a new image raised NameError)
+    # regression: a follow-up message with a new image raised NameError
     png = tmp_path / "x.png"
     Image.new("RGB", (4, 4)).save(png)
     unknown = tmp_path / "x.unknown"
@@ -189,7 +189,7 @@ def _evaluation(vis, suit, comp):
 
 
 def test_final_score_is_a_weighted_mean():
-    # regression for cleanup.md 3.2 (operator precedence)
+    # regression: an operator-precedence bug skewed the weighted score
     weights = EvalWeights(
         visual_grounding=0.2, item_suitability=0.3, completeness_coverage=0.5
     )

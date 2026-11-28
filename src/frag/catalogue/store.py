@@ -1,4 +1,4 @@
-"""Catalogue data on S3: item images and the metadata Parquet (decision 1.5)."""
+"""Catalogue data on S3 (in every mode): item images and the metadata Parquet."""
 
 import asyncio
 import io

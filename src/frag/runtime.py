@@ -2,7 +2,7 @@
 
 Each entrypoint (Chainlit app, CLI, MCP server) opens resources once with
 `open_resources(settings, role)` and passes them on explicitly. Nothing is shared
-between processes (cleanup.md §3).
+between processes.
 """
 
 from collections.abc import AsyncIterator

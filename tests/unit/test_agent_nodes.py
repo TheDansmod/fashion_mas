@@ -256,7 +256,7 @@ async def test_recommender_rejects_answers_without_a_search(make_agent, monkeypa
 
 
 async def test_recommender_skips_failing_lookups_and_repeats(make_agent, monkeypatch):
-    # regression for cleanup.md 3.12: a failing lookup is skipped, not fatal
+    # regression: one failing catalogue lookup used to fail the whole turn
     _use_agent(monkeypatch, choices={"a": [101], "b": [102], "c": [102], "d": [103]})
     agent = make_agent(tools=FakeToolsClient(failing_ids=frozenset({101})))
     update = await _recommend(agent, "a", "b", "c", "d")
