@@ -22,30 +22,30 @@ https://github.com/user-attachments/assets/cc40f339-4bd2-4075-aea9-9388405977f5
 
 ---
 
-## ✨ Highlights
+## Highlights
 
 | | |
 |---|---|
-| 🧠 **Stateful LangGraph agent** | Eight specialised nodes with conditional routing. Each user message is one graph run, and the conversation state is checkpointed per thread, so follow-ups like *"the second one, but in black"* work. |
-| 🔁 **Self-correcting retrieval** | Inspired by Self-RAG: a critique node checks the picks against the request and sends a structured correction back to the planner (up to 3 times). Product IDs the LLM picks are checked against the IDs the search actually returned. |
-| 🖼️ **Multimodal end to end** | Uploaded images are described by the vision node, and catalogue images go back to the LLM inside tool results, so it compares what the products *look* like, not just their text. |
-| 🔎 **Two embedding backends** | `siglip` (local, default): Marqo-FashionSigLIP over 260k items. `nova` (AWS): Amazon Nova Multimodal Embeddings over a 10k-item collection. One setting switches them, and a startup check rejects a mismatched collection. |
-| 🤖 **Swappable LLMs** | Claude Haiku 4.5 or Amazon Nova Lite on **AWS Bedrock**, or a local vision model on **Ollama** (`qwen3.5:4b`) for free development. |
-| 🔌 **MCP tool server** | The catalogue tools (semantic search, categories, lookup) run in-process or behind a FastMCP server over streamable HTTP, with identical output either way. |
-| 💾 **Four checkpointers** | Memory, SQLite, Postgres or DynamoDB, selected by `CHECKPOINTER__BACKEND`. |
-| 💬 **Chainlit UI** | Streams each node as a step. Cognito sign-in (admin-created users only), persistent chat history in DynamoDB + S3, and per-message token accounting. |
-| 📊 **LLM-as-a-judge evaluation** | 60 curated queries in four groups, scored on visual grounding, item suitability and completeness. Every run is a self-contained, reproducible directory that records completion rate and score. |
-| 🏗️ **Infrastructure as code** | Every AWS resource is owned by a CloudFormation stack and changed only through reviewed change sets. CI runs ruff, the offline test suite and cfn-lint on every PR. |
+| **Stateful LangGraph agent** | Eight specialised nodes with conditional routing. Each user message is one graph run, and the conversation state is checkpointed per thread, so follow-ups like *"the second one, but in black"* work. |
+| **Self-correcting retrieval** | Inspired by Self-RAG: a critique node checks the picks against the request and sends a structured correction back to the planner (up to 3 times). Product IDs the LLM picks are checked against the IDs the search actually returned. |
+| **Multimodal end to end** | Uploaded images are described by the vision node, and catalogue images go back to the LLM inside tool results, so it compares what the products *look* like, not just their text. |
+| **Two embedding backends** | `siglip` (local, default): Marqo-FashionSigLIP over 260k items. `nova` (AWS): Amazon Nova Multimodal Embeddings over a 10k-item collection. One setting switches them, and a startup check rejects a mismatched collection. |
+| **Swappable LLMs** | Claude Haiku 4.5 or Amazon Nova Lite on **AWS Bedrock**, or a local vision model on **Ollama** (`qwen3.5:4b`) for free development. |
+| **MCP tool server** | The catalogue tools (semantic search, categories, lookup) run in-process or behind a FastMCP server over streamable HTTP, with identical output either way. |
+| **Four checkpointers** | Memory, SQLite, Postgres or DynamoDB, selected by `CHECKPOINTER__BACKEND`. |
+| **Chainlit UI** | Streams each node as a step. Cognito sign-in (admin-created users only), persistent chat history in DynamoDB + S3, and per-message token accounting. |
+| **LLM-as-a-judge evaluation** | 60 curated queries in four groups, scored on visual grounding, item suitability and completeness. Every run is a self-contained, reproducible directory that records completion rate and score. |
+| **Infrastructure as code** | Every AWS resource is owned by a CloudFormation stack and changed only through reviewed change sets. CI runs ruff, the offline test suite and cfn-lint on every PR. |
 
 ---
 
-## 🗺️ How the agent thinks
+## How the agent thinks
 
 One graph run per user message. Dashed edges are conditional.
 
 ```mermaid
 flowchart TD
-    IN(["📩 User message<br/>text + optional images"]) --> intake
+    IN(["User message<br/>text + optional images"]) --> intake
 
     intake["<b>intake</b><br/>follow-up? rewrite it as a standalone request<br/>and pick the earlier images that still matter"]
     quantifier["<b>quantifier</b><br/>how many items, and which item types"]
@@ -63,7 +63,7 @@ flowchart TD
     modifier --> recommender --> critique
     critique -. "No: correction (at most 3 times)" .-> modifier
     critique -. "Yes" .-> explanation
-    explanation --> OUT(["🛍️ Products + explanation"])
+    explanation --> OUT(["Products + explanation"])
 
     classDef llm fill:#eef2ff,stroke:#6366f1,color:#1e1b4b
     classDef tool fill:#ecfdf5,stroke:#10b981,color:#064e3b
@@ -73,7 +73,7 @@ flowchart TD
     class critique gate
 ```
 
-## 🏛️ System architecture
+## System architecture
 
 ```mermaid
 flowchart LR
@@ -112,7 +112,7 @@ in memory between processes, and importing any module has no side effects.
 
 ---
 
-## 🚀 Quickstart
+## Quickstart
 
 ### 1. Install
 
@@ -173,14 +173,14 @@ return empty or invalid structured output.
 
 | What | Command |
 |---|---|
-| 💬 Chat UI | `uv run chainlit run app.py`, then open http://localhost:8000 |
-| ⌨️ Terminal chat | `uv run frag chat` |
-| 🔌 MCP server | `uv run frag mcp` (port 9000, `/health`), plus `TOOLS__MODE=mcp` for the agent |
-| 📊 Evaluation | `uv run frag eval [--limit N] [--skip-judge] [--skip-run --run-dir DIR]` |
+| Chat UI | `uv run chainlit run app.py`, then open http://localhost:8000 |
+| Terminal chat | `uv run frag chat` |
+| MCP server | `uv run frag mcp` (port 9000, `/health`), plus `TOOLS__MODE=mcp` for the agent |
+| Evaluation | `uv run frag eval [--limit N] [--skip-judge] [--skip-run --run-dir DIR]` |
 
 ---
 
-## 📊 Evaluation
+## Evaluation
 
 `frag eval` runs the agent over 60 curated queries in four groups (*goes well with X*,
 *same item, different style*, *looks good on me*, *aesthetic from an image*), then has
@@ -209,7 +209,7 @@ agent on Bedrock too).
 
 ---
 
-## 🧪 Quality
+## Quality
 
 ```bash
 uv run pytest                 # offline: fakes for the LLM, catalogue and AWS
@@ -225,7 +225,7 @@ every pull request into `main`, with no cloud credentials. For coverage:
 
 ---
 
-## ☁️ AWS resources
+## AWS resources
 
 Two CloudFormation stacks own everything: `frag-<env>-storage` (catalogue and
 chat-elements buckets, checkpointer and chat-history tables) and `frag-<env>-auth`
@@ -244,7 +244,7 @@ first-time setup order and the workflow.
 
 ---
 
-## 📁 Project layout
+## Project layout
 
 ```
 app.py                     Chainlit entry point (UI, auth, chat history, streaming)
