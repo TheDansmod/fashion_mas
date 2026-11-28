@@ -2032,7 +2032,7 @@ anything needs the user's go-ahead (§0.2C).
 
 ## Phase 16: GitHub Actions CI (decision 1.15)
 
-- [ ] Add `.github/workflows/04-ci.yml`, triggered on `pull_request` to `main` and on
+- [x] Add `.github/workflows/04-ci.yml`, triggered on `pull_request` to `main` and on
   `push` to `main`.
   - Steps: `astral-sh/setup-uv` (pinned version), then `uv sync --locked` without the
     `siglip` and `ingest` groups, then `uv run ruff check`, then `uv run pytest`
@@ -2042,7 +2042,19 @@ anything needs the user's go-ahead (§0.2C).
     job later, with the user's approval.
   - Public repositories get standard GitHub-hosted runners for free; private ones get
     a free monthly minute allowance. Mention which applies in the report.
-- [ ] Don't modify `01-branch-naming.yml`, `02-commit-message-check.yml`,
+
+  *Done 2026-11-28. Two jobs: `lint-and-test` (ruff + pytest) and `cfn-lint`. The
+  actions are pinned to commit SHAs (`actions/checkout` v7.0.1, `astral-sh/setup-uv`
+  v10.4.0), uv is pinned to 0.13.9, and the workflow has `permissions: contents: read`.
+  Change from the spec: the sync also adds `--group local-llm`, because five
+  `build_llm` tests import `langchain_ollama` (only the client library; no server).
+  The default groups are just `dev`, so `siglip` and `ingest` are left out without
+  extra flags. The cfn-lint job uses `--only-group dev` and passes the glob quoted, so
+  cfn-lint expands it (this covers both `auth.yaml` and `storage.yaml`). Checked
+  locally on a `git archive HEAD` copy with `env -i` (no `.env`): ruff clean,
+  95 passed, 1 skipped (Postgres), 8 deselected; cfn-lint exit 0. `TheDansmod/fashion_mas`
+  is public, so standard GitHub-hosted runners are free.*
+- [x] Don't modify `01-branch-naming.yml`, `02-commit-message-check.yml`,
   `03-pr-title-enforcer.yml` or `.github/hooks/`.
 
 ---

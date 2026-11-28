@@ -34,6 +34,23 @@ def test_llm_defaults_follow_the_provider(clean_env, monkeypatch):
     assert clean_env().llm.model_id == "other-model"
 
 
+@pytest.mark.parametrize(
+    ("model_id", "rps"),
+    [
+        ("us.amazon.nova-lite-v1:0", 3.0),
+        # an unknown Bedrock model gets the lowest (Haiku's) rate
+        ("other-model", 0.15),
+    ],
+)
+def test_bedrock_rate_limit_follows_the_model(clean_env, monkeypatch, model_id, rps):
+    monkeypatch.setenv("LLM__PROVIDER", "bedrock")
+    monkeypatch.setenv("LLM__MODEL_ID", model_id)
+    assert clean_env().llm.rate_limit_rps == rps
+    # an explicit rate still wins
+    monkeypatch.setenv("LLM__RATE_LIMIT_RPS", "1")
+    assert clean_env().llm.rate_limit_rps == 1.0
+
+
 def test_the_judge_llm_is_set_separately(clean_env, monkeypatch):
     assert clean_env().evaluation.judge_llm is None  # same as the agent's LLM
     monkeypatch.setenv("EVALUATION__JUDGE_LLM__PROVIDER", "bedrock")

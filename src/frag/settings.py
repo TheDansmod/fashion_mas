@@ -39,11 +39,21 @@ _LLM_PROVIDER_DEFAULTS: dict[str, dict[str, Any]] = {
     },
     "bedrock": {
         "model_id": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
-        # 9 requests/minute: the account's default quota for Haiku 4.5 cross-region
-        # inference is 10/minute (Service Quotas, adjustable); raise both together.
-        # Token-per-minute limits (5M) are not modelled
+        # for any Bedrock model not in _BEDROCK_RATE_LIMITS: Haiku's, the lowest
         "rate_limit_rps": 0.15,
     },
+}
+
+# Bedrock rate-limit defaults per model id, ~90% of the account's cross-region
+# requests-per-minute quota (Service Quotas, adjustable); raise both together. Token-
+# per-minute limits are not modelled.
+_BEDROCK_RATE_LIMITS: dict[str, float] = {
+    # quota 10/minute (an increase was requested and not granted, 2026-11-28)
+    "us.anthropic.claude-haiku-4-5-20251001-v1:0": 0.15,
+    # quota 200/minute. A cheaper, weaker alternative to Haiku that supports images
+    # and tools; checked on 2026-11-28 with every structured-output schema, images in
+    # tool results, a follow-up chat turn and `frag eval --limit 5`
+    "us.amazon.nova-lite-v1:0": 3.0,
 }
 
 
@@ -51,7 +61,9 @@ class LLMSettings(_Section):
     """The chat / vision LLM used by every agent node and by the evaluation judge.
 
     `model_id` and `rate_limit_rps` default per provider (`_LLM_PROVIDER_DEFAULTS`),
-    so switching `provider` alone gives a working configuration.
+    so switching `provider` alone gives a working configuration. On Bedrock the rate
+    limit also defaults per model (`_BEDROCK_RATE_LIMITS`), so setting `model_id`
+    alone does too.
     """
 
     provider: Literal["bedrock", "ollama"] = "ollama"
@@ -73,8 +85,12 @@ class LLMSettings(_Section):
         if not isinstance(data, dict):
             return data
         provider = data.get("provider", cls.model_fields["provider"].default)
-        defaults = _LLM_PROVIDER_DEFAULTS.get(provider, {})
-        return {**defaults, **data}
+        merged = {**_LLM_PROVIDER_DEFAULTS.get(provider, {}), **data}
+        if provider == "bedrock" and "rate_limit_rps" not in data:
+            merged["rate_limit_rps"] = _BEDROCK_RATE_LIMITS.get(
+                merged["model_id"], merged["rate_limit_rps"]
+            )
+        return merged
 
 
 class EmbeddingSettings(_Section):

@@ -11,7 +11,7 @@ https://github.com/user-attachments/assets/cc40f339-4bd2-4075-aea9-9388405977f5
    - `siglip` (local default): Marqo-FashionSigLIP embeds queries locally and searches the `fashion_gen` Qdrant collection (260k items).
    - `nova` (AWS): Amazon Nova Multimodal Embeddings on Bedrock, against the `nova_fashion_gen` collection (~10k items).
    Images and metadata (Parquet) are always read from S3.
-4. **Two LLM providers**, switched with one setting: Claude Haiku 4.5 on **AWS Bedrock**, or a local vision model on **Ollama** (`qwen3.5:4b` tested) for free development.
+4. **Two LLM providers**, switched with one setting: Claude Haiku 4.5 on **AWS Bedrock** (or the cheaper, faster Amazon Nova Lite: `LLM__MODEL_ID=us.amazon.nova-lite-v1:0`), or a local vision model on **Ollama** (`qwen3.5:4b` tested) for free development.
 5. **An MCP server** (FastMCP, streamable HTTP) that exposes the catalogue as tools: semantic search, product categories, item lookup. The agent can use the same tools in-process instead.
 6. **Multi-turn conversations** that track images across turns, with **four interchangeable LangGraph checkpointers** (memory, SQLite, Postgres, DynamoDB) selected by one setting.
 7. **A Chainlit UI** with streamed progress, Cognito sign-in (admin-created users only), persistent chat history (DynamoDB + S3), token usage recorded per message (`data/token_usage.csv`), and optional **LangSmith** tracing.
