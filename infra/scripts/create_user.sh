@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Create a Chainlit user in the FRAG Cognito pool (sign-up is admin-only, decision 1.13).
+# Create a Chainlit user in the FRAG Cognito pool (sign-up is admin-only).
 #
 #   infra/scripts/create_user.sh <email>
 #

@@ -1,8 +1,8 @@
-"""Loguru logging for one process (cleanup.md §3.2).
+"""Loguru logging for one process.
 
 - Development (`APP_ENV=development`): a Rich console sink, plus an optional plain-text
   file `{file_dir}/frag-{service}.log` (rotated). Each process has its own `service`,
-  so two processes never write to the same rotating file (§3.3).
+  so two processes never write to the same rotating file.
 - Otherwise (staging, production): JSON lines on stdout only, for the container's log
   driver to collect.
 

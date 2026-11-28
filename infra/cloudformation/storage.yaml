@@ -29,7 +29,7 @@ Parameters:
     Description: Must match CHAT_HISTORY__DYNAMODB_TABLE.
 
 Resources:
-  # Filled by scripts/ingest_fashiongen.py. Needed by both embedding modes (decision 1.5).
+  # Filled by scripts/ingest_fashiongen.py. Needed by both embedding modes.
   CatalogueBucket:
     Type: AWS::S3::Bucket
     DeletionPolicy: Retain

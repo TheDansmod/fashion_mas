@@ -37,7 +37,6 @@ frag = "frag.cli:main"
 [dependency-groups]
 dev = [
     "cfn-lint>=1.61.0",
-    "psutil>=7.2.2",
     "pytest>=9.0.2",
     "pytest-asyncio>=1.3.0",
     "pytest-cov>=7.1.0",
@@ -86,7 +85,7 @@ addopts = [
     # the import mode controls how pytest imports modules. by default, the imports are done by adding the parent directory prepended to the sys.path. importlib means that sys.path is not touched and importlib module is used instead for imports. This (importlib) is the modern recommendation.
     "--import-mode=importlib",
     # tests that touch real AWS are opt-in: `pytest -m aws` (free-tier scale only) or
-    # `pytest -m bedrock` (costs money - ask first, see cleanup.md §0.2). The slow
+    # `pytest -m bedrock` (billed per call). The slow
     # model-quality tests are opt-in too: `pytest -m ollama`
     "-m", "not aws and not bedrock and not ollama",
 ]

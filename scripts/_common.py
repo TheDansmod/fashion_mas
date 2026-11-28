@@ -1,4 +1,4 @@
-"""Setup and confirmation shared by the scripts in this folder (cleanup.md §3.2).
+"""Setup and confirmation shared by the scripts in this folder.
 
 The scripts run by path (`uv run python scripts/<name>.py`), which puts this folder
 on `sys.path`, so they import this module as `_common`.

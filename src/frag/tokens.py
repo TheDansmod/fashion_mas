@@ -33,7 +33,7 @@ def append_usage_csv(
     newer columns come last so rows written before they existed still line up.
 
     Short appends from separate processes are effectively atomic on local filesystems,
-    so no locking is needed (cleanup.md §3.3).
+    so no locking is needed.
     """
     if not usage_metadata:
         return

@@ -2,7 +2,7 @@
 
 A reproducible record of how the `nova_fashion_gen` collection (10,000 items; 1024-d
 `images` and `texts` vectors, cosine) was built, over several runs; it doesn't need to
-be run again (cleanup.md decision 1.12). Each item gets an
+be run again (no new embeddings are planned). Each item gets an
 image embedding (the PNG on S3, read by Bedrock directly) and a text embedding of its
 description, both with `embeddingPurpose=GENERIC_INDEX`. The point id is the item's
 catalogue index, and the payload holds its metadata fields.
@@ -11,7 +11,7 @@ The SigLIP collection (`fashion_gen`) was built by a different script,
 `vector_db_writer.py`, deleted in commit 2583639; recover it with
 `git show 2583639^:<path>` (find the path with `git show --stat 2583639`).
 
-Every Bedrock call is billed (cleanup.md §0.2C): the script prints how many requests it
+Every Bedrock call is billed: the script prints how many requests it
 will make and asks for a typed YES first. Run with
 `uv run python scripts/build_vector_db.py --help`.
 """

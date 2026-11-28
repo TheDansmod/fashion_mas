@@ -2,7 +2,7 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: >-
   FRAG auth: the Cognito user pool, its hosted-UI domain, the Chainlit app client
   (authorization-code flow) and the client's managed-login branding. Sign-up is
-  admin-only (decision 1.13): users are created with infra/scripts/create_user.sh.
+  admin-only: users are created with infra/scripts/create_user.sh.
 
 # Changing UsernameAttributes/AliasAttributes, Schema, GenerateSecret or the domain
 # prefix replaces the pool, client or domain (and loses its users/settings), so the
@@ -49,7 +49,7 @@ Resources:
       UserPoolTier: ESSENTIALS
       DeletionProtection: ACTIVE
       AdminCreateUserConfig:
-        AllowAdminCreateUserOnly: true  # decision 1.13
+        AllowAdminCreateUserOnly: true  # no self sign-up
       UsernameConfiguration:
         CaseSensitive: false
       AutoVerifiedAttributes: [email]

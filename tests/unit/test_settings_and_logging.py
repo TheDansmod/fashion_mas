@@ -88,7 +88,7 @@ def test_invalid_or_mistyped_nested_values_fail_loudly(
 
 
 def test_modules_import_without_environment_or_side_effects(tmp_path):
-    """Every module imports in an empty environment with no .env (cleanup.md §0.5)."""
+    """Every module imports in an empty environment, with no side effects."""
     code = (
         "import frag.settings, frag.runtime, frag.llm, frag.checkpointer, frag.tokens, "
         "frag.prompts, frag.messages, frag.logging_setup, frag.agent.graph, "

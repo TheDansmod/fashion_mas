@@ -1,6 +1,6 @@
 """Application settings: one pure, idempotent Pydantic settings tree.
 
-Rules (see cleanup.md §3.1):
+Rules:
 - Constructing `Settings` only reads environment variables and `.env`; no other I/O and
   no side effects, so `Settings() == Settings()` for the same environment.
 - Nothing here is instantiated at import time. Use `get_settings()` (one cached instance
@@ -31,7 +31,7 @@ class _Section(BaseModel):
 # default provider; set LLM__PROVIDER=bedrock for Claude Haiku on AWS.
 _LLM_PROVIDER_DEFAULTS: dict[str, dict[str, Any]] = {
     "ollama": {
-        # tested end to end on an 8 GB GPU (cleanup.md, Phase 7 notes); pull it with
+        # tested end to end on an 8 GB GPU (see the README); pull it with
         # `ollama pull qwen3.5:4b`
         "model_id": "qwen3.5:4b",
         # a local server needs no client-side throttling

@@ -2,11 +2,11 @@
 
 These run the real agent: the configured Ollama model, the local SigLIP embedder,
 Qdrant, and catalogue images and metadata from S3. They are slow (minutes) and
-opt-in. To keep S3 use within the free-tier policy (cleanup.md §0.2), the metadata
+opt-in. To keep S3 use at free-tier scale, the metadata
 Parquet and every catalogue image are cached on disk under CACHE_DIR, and a run stops
 if it needs more than FRAG_MODEL_TEST_MAX_S3_GETS uncached downloads.
 
-Before running, start Ollama with the memory settings in cleanup.md (Phase 7 notes)
+Before running, start Ollama with the memory-capped command in the README
 and Qdrant on the SigLIP collection; VECTOR_DB__URL selects the Qdrant instance.
 """
 
@@ -87,7 +87,7 @@ class _CachedParquetClient:
 
 def _skip_unless_ready(settings: Settings) -> None:
     if settings.llm.provider != "ollama":
-        # a Bedrock run is billed and needs the user's approval (cleanup.md §0.2C)
+        # a Bedrock run is billed, so these tests never use it
         pytest.skip("model tests run only with LLM__PROVIDER=ollama")
     host = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
     try:

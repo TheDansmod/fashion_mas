@@ -1,5 +1,5 @@
 # .github/workflows/04-ci.yml
-# lint + offline tests on every PR into main and every push to main (cleanup.md Phase 16).
+# lint + offline tests on every PR into main and every push to main.
 # No AWS credentials, OIDC role or secrets: tests that touch AWS, Bedrock or Ollama are
 # deselected by default (pyproject.toml addopts) and the Postgres test skips without a server.
 name: CI

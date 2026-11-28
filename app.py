@@ -1,8 +1,8 @@
 """Chainlit entrypoint: `uv run chainlit run app.py`.
 
 Sign-in is through AWS Cognito, and chat history is kept in DynamoDB and S3 (always
-on, cleanup.md decision 1.5). Resources are opened once per process at app startup
-and closed at shutdown (cleanup.md §3.2).
+on, in every mode). Resources are opened once per process at app startup and closed
+at shutdown.
 """
 
 import shutil

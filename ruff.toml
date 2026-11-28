@@ -1,7 +1,7 @@
 line-length = 88
 
 [lint]
-# Start from every rule and add exceptions only with a justification (see cleanup.md §0.4).
+# Start from every rule; each exception below carries a one-line justification.
 select = ["ALL"]
 ignore = [
     "D203",   # conflicts with D211 (no blank line before class docstring); we keep D211

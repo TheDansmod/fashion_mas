@@ -1,6 +1,7 @@
-"""Query-text embedders; each must match the vectors of its collection (decision 1.4).
+"""Query-text embedders; each must match the vectors of its collection.
 
-Only the text path exists: the catalogue vectors were embedded once (decision 1.12).
+Only the text path exists: the catalogue vectors were embedded once, offline
+(`scripts/build_vector_db.py`).
 """
 
 import asyncio
